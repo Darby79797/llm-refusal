@@ -1,0 +1,1 @@
+A project to reproduce and extend Arditi and Obeso's mechanistic interpretability paper "Refusal in Language Models is Mediated by a Single Direction"
