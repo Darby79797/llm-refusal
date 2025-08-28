@@ -1,13 +1,23 @@
+# makes tqdm work with transformers
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# numpy and torch
 import numpy as np 
 import torch as t
 import torch.nn.functional as F
 
+# everything else!
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from sklearn.model_selection import train_test_split
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from tqdm import tqdm
+
 import logging
+
+import prompts
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -278,22 +288,39 @@ class DirectionEvaluator(ABC):
         pass
 
 class LogOddsMetric:
-    """A metric for calculating the log-odds of target tokens from model logits."""
+    """
+    A metric for calculating the log-odds of target tokens from model logits.
+    Uses a numerically stable method to avoid issues when probabilities are near 1.0.
+    """
     def __init__(self, tokenizer, target_tokens: List[str]):
         self.tokenizer = tokenizer
-        self.target_token_ids = [tokenizer.encode(token, add_special_tokens=False)[0] for token in target_tokens]
-    
+        # Store token IDs as a tensor for efficient processing
+        self.target_token_ids = t.tensor(
+            [tokenizer.encode(token, add_special_tokens=False)[0] for token in target_tokens],
+            dtype=t.long
+        )
+
     def compute_log_odds(self, logits: t.Tensor) -> float:
-        """Computes log(P(target) / (1 - P(target)))."""
-        target_logits = logits[self.target_token_ids]
-        
+        """
+        Computes log(P(target) / P(not_target)) in a numerically stable way.
+        P(not_target) is calculated directly from the logits of non-target tokens,
+        avoiding the `1 - P(target)` operation that can lead to NaNs.
+        """
+        # Ensure target_token_ids are on the same device as the logits
+        device_target_ids = self.target_token_ids.to(logits.device)
+
+        # Calculate the log probability of the target tokens
+        target_logits = logits[device_target_ids]
         target_log_sum_exp = t.logsumexp(target_logits, dim=0)
-        all_log_sum_exp = t.logsumexp(logits, dim=0)
-        
-        log_p_target = target_log_sum_exp - all_log_sum_exp
-        log_p_not_target = t.log(1 - t.exp(log_p_target) + 1e-8)
-        
-        return (log_p_target - log_p_not_target).item()
+
+        # Calculate the log probability of the non-target tokens directly
+        # We create a mask to exclude the target tokens from the full vocabulary
+        mask = t.ones_like(logits, dtype=t.bool)
+        mask[device_target_ids] = False
+        non_target_logits = logits[mask]
+        non_target_log_sum_exp = t.logsumexp(non_target_logits, dim=0)
+
+        return (target_log_sum_exp - non_target_log_sum_exp).item()
 
 class InterventionStrategy(ABC):
     """Abstract base class for defining how an intervention is applied."""
@@ -323,37 +350,111 @@ class LayerSpecificInterventionStrategy(InterventionStrategy):
             direction_vector, intervention_type="add", strength=1.0, layers=[direction_vector.layer]
         )
     
-class LogOddsEvaluator(DirectionEvaluator):
-    """Evaluates direction vectors by measuring log-odds, using the correct chat format."""
-    
-    def __init__(self, model, tokenizer, target_tokens: List[str], intervention_strategy: InterventionStrategy, prompt_formatter: ChatPromptFormatter):
+class Three_Score_Evaluator:
+    """
+    Calculates the three scores (bypass, induce, KL) for a given direction vector
+    based on the specified multi-objective criteria.
+    """
+    # the encapsulation here is weird. Plus the name is bad because I haven't thought of a good one.
+    def __init__(self, model, tokenizer, intervention_applier: ModelInterventionApplier, prompt_formatter: ChatPromptFormatter):
         self.model = model
         self.tokenizer = tokenizer
-        self.metric = LogOddsMetric(tokenizer, target_tokens)
-        self.intervention_strategy = intervention_strategy
+        self.intervention_applier = intervention_applier
         self.prompt_formatter = prompt_formatter
-        self.device = next(model.parameters()).device
+        # Target tokens that might indicate refusal or hedging (we just take all refusal phrases from the refusal paper, and use them for all models I try)
+        # note this is currently hardcoded, but we should probably eventually pass in these phrases so we can test other behaviours.
+        s = ["I", "I'm", "As", "I cannot", "I'm sorry", "As an AI"]
+        target_tokens = s + [' '+t for t in s]
+        # # Wtf is gemini doing here. Commenting out for now, probably delete.
+        # self.target_token_ids = []
+        # for token in target_tokens:
+        #     # Use the tokenizer's vocab to check for existence and get the ID.
+        #     # This is safer than tokenizer.encode().
+        #     if token in self.tokenizer.vocab:
+        #         self.target_token_ids.append(self.tokenizer.vocab[token])
         
-    def evaluate_direction(self, direction_vector: DirectionVector, val_data: PromptData) -> float:
-        """Evaluates the direction by applying an intervention and measuring the average log-odds score."""
-        scores = []
-        self.intervention_strategy.apply_intervention(direction_vector)
+        # # Ensure we have some valid tokens before creating the metric
+        # if not self.target_token_ids:
+        #     raise ValueError("None of the target tokens were found in the tokenizer's vocabulary.")
+        self.metric = LogOddsMetric(tokenizer, target_tokens)
+        self.device = model.device
+
+    def compute_all_scores(self, direction_vector: DirectionVector, val_data: PromptData) -> DirectionScores:
+        """The main method to compute and return all three scores."""
+        bypass_score = self._compute_bypass_score(direction_vector, val_data)
+        induce_score = self._compute_induce_score(direction_vector, val_data)
+        kl_score = self._compute_kl_score(direction_vector, val_data)
+        return DirectionScores(bypass=bypass_score, induce=induce_score, kl=kl_score)
+
+    def _get_logits(self, prompts: List[str], intervention: Optional[Tuple] = None) -> List[t.Tensor]:
+        """Helper to get last-token logits with an optional intervention."""
+        if intervention:
+            direction, int_type, layers = intervention
+            self.intervention_applier.apply_direction_intervention(direction, int_type, strength=1.0, layers=layers)
         
+        all_logits = []
         try:
-            for prompt, label in zip(val_data.prompts, val_data.labels):
-                # Get the single tensor of tokenized input_ids
-                input_ids = self.prompt_formatter.format(prompt).to(self.device)
-                
-                with t.no_grad():
+            with t.no_grad():
+                for prompt in prompts:
+                    input_ids = self.prompt_formatter.format(prompt).to(self.device)
                     outputs = self.model(input_ids=input_ids)
-                    
-                    last_token_logits = outputs.logits[0, -1, :]
-                    log_odds = self.metric.compute_log_odds(last_token_logits)
-                    scores.append(log_odds if label else -log_odds)
+                    all_logits.append(outputs.logits[0, -1, :].cpu())
         finally:
-            self.intervention_strategy.clear_intervention()
+            if intervention:
+                self.intervention_applier.clear_interventions()
+        
+        return all_logits
+
+    def _compute_bypass_score(self, direction: DirectionVector, val_data: PromptData) -> float:
+        """Avg metric on positive prompts when ablating `r` across all layers."""
+        positive_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if label]
+        if not positive_prompts: return 0.0
+
+        num_layers = len(self.intervention_applier.transformer_layers)
+        all_layers = list(range(num_layers))
+        
+        logits_with_ablation = self._get_logits(positive_prompts, intervention=(direction, "ablate", all_layers))
+        
+        scores = [self.metric.compute_log_odds(logits) for logits in logits_with_ablation]
+        # For a "bypass", a successful intervention on a positive prompt should *reduce*
+        # the refusal log-odds. So, we expect a negative score. We return the average.
+        return np.mean(scores)
+
+    def _compute_induce_score(self, direction: DirectionVector, val_data: PromptData) -> float:
+        """Avg metric on negative prompts when adding `r` at its source layer `l`."""
+        negative_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if not label]
+        if not negative_prompts: return 0.0
+
+        logits_with_addition = self._get_logits(negative_prompts, intervention=(direction, "add", [direction.layer]))
+        
+        scores = [self.metric.compute_log_odds(logits) for logits in logits_with_addition]
+        # For an "induce", a successful intervention on a negative prompt should *increase*
+        # the refusal log-odds. A higher score is better.
+        return np.mean(scores)
+
+    def _compute_kl_score(self, direction: DirectionVector, val_data: PromptData) -> float:
+        """KL divergence on negative prompts between baseline and global ablation."""
+        negative_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if not label]
+        if not negative_prompts: return 0.0
+
+        num_layers = len(self.intervention_applier.transformer_layers)
+        all_layers = list(range(num_layers))
+
+        # Get logits for both cases
+        baseline_logits = self._get_logits(negative_prompts)
+        ablated_logits = self._get_logits(negative_prompts, intervention=(direction, "ablate", all_layers))
+        
+        kl_divergences = []
+        for baseline_logit, ablated_logit in zip(baseline_logits, ablated_logits):
+            # Convert logits to log-probabilities and probabilities for KL divergence
+            baseline_probs = F.softmax(baseline_logit, dim=-1)
+            ablated_log_probs = F.log_softmax(ablated_logit, dim=-1)
             
-        return np.mean(scores) if scores else 0.0
+            # F.kl_div expects (input, target) -> (log_probs, probs)
+            kl_div = F.kl_div(ablated_log_probs, baseline_probs, reduction='sum', log_target=False)
+            kl_divergences.append(kl_div.item())
+            
+        return np.mean(kl_divergences)
 
 class DirectionTestFramework:
     """
@@ -387,120 +488,122 @@ class DirectionTestFramework:
         
         logger.info(f"Model loaded successfully on device: {self.model.device}")
 
-    def find_optimal_direction(
+    def select_direction_vector(
         self,
         train_data: PromptData,
         val_data: PromptData,
-        evaluator: DirectionEvaluator,
         max_positions: int = 3,
-        exclude_late_layers: bool = True
     ) -> Optional[DirectionVector]:
         """
-        Finds the best direction vector by computing differences and evaluating them.
-        (This method remains the same as your corrected version)
+        Selects a direction vector based on strict multi-objective criteria,
+        and provides a detailed debug report on the best individual candidates.
         """
         logger.info("Computing difference-in-means vectors...")
         difference_vectors = self.direction_finder.compute_difference_vectors(train_data, max_positions)
         
-        best_direction = None
-        best_score = float('-inf')
-        
+        evaluator = Three_Score_Evaluator(
+            self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter
+        )
+
         num_layers = len(self.intervention_applier.transformer_layers)
-        layer_cutoff = num_layers - 2 if exclude_late_layers else num_layers
+        layer_cutoff = int(0.8 * num_layers)
         
-        logger.info(f"Evaluating {len(difference_vectors)} direction candidates...")
+        logger.info(f"Evaluating direction candidates with multi-objective criteria...")
         
-        for (layer, pos_idx), vec in difference_vectors.items():
+        # --- NEW: Trackers for Debugging ---
+        best_overall_info = {'score': float('inf'), 'dir': None, 'scores': None}
+        best_bypass_info = {'score': float('inf'), 'dir': None, 'scores': None}
+        best_induce_info = {'score': float('-inf'), 'dir': None, 'scores': None}
+        best_kl_info = {'score': float('inf'), 'dir': None, 'scores': None}
+        
+        # --- Tracker for the original, strict selection ---
+        selected_direction = None
+        min_bypass_for_strict_selection = float('inf')
+
+        candidate_iterator = tqdm(difference_vectors.items(), desc="Evaluating candidates")
+        for (layer, pos_idx), vec in candidate_iterator:
             if layer >= layer_cutoff:
                 continue
-                
+            
             current_direction = DirectionVector(vector=vec, layer=layer, position_index=pos_idx, score=0)
-            score = evaluator.evaluate_direction(current_direction, val_data)
+            scores = evaluator.compute_all_scores(current_direction, val_data)
             
-            if score > best_score:
-                best_score = score
-                current_direction.score = score
-                best_direction = current_direction
+            # --- 1. Update Debugging Trackers ---
+            lenient_score = (10 * scores.bypass) + scores.kl - scores.induce
+            if lenient_score < best_overall_info['score']:
+                best_overall_info.update({'score': lenient_score, 'dir': current_direction, 'scores': scores})
+            
+            if scores.bypass < best_bypass_info['score']:
+                best_bypass_info.update({'score': scores.bypass, 'dir': current_direction, 'scores': scores})
+            
+            if scores.induce > best_induce_info['score']:
+                best_induce_info.update({'score': scores.induce, 'dir': current_direction, 'scores': scores})
+
+            if scores.kl < best_kl_info['score']:
+                best_kl_info.update({'score': scores.kl, 'dir': current_direction, 'scores': scores})
+
+            # --- 2. Apply Original Strict Selection Criteria ---
+            is_sufficient = scores.induce > 0
+            is_safe = scores.kl < 0.1
+            if is_sufficient and is_safe:
+                if scores.bypass < min_bypass_for_strict_selection:
+                    min_bypass_for_strict_selection = scores.bypass
+                    current_direction.score = min_bypass_for_strict_selection
+                    selected_direction = current_direction
+
         
-        if best_direction:
-            logger.info(f"Best direction found: Layer {best_direction.layer}, Position {best_direction.position_index}, Score: {best_direction.score:.4f}")
+        def print_debug_info(name, info):
+            if info['dir']:
+                s = info['scores']
+                d = info['dir']
+                logger.info(
+                    f"  Best {name:<7}: Layer {d.layer:2d}, Pos {d.position_index:2d} | "
+                    f"Bypass: {s.bypass:7.4f}, Induce: {s.induce:7.4f}, KL: {s.kl:7.4f}"
+                )
+            else:
+                logger.info(f"  No candidate found for Best {name}")
+
+        # --- Original Final Report ---
+        if selected_direction:
+            logger.info(f"\n--- Strictly Selected Direction (Met All Criteria) ---")
+            logger.info(f"Layer: {selected_direction.layer}, Position: {selected_direction.position_index}")
+            logger.info(f"Final Bypass Score (minimized): {selected_direction.score:.4f}")
         else:
-            logger.warning("No optimal direction was found.")
-            
-        return best_direction
-    
-    # def test_interventions(
-    #     self,
-    #     direction: DirectionVector,
-    #     test_prompts: List[str],
-    #     intervention_types: List[str] = ["add", "subtract", "ablate"],
-    #     strengths: List[float] = [1.0],
-    #     max_examples_to_print: int = 5,
-    # ) -> Dict:
-    #     """
-    #     Tests interventions, now with a robust, manual creation of the attention mask
-    #     to prevent crashes on Apple Silicon (MPS).
-    #     """
-    #     results = {}
-    #     device = self.model.device
+            logger.warning("\nNo direction vector was found that met all strict selection criteria. Printing additional information")
+            # --- NEW: CALCULATE AND LOG BASELINE SCORES ---
+            logger.info("Calculating baseline scores on the validation set (no intervention)...")
+            positive_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if label]
+            negative_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if not label]
 
-    #     generation_config = {
-    #         "max_new_tokens": 512,
-    #         "do_sample": False,
-    #         "pad_token_id": self.tokenizer.eos_token_id
-    #     }
-        
-    #     logger.info(f"Using greedy decoding with max_new_tokens={generation_config['max_new_tokens']}.")
-
-    #     # --- BASELINE RUN (UNCHANGED MODEL) ---
-    #     key = "baseline_no_intervention"
-    #     results[key] = []
-    #     logger.info(f"Testing with baseline (no intervention)...")
-    #     for prompt in test_prompts[:max_examples_to_print]:
-    #         input_ids = self.prompt_formatter.format(prompt).to(device)
-    #         attention_mask = t.ones_like(input_ids)  # Manually create the attention mask. It's a tensor of 1s with the same shape as input_ids.
+            # Calculate baseline for 'bypass' metric (on positive prompts)
+            baseline_bypass_score = 0.0
+            if positive_prompts:
+                baseline_logits_pos = evaluator._get_logits(positive_prompts)
+                baseline_bypass_score = np.mean([evaluator.metric.compute_log_odds(logits) for logits in baseline_logits_pos])
             
-    #         with t.no_grad():
-    #             # Pass both tensors explicitly as keyword arguments.
-    #             outputs = self.model.generate(
-    #                 input_ids=input_ids,
-    #                 attention_mask=attention_mask,
-    #                 **generation_config
-    #             )
-            
-    #         input_length = input_ids.shape[1]
-    #         response_ids = outputs[0][input_length:]
-    #         response_text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
-    #         results[key].append({'prompt': prompt, 'generated_text': response_text})
+            # Calculate baseline for 'induce' metric (on negative prompts)
+            baseline_induce_score = 0.0
+            if negative_prompts:
+                baseline_logits_neg = evaluator._get_logits(negative_prompts)
+                baseline_induce_score = np.mean([evaluator.metric.compute_log_odds(logits) for logits in baseline_logits_neg])
 
-    #     # --- INTERVENTION RUNS ---
-    #     for int_type in intervention_types:
-    #         for strength in strengths:
-    #             key = f"{int_type}_strength_{strength}"
-    #             logger.info(f"Testing intervention: {key}")
-    #             results[key] = []
-                
-    #             self.intervention_applier.apply_direction_intervention(direction, int_type, strength)
-                
-    #             for prompt in test_prompts[:max_examples_to_print]:
-    #                 input_ids = self.prompt_formatter.format(prompt).to(device)
-    #                 attention_mask = t.ones_like(input_ids)
-                    
-    #                 with t.no_grad():
-    #                     outputs = self.model.generate(
-    #                         input_ids=input_ids,
-    #                         attention_mask=attention_mask,
-    #                         **generation_config
-    #                     )
-                    
-    #                 input_length = input_ids.shape[1]
-    #                 response_ids = outputs[0][input_length:]
-    #                 response_text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
-    #                 results[key].append({'prompt': prompt, 'generated_text': response_text})
-                
-    #             self.intervention_applier.clear_interventions()
-        
-    #     return results
+            logger.info(
+                f"Baseline Scores on val_data | "
+                f"Bypass (logodds on pos prompts): {baseline_bypass_score:7.4f} | "
+                f"Induce (logodds on neg prompts): {baseline_induce_score:7.4f}"
+            )
+            # By definition, baseline KL divergence is 0.0.
+            print_debug_info("Overall", best_overall_info)
+            print_debug_info("Bypass", best_bypass_info)
+            print_debug_info("Induce", best_induce_info)
+            print_debug_info("KL", best_kl_info)
+
+        # print_debug_info("Overall", best_overall_info)
+        # print_debug_info("Bypass", best_bypass_info)
+        # print_debug_info("Induce", best_induce_info)
+        # print_debug_info("KL", best_kl_info)
+            
+        return selected_direction
     
     def test_interventions(
         self,
@@ -613,69 +716,121 @@ def create_example_data() -> PromptData:
     
     return PromptData(prompts, labels)
      
+# def main():
+#     """
+#     Main execution function to run the direction finding and testing framework
+#     on a capable, small-footprint chat model.
+#     """
+#     # --- 1. INITIALIZE THE FRAMEWORK WITH THE CHOSEN CHAT MODEL ---
+#     # Qwen/Qwen1.5-1.8B-Chat
+#     # The first time you run this, it will download the model (approx. 3.6 GB).
+#     logger.info("Initializing the Direction Test Framework.")
+#     framework = DirectionTestFramework(model_name="Qwen/Qwen1.5-1.8B-Chat")
+    
+#     # --- 2. CREATE AND SPLIT THE DATASET ---
+#     logger.info("Creating and splitting the example dataset.")
+#     data = create_example_data()
+#     train_data, val_data = data.train_val_split(test_size=0.2)
+    
+#     # --- 3. SET UP EVALUATION STRATEGIES ---
+#     logger.info("Instantiating intervention strategies and evaluators.")
+#     # The InterventionApplier is already created inside the framework
+#     intervention_applier = framework.intervention_applier
+    
+#     # global_strategy = GlobalInterventionStrategy(intervention_applier) #currently unused while testing
+#     layer_specific_strategy = LayerSpecificInterventionStrategy(intervention_applier)
+    
+#     # Target tokens that might indicate refusal or hedging (we just take all refusal phrases from the refusal paper, and use them for all models I try)
+#     target_tokens = ["I", "I'm", "As", "I cannot", "I'm sorry", "As an AI"]
+    
+#     # currently unused for testing
+#     # global_evaluator = LogOddsEvaluator(
+#     #     framework.model, framework.tokenizer, target_tokens, global_strategy, framework.prompt_formatter
+#     # )
+    
+#     layer_specific_evaluator = LogOddsEvaluator(
+#         framework.model, framework.tokenizer, target_tokens, layer_specific_strategy, framework.prompt_formatter
+#     )
+    
+#     # --- 4. FIND THE OPTIMAL DIRECTION VECTOR ---
+#     # We will focus on the layer-specific strategy, as it's often more informative.
+#     logger.info("Finding optimal direction with LAYER-SPECIFIC intervention strategy...")
+#     layer_specific_direction = framework.find_optimal_direction(
+#         train_data, val_data, layer_specific_evaluator
+#     )
+    
+#     # --- 5. TEST THE DIRECTION WITH INTERVENTIONS (IF FOUND) ---
+#     if layer_specific_direction:
+#         logger.info(
+#             f"\n--- Best Direction Found: "
+#             f"Layer {layer_specific_direction.layer}, "
+#             f"Score: {layer_specific_direction.score:.4f} ---"
+#         )
+    
+#         logger.info("\n--- Testing interventions on the validation set prompts ---")
+        
+#         # We use val_data.prompts to see the effect on the held-out data.
+#         # This provides a clear comparison against the baseline.
+#         results = framework.test_interventions(
+#             direction=layer_specific_direction, 
+#             test_prompts=val_data.prompts, 
+#             strengths=[1.0], # Using a slightly higher strength can make effects more visible
+#             max_examples_to_print=5
+#         )
+        
+#         # --- 6. PRINT THE RESULTS CLEARLY ---
+#         for key, value in results.items():
+#             print(f"\n\n--- Results for '{key}' ---")
+#             for item in value:
+#                 print(f"  Prompt:    '{item['prompt']}'")
+#                 print(f"  Generated: '{item['generated_text']}'\n")
+
+#     else:
+#         logger.warning("No optimal direction was found. Skipping intervention tests.")
+
+#     logger.info("\nFramework execution finished.")
+
+
 def main():
     """
     Main execution function to run the direction finding and testing framework
     on a capable, small-footprint chat model.
     """
-    # --- 1. INITIALIZE THE FRAMEWORK WITH THE CHOSEN CHAT MODEL ---
-    # Qwen/Qwen1.5-1.8B-Chat
-    # The first time you run this, it will download the model (approx. 3.6 GB).
     logger.info("Initializing the Direction Test Framework.")
     framework = DirectionTestFramework(model_name="Qwen/Qwen1.5-1.8B-Chat")
     
-    # --- 2. CREATE AND SPLIT THE DATASET ---
-    logger.info("Creating and splitting the example dataset.")
-    data = create_example_data()
-    train_data, val_data = data.train_val_split(test_size=0.2)
+    small_scale_debug = False
+    if small_scale_debug:
+        logger.info("Creating and splitting the example dataset.")
+        data = create_example_data()
+        train_data, val_data = data.train_val_split(test_size=0.25)
+    else:
+        logger.info("Loading and splitting refusal prompts from prompts.py")
+        positive_prompts, negative_prompts = prompts.create_refusal_data()
+        all_prompts = positive_prompts + negative_prompts
+        labels = [True] * len(positive_prompts) + [False] * len(negative_prompts)
+        data = PromptData(all_prompts, labels)
+        train_data, val_data = data.train_val_split(test_size=0.25, random_state=39)
     
-    # --- 3. SET UP EVALUATION STRATEGIES ---
-    logger.info("Instantiating intervention strategies and evaluators.")
-    # The InterventionApplier is already created inside the framework
-    intervention_applier = framework.intervention_applier
+    # --- The old evaluators are no longer needed here ---
     
-    # global_strategy = GlobalInterventionStrategy(intervention_applier) #currently unused while testing
-    layer_specific_strategy = LayerSpecificInterventionStrategy(intervention_applier)
-    
-    # Target tokens that might indicate refusal or hedging (we just take all refusal phrases from the refusal paper, and use them for all models I try)
-    target_tokens = ["I", "I'm", "As", "I cannot", "I'm sorry", "As an AI"]
-    
-    # currently unused for testing
-    # global_evaluator = LogOddsEvaluator(
-    #     framework.model, framework.tokenizer, target_tokens, global_strategy, framework.prompt_formatter
-    # )
-    
-    layer_specific_evaluator = LogOddsEvaluator(
-        framework.model, framework.tokenizer, target_tokens, layer_specific_strategy, framework.prompt_formatter
-    )
-    
-    # --- 4. FIND THE OPTIMAL DIRECTION VECTOR ---
-    # We will focus on the layer-specific strategy, as it's often more informative.
-    logger.info("Finding optimal direction with LAYER-SPECIFIC intervention strategy...")
-    layer_specific_direction = framework.find_optimal_direction(
-        train_data, val_data, layer_specific_evaluator
+    # --- 4. SELECT THE DIRECTION VECTOR USING THE NEW CRITERIA ---
+    logger.info("Selecting a direction vector with the new multi-objective criteria...")
+    selected_direction = framework.select_direction_vector(
+        train_data, val_data
     )
     
     # --- 5. TEST THE DIRECTION WITH INTERVENTIONS (IF FOUND) ---
-    if layer_specific_direction:
-        logger.info(
-            f"\n--- Best Direction Found: "
-            f"Layer {layer_specific_direction.layer}, "
-            f"Score: {layer_specific_direction.score:.4f} ---"
-        )
-    
-        logger.info("\n--- Testing interventions on the validation set prompts ---")
+    if selected_direction:
+        logger.info("\n--- Testing interventions on the validation set prompts using the selected direction ---")
         
-        # We use val_data.prompts to see the effect on the held-out data.
-        # This provides a clear comparison against the baseline.
         results = framework.test_interventions(
-            direction=layer_specific_direction, 
+            direction=selected_direction, 
             test_prompts=val_data.prompts, 
-            strengths=[1.0], # Using a slightly higher strength can make effects more visible
+            strengths=[1.0], # we can subtract either by adding a function to the framework, or by setting strength to be negative. Consider which is better abstraction? But unimportant?
             max_examples_to_print=5
         )
         
-        # --- 6. PRINT THE RESULTS CLEARLY ---
         for key, value in results.items():
             print(f"\n\n--- Results for '{key}' ---")
             for item in value:
@@ -683,7 +838,7 @@ def main():
                 print(f"  Generated: '{item['generated_text']}'\n")
 
     else:
-        logger.warning("No optimal direction was found. Skipping intervention tests.")
+        logger.warning("No direction was selected. Skipping intervention tests.")
 
     logger.info("\nFramework execution finished.")
 
