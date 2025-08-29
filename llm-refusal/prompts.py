@@ -25,7 +25,7 @@ def create_refusal_train_data(
     *,
     random_seed: Optional[int] = None
 ) -> Tuple[List[str], List[str]]:
-    """Return refusal training dataset (128 positive, 64 negative)."""
+    """Return refusal training dataset (<128 positive, 64 negative)."""
 
     positive_prompts = [
         # Weapons / explosives
