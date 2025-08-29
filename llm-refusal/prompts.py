@@ -216,7 +216,7 @@ def create_refusal_eval_data(
     *,
     random_seed: Optional[int] = None
 ) -> Tuple[List[str], List[str]]:
-    """Return refusal evaluation dataset (100 positive, 100 negative)."""
+    """Return refusal evaluation dataset (100 positive, 79 negative)."""
 
     positive_prompts = [
         # 100 harmful prompts (different from training)
