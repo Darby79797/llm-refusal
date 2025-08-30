@@ -17,6 +17,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.models.gemma.modeling_gemma import GemmaRMSNorm, GemmaAttention
 from tqdm import tqdm
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
 import lm_eval
 from lm_eval.models.huggingface import HFLM
 import warnings
@@ -462,13 +466,21 @@ class DirectionTestFramework:
     """
     def __init__(self, model_name: str, torch_dtype: Union[str, t.dtype] = "auto", force_cpu: bool = False):
         self.model_name = model_name
+
+        # Load the model onto the CPU first as a staging area, without any device mapping.
+        logger.info(f"Loading chat model '{model_name}' to CPU staging area...")
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch_dtype,
+        )
         
         if force_cpu:
             self.device = t.device("cpu")
             logger.warning("CPU has been forced for model execution.")
         elif t.cuda.is_available():
-            self.device = None # this means device None confusingly means we're in CUDA, we're just 
-            logger.info(f"CUDA device(s) found. Using device_map='auto' for multi-GPU support.")
+            # FUCK CUDA
+            self.device = t.device("cuda:0")
+            logger.info(f"CUDA found. Forcing model to a single GPU ({self.device}) for maximum stability.")
         elif t.backends.mps.is_available():
             self.device = t.device("mps")
             logger.info("MPS device found. Using MPS for model.")
@@ -476,14 +488,13 @@ class DirectionTestFramework:
             self.device = t.device("cuda" if t.cuda.is_available() else "cpu")
             logger.info(f"Using device: {self.device}")
 
-        device_map_config = "auto" if t.cuda.is_available() and not force_cpu else None
-
-        logger.info(f"Loading chat model: {model_name} with dtype: {torch_dtype}")
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch_dtype,
-            device_map=device_map_config
-        )    
+        # device_map_config = "auto" if t.cuda.is_available() and not force_cpu else None
+        # logger.info(f"Loading chat model: {model_name} with dtype: {torch_dtype}")
+        # self.model = AutoModelForCausalLM.from_pretrained(
+        #     model_name,
+        #     torch_dtype=torch_dtype,
+        #     device_map=device_map_config
+        # )    
         if self.device is not None:    
             self.model.to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -556,6 +567,7 @@ class DirectionTestFramework:
         
         logger.info(f"Evaluating direction candidates with multi-objective criteria...")
         
+        all_scores_data = [] # To store all data, for plotting
         best_overall_info = {'score': float('inf'), 'dir': None, 'scores': None}
         best_bypass_info = {'score': float('inf'), 'dir': None, 'scores': None}
         best_induce_info = {'score': float('-inf'), 'dir': None, 'scores': None}
@@ -571,6 +583,14 @@ class DirectionTestFramework:
             
             current_direction = DirectionVector(vector=vec, layer=layer, position_index=pos_idx, score=0)
             scores = evaluator.compute_all_scores(current_direction, val_data, baseline_neg_logits=baseline_neg_logits)
+            
+            all_scores_data.append({
+                'layer': layer,
+                'position': pos_idx,
+                'bypass_score': scores.bypass,
+                'induce_score': scores.induce,
+                'kl_score': scores.kl
+            })
             
             lenient_score = (10 * scores.bypass) + scores.kl - scores.induce
             if lenient_score < best_overall_info['score']:
@@ -590,6 +610,21 @@ class DirectionTestFramework:
                     current_direction.score = min_bypass_for_strict_selection
                     selected_direction = current_direction
         
+        # Why not just plot every time we run the function, it's cheap.
+        if all_scores_data:
+            results_df = pd.DataFrame(all_scores_data)
+            model_short_name = self.model_name.split('/')[-1]
+            
+            # Save the raw data to a CSV file
+            csv_path = os.path.join("results", f"{model_short_name}-search-scores.csv")
+            results_df.to_csv(csv_path, index=False)
+            logger.info(f"Saved all search scores to {csv_path}")
+
+            # Generate and save the plots
+            self.plot_and_save_search_results(results_df, model_short_name)
+        else:
+            logger.warning("No data was collected during search; skipping data saving and plotting.")
+            
         def print_debug_info(name, info):
             if info['dir']:
                 s = info['scores']
@@ -611,6 +646,63 @@ class DirectionTestFramework:
             print_debug_info("KL", best_kl_info)
             
         return selected_direction
+    
+    def plot_and_save_search_results(self, results_df: pd.DataFrame, model_short_name: str):
+        """
+        Plots and saves the search results for induce and bypass scores against layer,
+        with different lines for each token position.
+        """
+        plot_dir = "plots"
+        os.makedirs(plot_dir, exist_ok=True)
+        
+        sns.set_theme(style="whitegrid")
+        
+        # --- INDUCE SCORE PLOT ---
+        plt.figure(figsize=(14, 8))
+        try:
+            pivot_induce = results_df.pivot(index='layer', columns='position', values='induce_score')
+            
+            # Plot each position as a separate line. Later we should make the labels better.
+            for pos in sorted(pivot_induce.columns):
+                plt.plot(pivot_induce.index, pivot_induce[pos], marker='o', linestyle='-', label=f'Position {pos}')
+                
+            plt.title(f'Induce Score vs. Layer for {model_short_name}', fontsize=16)
+            plt.xlabel('Layer Index', fontsize=12)
+            plt.ylabel('Induce Score (Higher is Better)', fontsize=12)
+            plt.legend(title='Token Position')
+            plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+            
+            # --- MODIFIED: Save to the 'plots' directory ---
+            induce_plot_path = os.path.join(plot_dir, f"{model_short_name}-induce_score_vs_layer.png")
+            plt.savefig(induce_plot_path)
+            logger.info(f"Saved induce score plot to {induce_plot_path}")
+            plt.close()
+
+        except Exception as e:
+            logger.error(f"Failed to generate or save induce score plot: {e}")
+
+        # --- BYPASS SCORE PLOT ---
+        plt.figure(figsize=(14, 8))
+        try:
+            pivot_bypass = results_df.pivot(index='layer', columns='position', values='bypass_score')
+            
+            for pos in sorted(pivot_bypass.columns):
+                plt.plot(pivot_bypass.index, pivot_bypass[pos], marker='o', linestyle='-', label=f'Position {pos}')
+            
+            plt.title(f'Bypass Score vs. Layer for {model_short_name}', fontsize=16)
+            plt.xlabel('Layer Index', fontsize=12)
+            plt.ylabel('Bypass Score (Lower is Better)', fontsize=12)
+            plt.legend(title='Token Position')
+            plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+            
+            # --- MODIFIED: Save to the 'plots' directory ---
+            bypass_plot_path = os.path.join(plot_dir, f"{model_short_name}-bypass_score_vs_layer.png")
+            plt.savefig(bypass_plot_path)
+            logger.info(f"Saved bypass score plot to {bypass_plot_path}")
+            plt.close()
+            
+        except Exception as e:
+            logger.error(f"Failed to generate or save bypass score plot: {e}")
 
     def test_interventions(
         self,
@@ -799,6 +891,8 @@ class BigEvaluator:
         if self.model.device.type != 'meta':
             device_str = str(self.model.device)
 
+        # HFLM may not like the hooked models and their interaction with parallelism.
+        # options: (i) clone, (ii) single-GPU
         lm_eval_model = HFLM(
             pretrained=self.model,
             tokenizer=self.tokenizer,
