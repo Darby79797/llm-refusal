@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from sklearn.model_selection import train_test_split
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.models.gemma.modeling_gemma import GemmaRMSNorm, GemmaAttention
 from tqdm import tqdm
 
 import matplotlib.pyplot as plt
@@ -818,14 +817,15 @@ class DirectionTestFramework:
             baseline_log_probs = F.log_softmax(baseline_logits, dim=-1)
             top_log_probs_base, top_indices_base = t.topk(baseline_log_probs, k=num_tokens_to_print)
             
-            #Replace '\n' with '\\n' for clean printing, here and in a few places below
+            #Replace '\n' with '\\n' for clean printing, here and in a few places below. Note we can't do this inside an f-string.
             baseline_tokens = [tokenizer.decode(idx).replace('\n', '\\n') for idx in top_indices_base]
             baseline_output = ", ".join([f"'{token}' ({prob:.2f})" for token, prob in zip(baseline_tokens, top_log_probs_base)])
             print(f"  [Baseline] Top-{num_tokens_to_print}: {baseline_output}")
             
             prompt_formatted = self.prompt_formatter.format_batch([prompt])
             baseline_generation = self._manual_generate_with_kv_cache(prompt_formatted['input_ids'].to(self.device), num_tokens_to_generate)
-            print(f"  [Baseline] Generation: '{baseline_generation.replace('\n', '\\n')}'")
+            baseline_generation = baseline_generation.replace("\n","\\n")
+            print(f"  [Baseline] Generation: '{baseline_generation}'")
 
             # --- INTERVENED ANALYSIS ---
             intervened_logits = intervened_logits_batch[i]
@@ -839,7 +839,8 @@ class DirectionTestFramework:
             self.intervention_applier.apply_direction_intervention(direction, intervention_type, strength=1.0, layers=layers_to_intervene)
             intervened_generation = self._manual_generate_with_kv_cache(prompt_formatted['input_ids'].to(self.device), num_tokens_to_generate)
             self.intervention_applier.clear_interventions()
-            print(f"  [Intervened] Generation: '{intervened_generation.replace('\n', '\\n')}'")
+            intervened_generation = intervened_generation.replace("\n","\\n")
+            print(f"  [Intervened] Generation: '{intervened_generation}'")
 
 class BigEvaluator:
     """
@@ -1145,32 +1146,6 @@ def main(
 
     logger.info("\nFramework execution finished.")
 
-# if __name__ == "__main__":
-#     MODEL_TO_RUN = "Qwen/Qwen1.5-1.8B-Chat"
-#     PRECISION = 'auto' # Keep this on auto (bfloat16 on mps) for speed
-
-#     # other model names:
-#     # #meta-llama/Llama-3.1-8B-Instruct
-    
-#     # CPU fallback exists, but is unbelievably slow. avoid at all costs.
-#     FORCE_CPU = False
-
-#     # modes: 'search' for finding the layer and token position we select to find our refusal direction r
-#     # modes: 'evaluate' for running evals given a refusal direction r, as well as the layer and token position
-#     # modes: 'eyeball' for staring at prompts, - helpful for generating hypotheses and debugging code.
-#     MODE = 'evaluate'
-
-
-#     LAYER, POS = 15, -1
-
-#     main(
-#         model_name=MODEL_TO_RUN,
-#         torch_dtype=PRECISION,
-#         force_cpu=FORCE_CPU,
-#         mode=MODE,
-#         layer=LAYER,
-#         pos=POS
-#     )
 
 if __name__ == "__main__":
     # config now in one dict
