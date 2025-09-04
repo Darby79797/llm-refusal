@@ -1,5 +1,7 @@
 /.venv
-*/__pycache__
+/.vscode
+**/__pycache__/**
+/.pytest_cache
 /results
 /plots
 poetry.lock

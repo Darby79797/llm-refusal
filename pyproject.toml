@@ -17,7 +17,9 @@ dependencies = [
     "lm-eval[gsm8k,mmlu,truthfulqa] (>=0.4.9.1,<0.5.0.0)",
     "accelerate (>=1.10.1,<2.0.0)",
     "matplotlib (>=3.10.6,<4.0.0)",
-    "seaborn (>=0.13.2,<0.14.0)"
+    "seaborn (>=0.13.2,<0.14.0)",
+    "pytest (>=8.4.1,<9.0.0)",
+    "pytest-mock (>=3.14.1,<4.0.0)"
 ]
 [tool.poetry]
 package-mode = false
@@ -25,3 +27,8 @@ package-mode = false
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+markers = [
+    "smoke: marks tests as smoke tests (for quick environment validation on cloud gpu)",
+]
