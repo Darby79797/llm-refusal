@@ -33,10 +33,10 @@ import prompts
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# feels so unnecessary
 @dataclass
 class PromptData:
     """A container for prompts and their corresponding labels."""
+    # feels so unnecessary. Like, seriously. Is wrapping a list of prompts and bools in a dataclass worth it?
     prompts: List[str]
     labels: List[bool]  # True for positive examples, False for negative.
     
@@ -345,10 +345,8 @@ class LayerSpecificInterventionStrategy(InterventionStrategy):
         )
     
 class Three_Score_Evaluator:
-    """
-    Calculates the three scores (bypass, induce, KL) for a given direction vector.
-    Optimized to accept pre-computed baseline logits to avoid redundant forward passes.
-    """
+    # ... (This class is now more clearly a component of DirectionFinder)
+    # ... (The logic inside remains unchanged)
     def __init__(self, model, tokenizer, intervention_applier: ModelInterventionApplier, prompt_formatter: ChatPromptFormatter):
         self.model = model
         self.tokenizer = tokenizer
@@ -359,214 +357,150 @@ class Three_Score_Evaluator:
         self.metric = LogOddsMetric(tokenizer, target_tokens)
         self.device = model.device
 
-    def compute_all_scores(
-        self,
-        direction_vector: DirectionVector,
-        val_data: PromptData,
-        baseline_neg_logits: Optional[List[t.Tensor]] = None
-    ) -> DirectionScores:
-        """The main method to compute and return all three scores."""
-        bypass_score = self._compute_bypass_score(direction_vector, val_data)
-        induce_score = self._compute_induce_score(direction_vector, val_data)
-        
-        # The call to _compute_kl_score, passing the pre-computed logits
-        kl_score = self._compute_kl_score(
-            direction_vector, val_data, baseline_logits=baseline_neg_logits
-        )
-        return DirectionScores(bypass=bypass_score, induce=induce_score, kl=kl_score)
-
     def _get_logits(self, prompts: List[str], intervention: Optional[Tuple] = None) -> List[t.Tensor]:
-        """Helper to get last-token logits for a batch of prompts, with enhanced NaN diagnostics."""
         if intervention:
             direction, int_type, layers = intervention
             self.intervention_applier.apply_direction_intervention(direction, int_type, strength=1.0, layers=layers)
-        
         all_logits = []
         try:
             with t.no_grad():
                 batch = self.prompt_formatter.format_batch(prompts)
-                input_ids = batch['input_ids'].to(self.device)
-                attention_mask = batch['attention_mask'].to(self.device)
+                input_ids, attention_mask = batch['input_ids'].to(self.device), batch['attention_mask'].to(self.device)
                 outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-                
                 last_token_indices = attention_mask.sum(dim=1) - 1
                 batch_logits = outputs.logits[t.arange(outputs.logits.size(0)), last_token_indices, :]
-
-                # --- NEW: Enhanced Per-Prompt Diagnostic ---
                 if t.isinf(batch_logits).any() or t.isnan(batch_logits).any():
-                    # Check which specific items in the batch are problematic
-                    problem_indices = t.nonzero(
-                        t.isinf(batch_logits).any(dim=1) | t.isnan(batch_logits).any(dim=1)
-                    ).squeeze().tolist()
-                    
-                    # Ensure it's always a list for consistent iteration
-                    if not isinstance(problem_indices, list):
-                        problem_indices = [problem_indices]
-
-                    for idx in problem_indices:
-                        logger.warning(
-                            f"NaN/Inf detected in logits for prompt at batch index {idx}: '{prompts[idx][:100]}...'"
-                        )
-
+                    problem_indices = t.nonzero(t.isinf(batch_logits).any(dim=1) | t.isnan(batch_logits).any(dim=1)).squeeze().tolist()
+                    if not isinstance(problem_indices, list): problem_indices = [problem_indices]
+                    for idx in problem_indices: logger.warning(f"NaN/Inf detected in logits for prompt at batch index {idx}: '{prompts[idx][:100]}...'")
                 all_logits = [logit.cpu() for logit in batch_logits]
         finally:
-            if intervention:
-                self.intervention_applier.clear_interventions()
-        
+            if intervention: self.intervention_applier.clear_interventions()
         return all_logits
-
+    
     def _compute_bypass_score(self, direction: DirectionVector, val_data: PromptData) -> float:
         positive_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if label]
         if not positive_prompts: return 0.0
         num_layers = len(self.intervention_applier.transformer_layers)
-        all_layers = list(range(num_layers))
-        logits_with_ablation = self._get_logits(positive_prompts, intervention=(direction, "ablate", all_layers))
-        scores = [self.metric.compute_log_odds(logits) for logits in logits_with_ablation]
-        return np.mean(scores)
+        logits_with_ablation = self._get_logits(positive_prompts, intervention=(direction, "ablate", list(range(num_layers))))
+        return np.nanmean([self.metric.compute_log_odds(logits) for logits in logits_with_ablation])
 
     def _compute_induce_score(self, direction: DirectionVector, val_data: PromptData) -> float:
         negative_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if not label]
         if not negative_prompts: return 0.0
         logits_with_addition = self._get_logits(negative_prompts, intervention=(direction, "add", [direction.layer]))
-        scores = [self.metric.compute_log_odds(logits) for logits in logits_with_addition]
-        return np.mean(scores)
+        return np.nanmean([self.metric.compute_log_odds(logits) for logits in logits_with_addition])
 
-    def _compute_kl_score(
-        self,
-        direction: DirectionVector,
-        val_data: PromptData,
-        baseline_logits: Optional[List[t.Tensor]] = None
-    ) -> float:
-        """KL divergence on negative prompts between baseline and global ablation."""
+    def _compute_kl_score(self, direction: DirectionVector, val_data: PromptData, baseline_logits: Optional[List[t.Tensor]] = None) -> float:
         negative_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if not label]
         if not negative_prompts: return 0.0
-
         num_layers = len(self.intervention_applier.transformer_layers)
-        all_layers = list(range(num_layers))
-
         if baseline_logits is None:
             logger.warning("Re-computing baseline logits inside KL score. For performance, pre-compute and pass them.")
             baseline_logits = self._get_logits(negative_prompts)
-        
-        ablated_logits = self._get_logits(negative_prompts, intervention=(direction, "ablate", all_layers))
-        
-        kl_divergences = []
-        for baseline_logit, ablated_logit in zip(baseline_logits, ablated_logits):
-            baseline_probs = F.softmax(baseline_logit, dim=-1)
-            ablated_log_probs = F.log_softmax(ablated_logit, dim=-1)
-            kl_div = F.kl_div(ablated_log_probs, baseline_probs, reduction='sum', log_target=False)
-            kl_divergences.append(kl_div.item())
-            
-        return np.mean(kl_divergences)
+        ablated_logits = self._get_logits(negative_prompts, intervention=(direction, "ablate", list(range(num_layers))))
+        kl_divergences = [F.kl_div(F.log_softmax(ablated_logit, dim=-1), F.softmax(baseline_logit, dim=-1), reduction='sum', log_target=False).item() for baseline_logit, ablated_logit in zip(baseline_logits, ablated_logits)]
+        return np.nanmean(kl_divergences)
+    
+    def compute_all_scores(self, direction_vector: DirectionVector, val_data: PromptData, baseline_neg_logits: Optional[List[t.Tensor]] = None) -> DirectionScores:
+        bypass_score = self._compute_bypass_score(direction_vector, val_data)
+        induce_score = self._compute_induce_score(direction_vector, val_data)
+        kl_score = self._compute_kl_score(direction_vector, val_data, baseline_logits=baseline_neg_logits)
+        return DirectionScores(bypass=bypass_score, induce=induce_score, kl=kl_score)
 
-class DirectionTestFramework:
-    """
-    Main framework for finding, evaluating, and testing direction vectors on chat models.
-    """
-    def __init__(self, model_name: str, torch_dtype: Union[str, t.dtype] = "auto", force_cpu: bool = False):
-        self.model_name = model_name
+class DirectionFinder:
+    """Finds the best direction vector based on multi-objective criteria."""
+    def __init__(self, model, tokenizer, intervention_applier, prompt_formatter):
+        self.model = model
+        self.tokenizer = tokenizer
+        self.intervention_applier = intervention_applier
+        self.prompt_formatter = prompt_formatter
+        self.extractor = ActivationExtractor(model, tokenizer, intervention_applier.transformer_layers, prompt_formatter)
+        self.direction_finder_method = DifferenceInMeans(self.extractor)
+        self.evaluator = Three_Score_Evaluator(model, tokenizer, intervention_applier, prompt_formatter)
 
-        # Load the model onto the CPU first as a staging area, without any device mapping.
-        logger.info(f"Loading chat model '{model_name}' to CPU staging area...")
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch_dtype,
-        )
-        
-        if force_cpu:
-            self.device = t.device("cpu")
-            logger.warning("CPU has been forced for model execution.")
-        elif t.cuda.is_available():
-            # FUCK CUDA
-            self.device = t.device("cuda:0")
-            logger.info(f"CUDA found. Forcing model to a single GPU ({self.device}) for maximum stability.")
-        elif t.backends.mps.is_available():
-            self.device = t.device("mps")
-            logger.info("MPS device found. Using MPS for model.")
+    def _print_debug_info(self, name: str, info: Dict):
+        """Helper function to print debug information for the best candidates."""
+        if info['dir']:
+            s = info['scores']
+            d = info['dir']
+            logger.info(f"  Best {name:<7}: Layer {d.layer:2d}, Pos {d.position_index:2d} | Bypass: {s.bypass:7.4f}, Induce: {s.induce:7.4f}, KL: {s.kl:7.4f}")
         else:
-            self.device = t.device("cuda" if t.cuda.is_available() else "cpu")
-            logger.info(f"Using device: {self.device}")
+            logger.info(f"  No candidate found for Best {name}")
 
-        # device_map_config = "auto" if t.cuda.is_available() and not force_cpu else None
-        # logger.info(f"Loading chat model: {model_name} with dtype: {torch_dtype}")
-        # self.model = AutoModelForCausalLM.from_pretrained(
-        #     model_name,
-        #     torch_dtype=torch_dtype,
-        #     device_map=device_map_config
-        # )    
-        if self.device is not None:    
-            self.model.to(self.device)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.intervention_applier = ModelInterventionApplier(self.model)
-        self.prompt_formatter = ChatPromptFormatter(self.tokenizer)
-        self.extractor = ActivationExtractor(self.model, self.tokenizer, self.intervention_applier.transformer_layers, self.prompt_formatter)
-        self.direction_finder = DifferenceInMeans(self.extractor)
-        self.cheap_evaluator = Three_Score_Evaluator(self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter)
-        self.big_evaluator = BigEvaluator(self)
-        logger.info(f"Model loaded successfully on device: {self.device}")
+    def _plot_and_save_search_results(self, results_df: pd.DataFrame, model_short_name: str):
+        """
+        Plots and saves the search results for induce and bypass scores against layer,
+        with different lines for each token position.
+        """
+        plot_dir = "plots"
+        os.makedirs(plot_dir, exist_ok=True)
+        sns.set_theme(style="whitegrid")
 
-    def _manual_generate_with_kv_cache(self, prompt_input_ids: t.Tensor, max_new_tokens: int = 64) -> str:
-        """A stable, high-performance manual generation loop using the KV cache."""
-        eos_token_id = self.tokenizer.eos_token_id
-        if isinstance(eos_token_id, list): eos_token_id = eos_token_id[0]
-        
-        generated_ids = prompt_input_ids
-        past_key_values = None
-        
-        with t.no_grad():
-            for _ in range(max_new_tokens):
-                current_input_ids = generated_ids[:, -1:] if past_key_values is not None else generated_ids
-                
-                outputs = self.model(
-                    input_ids=current_input_ids,
-                    past_key_values=past_key_values,
-                    use_cache=True
-                )
-                
-                next_token_logits = outputs.logits[:, -1, :]
-                next_token_id = t.argmax(next_token_logits, dim=-1)
-                
-                past_key_values = outputs.past_key_values
-                generated_ids = t.cat([generated_ids, next_token_id.unsqueeze(0)], dim=-1)
-                
-                if next_token_id.item() == eos_token_id:
-                    break
-        
-        response_ids = generated_ids[0][prompt_input_ids.shape[1]:]
-        return self.tokenizer.decode(response_ids, skip_special_tokens=True)
+        # --- Induce Score Plot ---
+        plt.figure(figsize=(14, 8))
+        try:
+            pivot_induce = results_df.pivot(index='layer', columns='position', values='induce_score')
+            for pos in sorted(pivot_induce.columns):
+                plt.plot(pivot_induce.index, pivot_induce[pos], marker='o', linestyle='-', label=f'Position {pos}')
+            plt.title(f'Induce Score vs. Layer for {model_short_name}', fontsize=16)
+            plt.xlabel('Layer Index', fontsize=12)
+            plt.ylabel('Induce Score (Higher is Better)', fontsize=12)
+            plt.legend(title='Token Position')
+            plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+            induce_plot_path = os.path.join(plot_dir, f"{model_short_name}-induce_score_vs_layer.png")
+            plt.savefig(induce_plot_path)
+            logger.info(f"Saved induce score plot to {induce_plot_path}")
+            plt.close()
+        except Exception as e:
+            logger.error(f"Failed to generate or save induce score plot: {e}")
 
-    def select_direction_vector(
-        self,
-        train_data: PromptData,
-        val_data: PromptData,
-        max_positions: int = 5,
+        # --- Bypass Score Plot ---
+        plt.figure(figsize=(14, 8))
+        try:
+            pivot_bypass = results_df.pivot(index='layer', columns='position', values='bypass_score')
+            for pos in sorted(pivot_bypass.columns):
+                plt.plot(pivot_bypass.index, pivot_bypass[pos], marker='o', linestyle='-', label=f'Position {pos}')
+            plt.title(f'Bypass Score vs. Layer for {model_short_name}', fontsize=16)
+            plt.xlabel('Layer Index', fontsize=12)
+            plt.ylabel('Bypass Score (Lower is Better)', fontsize=12)
+            plt.legend(title='Token Position')
+            plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+            bypass_plot_path = os.path.join(plot_dir, f"{model_short_name}-bypass_score_vs_layer.png")
+            plt.savefig(bypass_plot_path)
+            logger.info(f"Saved bypass score plot to {bypass_plot_path}")
+            plt.close()
+        except Exception as e:
+            logger.error(f"Failed to generate or save bypass score plot: {e}")
+
+    def find_best_direction(
+        self, train_data: PromptData, val_data: PromptData, max_positions: int = 5
     ) -> Optional[DirectionVector]:
         """
         Selects a direction vector based on strict multi-objective criteria.
-        Pre-computes baseline logits for a significant performance increase.
+        Also logs a summary of the best candidates found for each metric.
         """
         logger.info("Computing difference-in-means vectors...")
-        difference_vectors = self.direction_finder.compute_difference_vectors(train_data, max_positions)
+        difference_vectors = self.direction_finder_method.compute_difference_vectors(train_data, max_positions)
         
-        evaluator = self.cheap_evaluator
-
         logger.info("Pre-computing baseline scores and logits on the validation set...")
         positive_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if label]
         negative_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if not label]
-        baseline_pos_logits = evaluator._get_logits(positive_prompts) if positive_prompts else []
-        baseline_neg_logits = evaluator._get_logits(negative_prompts) if negative_prompts else []
-        baseline_bypass_score = np.mean([evaluator.metric.compute_log_odds(logits) for logits in baseline_pos_logits]) if baseline_pos_logits else 0.0
-        baseline_induce_score = np.mean([evaluator.metric.compute_log_odds(logits) for logits in baseline_neg_logits]) if baseline_neg_logits else 0.0
-        logger.info(f"Baseline Scores | Bypass: {baseline_bypass_score:7.4f}, Induce: {baseline_induce_score:7.4f}, KL: 0.0")
         
+        baseline_pos_logits = self.evaluator._get_logits(positive_prompts) if positive_prompts else []
+        baseline_neg_logits = self.evaluator._get_logits(negative_prompts) if negative_prompts else []
+        
+        baseline_bypass_score = np.nanmean([self.evaluator.metric.compute_log_odds(logits) for logits in baseline_pos_logits]) if baseline_pos_logits else 0.0
+        baseline_induce_score = np.nanmean([self.evaluator.metric.compute_log_odds(logits) for logits in baseline_neg_logits]) if baseline_neg_logits else 0.0
+        
+        logger.info(f"Baseline Scores | Bypass: {baseline_bypass_score:7.4f}, Induce: {baseline_induce_score:7.4f}, KL: 0.0")
+
         num_layers = len(self.intervention_applier.transformer_layers)
         layer_cutoff = int(0.8 * num_layers)
         
         logger.info(f"Evaluating direction candidates with multi-objective criteria...")
         
-        all_scores_data = [] # To store all data, for plotting
+        all_scores_data = []
         best_overall_info = {'score': float('inf'), 'dir': None, 'scores': None}
         best_bypass_info = {'score': float('inf'), 'dir': None, 'scores': None}
         best_induce_info = {'score': float('-inf'), 'dir': None, 'scores': None}
@@ -581,7 +515,7 @@ class DirectionTestFramework:
                 continue
             
             current_direction = DirectionVector(vector=vec, layer=layer, position_index=pos_idx, score=0)
-            scores = evaluator.compute_all_scores(current_direction, val_data, baseline_neg_logits=baseline_neg_logits)
+            scores = self.evaluator.compute_all_scores(current_direction, val_data, baseline_neg_logits=baseline_neg_logits)
             
             all_scores_data.append({
                 'layer': layer,
@@ -609,28 +543,13 @@ class DirectionTestFramework:
                     current_direction.score = min_bypass_for_strict_selection
                     selected_direction = current_direction
         
-        # Why not just plot every time we run the function, it's cheap.
         if all_scores_data:
             results_df = pd.DataFrame(all_scores_data)
-            model_short_name = self.model_name.split('/')[-1]
-            
-            # Save the raw data to a CSV file
-            csv_path = os.path.join("results", f"{model_short_name}-search-scores.csv")
-            results_df.to_csv(csv_path, index=False)
-            logger.info(f"Saved all search scores to {csv_path}")
-
-            # Generate and save the plots
-            self.plot_and_save_search_results(results_df, model_short_name)
+            model_short_name = self.model.name_or_path.split('/')[-1] if hasattr(self.model, 'name_or_path') else 'unknown_model'
+            # --- FIX: Call the plotting function ---
+            self._plot_and_save_search_results(results_df, model_short_name)
         else:
             logger.warning("No data was collected during search; skipping data saving and plotting.")
-            
-        def print_debug_info(name, info):
-            if info['dir']:
-                s = info['scores']
-                d = info['dir']
-                logger.info(f"  Best {name:<7}: Layer {d.layer:2d}, Pos {d.position_index:2d} | Bypass: {s.bypass:7.4f}, Induce: {s.induce:7.4f}, KL: {s.kl:7.4f}")
-            else:
-                logger.info(f"  No candidate found for Best {name}")
 
         if selected_direction:
             logger.info(f"\n--- Strictly Selected Direction (Met All Criteria) ---")
@@ -639,208 +558,150 @@ class DirectionTestFramework:
         else:
             logger.warning("\nNo direction vector was found that met all strict selection criteria. Printing additional information for debugging:")
             logger.info(f"  {'Baseline':<7}:               | Bypass: {baseline_bypass_score:7.4f}, Induce: {baseline_induce_score:7.4f}, KL: {0.0:7.4f}")
-            print_debug_info("Overall", best_overall_info)
-            print_debug_info("Bypass", best_bypass_info)
-            print_debug_info("Induce", best_induce_info)
-            print_debug_info("KL", best_kl_info)
+            self._print_debug_info("Overall", best_overall_info)
+            self._print_debug_info("Bypass", best_bypass_info)
+            self._print_debug_info("Induce", best_induce_info)
+            self._print_debug_info("KL", best_kl_info)
             
         return selected_direction
-    
-    def plot_and_save_search_results(self, results_df: pd.DataFrame, model_short_name: str):
-        """
-        Plots and saves the search results for induce and bypass scores against layer,
-        with different lines for each token position.
-        """
-        plot_dir = "plots"
-        os.makedirs(plot_dir, exist_ok=True)
-        
-        sns.set_theme(style="whitegrid")
-        
-        # --- INDUCE SCORE PLOT ---
-        plt.figure(figsize=(14, 8))
-        try:
-            pivot_induce = results_df.pivot(index='layer', columns='position', values='induce_score')
-            
-            # Plot each position as a separate line. Later we should make the labels better.
-            for pos in sorted(pivot_induce.columns):
-                plt.plot(pivot_induce.index, pivot_induce[pos], marker='o', linestyle='-', label=f'Position {pos}')
-                
-            plt.title(f'Induce Score vs. Layer for {model_short_name}', fontsize=16)
-            plt.xlabel('Layer Index', fontsize=12)
-            plt.ylabel('Induce Score (Higher is Better)', fontsize=12)
-            plt.legend(title='Token Position')
-            plt.grid(True, which='both', linestyle='--', linewidth=0.5)
-            
-            # --- MODIFIED: Save to the 'plots' directory ---
-            induce_plot_path = os.path.join(plot_dir, f"{model_short_name}-induce_score_vs_layer.png")
-            plt.savefig(induce_plot_path)
-            logger.info(f"Saved induce score plot to {induce_plot_path}")
-            plt.close()
 
-        except Exception as e:
-            logger.error(f"Failed to generate or save induce score plot: {e}")
+class InterventionSuite:
+    """Runs qualitative tests on a given DirectionVector using .generate()."""
+    def __init__(self, model, tokenizer, intervention_applier, prompt_formatter):
+        self.model = model
+        self.tokenizer = tokenizer
+        self.intervention_applier = intervention_applier
+        self.prompt_formatter = prompt_formatter
 
-        # --- BYPASS SCORE PLOT ---
-        plt.figure(figsize=(14, 8))
-        try:
-            pivot_bypass = results_df.pivot(index='layer', columns='position', values='bypass_score')
-            
-            for pos in sorted(pivot_bypass.columns):
-                plt.plot(pivot_bypass.index, pivot_bypass[pos], marker='o', linestyle='-', label=f'Position {pos}')
-            
-            plt.title(f'Bypass Score vs. Layer for {model_short_name}', fontsize=16)
-            plt.xlabel('Layer Index', fontsize=12)
-            plt.ylabel('Bypass Score (Lower is Better)', fontsize=12)
-            plt.legend(title='Token Position')
-            plt.grid(True, which='both', linestyle='--', linewidth=0.5)
-            
-            # --- MODIFIED: Save to the 'plots' directory ---
-            bypass_plot_path = os.path.join(plot_dir, f"{model_short_name}-bypass_score_vs_layer.png")
-            plt.savefig(bypass_plot_path)
-            logger.info(f"Saved bypass score plot to {bypass_plot_path}")
-            plt.close()
-            
-        except Exception as e:
-            logger.error(f"Failed to generate or save bypass score plot: {e}")
-
-    def test_interventions(
+    def test_generation(
         self,
         direction: DirectionVector,
         test_prompts: List[str],
-        intervention_types: List[str] = ["add", "subtract", "ablate"],
+        intervention_type: str = "ablate",
         strengths: List[float] = [1.0],
-        max_examples_to_print: int = 5,
-    ) -> Dict:
+        max_new_tokens: int = 64
+    ) -> Dict[str, List[Dict]]:
         """
-        Tests interventions using a FAST, STABLE, manual greedy decoding loop.
-        Note: This part is NOT batched, it generates responses one by one for clarity.
+        Tests interventions using the standard, optimized .generate() method.
         """
         results = {}
-        device = self.model.device
-        max_new_tokens = 64
+        
+        # --- Baseline Generation ---
+        logger.info(f"Generating baseline responses...")
+        batch_formatted = self.prompt_formatter.format_batch(test_prompts)
+        input_ids = batch_formatted['input_ids'].to(self.model.device)
+        attention_mask = batch_formatted['attention_mask'].to(self.model.device)
+        baseline_outputs = self.model.generate(
+            input_ids, attention_mask=attention_mask, max_new_tokens=max_new_tokens,
+            do_sample=False, pad_token_id=self.tokenizer.eos_token_id
+        )
+        baseline_texts = self.tokenizer.batch_decode(baseline_outputs, skip_special_tokens=True)
+        results["baseline_no_intervention"] = [{'prompt': p, 'generated_text': t} for p, t in zip(test_prompts, baseline_texts)]
 
-        logger.info(f"Using FAST manual greedy decoding with KV Cache (max_new_tokens={max_new_tokens}).")
-
-        def manual_generate_with_kv_cache(prompt_input_ids: t.Tensor) -> str:
-            eos_token_id = self.tokenizer.eos_token_id
-            if isinstance(eos_token_id, list): eos_token_id = eos_token_id[0]
+        # --- Intervened Generation ---
+        for strength in strengths:
+            key = f"{intervention_type}_strength_{strength}"
+            logger.info(f"Generating responses for intervention: {key}")
             
-            generated_ids = prompt_input_ids
-            past_key_values = None
+            layers = list(range(len(self.intervention_applier.transformer_layers))) if intervention_type == "ablate" else [direction.layer]
+            self.intervention_applier.apply_direction_intervention(direction, intervention_type, strength, layers=layers)
             
-            with t.no_grad():
-                for _ in range(max_new_tokens):
-                    current_input_ids = generated_ids[:, -1:] if past_key_values is not None else generated_ids
-                    
-                    outputs = self.model(
-                        input_ids=current_input_ids,
-                        past_key_values=past_key_values,
-                        use_cache=True
-                    )
-                    
-                    next_token_logits = outputs.logits[:, -1, :]
-                    next_token_id = t.argmax(next_token_logits, dim=-1)
-                    
-                    past_key_values = outputs.past_key_values
-                    generated_ids = t.cat([generated_ids, next_token_id.unsqueeze(0)], dim=-1)
-                    
-                    if next_token_id.item() == eos_token_id:
-                        break
+            intervened_outputs = self.model.generate(
+                input_ids, attention_mask=attention_mask, max_new_tokens=max_new_tokens,
+                do_sample=False, pad_token_id=self.tokenizer.eos_token_id
+            )
+            intervened_texts = self.tokenizer.batch_decode(intervened_outputs, skip_special_tokens=True)
+            results[key] = [{'prompt': p, 'generated_text': t} for p, t in zip(test_prompts, intervened_texts)]
             
-            response_ids = generated_ids[0][prompt_input_ids.shape[1]:]
-            return self.tokenizer.decode(response_ids, skip_special_tokens=True)
-
-        key = "baseline_no_intervention"
-        results[key] = []
-        logger.info(f"Testing with baseline (no intervention)...")
-        for prompt in test_prompts[:max_examples_to_print]:
-            # This requires a single-prompt formatter, which we will assume exists on the formatter object
-            input_ids = self.prompt_formatter.format_batch([prompt])['input_ids'].to(device)
-            response_text = manual_generate_with_kv_cache(input_ids)
-            results[key].append({'prompt': prompt, 'generated_text': response_text})
-
-        for int_type in intervention_types:
-            for strength in strengths:
-                key = f"{int_type}_strength_{strength}"
-                logger.info(f"Testing intervention: {key}")
-                results[key] = []
-                
-                self.intervention_applier.apply_direction_intervention(direction, int_type, strength)
-                
-                for prompt in test_prompts[:max_examples_to_print]:
-                    input_ids = self.prompt_formatter.format_batch([prompt])['input_ids'].to(device)
-                    response_text = manual_generate_with_kv_cache(input_ids)
-                    results[key].append({'prompt': prompt, 'generated_text': response_text})
-                
-                self.intervention_applier.clear_interventions()
+            self.intervention_applier.clear_interventions()
         
         return results
-    
-    def inspect_next_token_logits(
-        self,
-        direction: DirectionVector,
-        prompts: List[str],
-        intervention_type: str,
-        num_tokens_to_print: int = 3,
-        num_tokens_to_generate: int = 64
-    ):
-        """
-        Performs a detailed inspection of top-k logits and generated text for a set of prompts,
-        comparing the baseline model against an intervened model.
-        Replaces newline characters with '\\n' for cleaner terminal output.
-        """
-        if not prompts:
-            logger.warning(f"No prompts provided for inspection with intervention '{intervention_type}'. Skipping.")
-            return
 
-        evaluator = self.evaluator
-        tokenizer = self.tokenizer
+class DirectionTestFramework:
+    """
+    Main orchestrator for finding, evaluating, and testing direction vectors.
+    """
+    def __init__(self, model_name: str, torch_dtype: Union[str, t.dtype] = "auto", force_cpu: bool = False):
+        self.model_name = model_name
         
-        if intervention_type == 'ablate':
-            layers_to_intervene = list(range(len(self.intervention_applier.transformer_layers)))
-        elif intervention_type == 'add':
-            layers_to_intervene = [direction.layer]
-        else:
-            raise ValueError(f"Unknown intervention type: {intervention_type}")
-            
-        intervention = (direction, intervention_type, layers_to_intervene)
+        logger.info(f"Loading chat model '{model_name}'...")
+        # ... (model loading logic is unchanged)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch_dtype)
+        if force_cpu: self.device = t.device("cpu")
+        elif t.cuda.is_available(): self.device = t.device("cuda:0")
+        elif t.backends.mps.is_available(): self.device = t.device("mps")
+        else: self.device = t.device("cpu")
+        
+        self.model.to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        if self.tokenizer.pad_token is None: self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        logger.info(f"\n--- Inspecting Logits & Generation with '{intervention_type.upper()}' Intervention ---")
-        baseline_logits_batch = evaluator._get_logits(prompts)
-        intervened_logits_batch = evaluator._get_logits(prompts, intervention=intervention)
+        # Initialize the modular components
+        self.intervention_applier = ModelInterventionApplier(self.model)
+        self.prompt_formatter = ChatPromptFormatter(self.tokenizer)
+        self.finder = DirectionFinder(self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter)
+        self.suite = InterventionSuite(self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter)
+        self.evaluator = BigEvaluator(self) # BigEvaluator might need the framework itself for some context
+        
+        logger.info(f"Framework initialized on device: {self.device}")
 
-        for i, prompt in enumerate(prompts):
-            print(f"\nPrompt: '{prompt}'")
-            
-            # --- BASELINE ANALYSIS ---
-            baseline_logits = baseline_logits_batch[i]
-            baseline_log_probs = F.log_softmax(baseline_logits, dim=-1)
-            top_log_probs_base, top_indices_base = t.topk(baseline_log_probs, k=num_tokens_to_print)
-            
-            #Replace '\n' with '\\n' for clean printing, here and in a few places below. Note we can't do this inside an f-string.
-            baseline_tokens = [tokenizer.decode(idx).replace('\n', '\\n') for idx in top_indices_base]
-            baseline_output = ", ".join([f"'{token}' ({prob:.2f})" for token, prob in zip(baseline_tokens, top_log_probs_base)])
-            print(f"  [Baseline] Top-{num_tokens_to_print}: {baseline_output}")
-            
-            prompt_formatted = self.prompt_formatter.format_batch([prompt])
-            baseline_generation = self._manual_generate_with_kv_cache(prompt_formatted['input_ids'].to(self.device), num_tokens_to_generate)
-            baseline_generation = baseline_generation.replace("\n","\\n")
-            print(f"  [Baseline] Generation: '{baseline_generation}'")
+    def run(self, config: Dict):
+        """
+        Main execution method based on the provided config.
+        """
+        positive_prompts, negative_prompts = prompts.create_refusal_train_data()
+        train_data = PromptData(positive_prompts + negative_prompts, [True]*len(positive_prompts) + [False]*len(negative_prompts))
+        train_data, val_data = train_data.train_val_split()
 
-            # --- INTERVENED ANALYSIS ---
-            intervened_logits = intervened_logits_batch[i]
-            intervened_log_probs = F.log_softmax(intervened_logits, dim=-1)
-            top_log_probs_int, top_indices_int = t.topk(intervened_log_probs, k=num_tokens_to_print)
-            
-            intervened_tokens = [tokenizer.decode(idx).replace('\n', '\\n') for idx in top_indices_int]
-            intervened_output = ", ".join([f"'{token}' ({prob:.2f})" for token, prob in zip(intervened_tokens, top_log_probs_int)])
-            print(f"  [Intervened] Top-{num_tokens_to_print}: {intervened_output}")
+        eval_pos, eval_neg = prompts.create_refusal_eval_data()
 
-            self.intervention_applier.apply_direction_intervention(direction, intervention_type, strength=1.0, layers=layers_to_intervene)
-            intervened_generation = self._manual_generate_with_kv_cache(prompt_formatted['input_ids'].to(self.device), num_tokens_to_generate)
-            self.intervention_applier.clear_interventions()
-            intervened_generation = intervened_generation.replace("\n","\\n")
-            print(f"  [Intervened] Generation: '{intervened_generation}'")
+        direction_to_test = None
+
+        if config['mode'] == "search":
+            logger.info("Running in SEARCH mode...")
+            direction_to_test = self.finder.find_best_direction(train_data, val_data)
+            if direction_to_test is None:
+                logger.error("Search concluded without finding a suitable direction vector.")
+                return
+
+        elif config['mode'] in ["eyeball", "evaluate"]:
+            layer, pos = config.get('layer'), config.get('pos')
+            if layer is None or pos is None:
+                logger.error(f"Mode '{config['mode']}' requires 'layer' and 'pos' to be specified.")
+                return
+            
+            logger.info(f"Using pre-specified vector for Layer {layer}, Position {pos}...")
+            # We still need to compute the vector, even if we know the location
+            diff_vectors = self.finder.direction_finder_method.compute_difference_vectors(train_data)
+            vec = diff_vectors.get((layer, pos))
+            if vec is None:
+                logger.error(f"Vector at ({layer}, {pos}) not found. Exiting.")
+                return
+            direction_to_test = DirectionVector(vector=vec, layer=layer, position_index=pos, score=0.0)
+
+        if direction_to_test is None:
+            logger.warning("No direction vector to test. Exiting.")
+            return
+            
+        # --- Now, run the appropriate suite based on the mode ---
+        if config['mode'] == "eyeball":
+            logger.info("\n--- Running Eyeball Tests on Positive Prompts (Ablation) ---")
+            results_ablate = self.suite.test_generation(direction_to_test, eval_pos[:5], "ablate")
+            # ... (add pretty printing for results)
+            
+            logger.info("\n--- Running Eyeball Tests on Negative Prompts (Addition) ---")
+            results_add = self.suite.test_generation(direction_to_test, eval_neg[:5], "add")
+            # ... (add pretty printing for results)
+        
+        elif config['mode'] == "evaluate":
+            logger.info("\n--- Running Full Evaluation Suite ---")
+            self.evaluator.run_all_evaluations(
+                direction_to_test, eval_pos, eval_neg, 
+                tasks=config.get('eval_tasks', []), 
+                limit=config.get('limit', 100)
+            )
+
+        logger.info("Framework execution finished.")
 
 class BigEvaluator:
     """
@@ -1020,7 +881,6 @@ def analyze_baseline_distribution(
     results = []
     for i, prompt in enumerate(prompts):
         score = evaluator.metric.compute_log_odds(baseline_logits_batch[i])
-        # Store the logits along with the score and prompt
         results.append({'prompt': prompt, 'score': score, 'logits': baseline_logits_batch[i]})
         
     results.sort(key=lambda x: x['score'], reverse=True)
@@ -1082,70 +942,7 @@ def main(
     Main execution function with multiple modes: search, evaluate, or eyeball
     """
     framework = DirectionTestFramework(model_name=config['model_name'], torch_dtype=config['torch_dtype'], force_cpu=config['force_cpu'])
-    
-    positive_prompts, negative_prompts = prompts.create_refusal_train_data()
-    all_prompts = positive_prompts + negative_prompts
-    labels = [True] * len(positive_prompts) + [False] * len(negative_prompts)
-    data = PromptData(all_prompts, labels)
-    train_data, val_data = data.train_val_split(test_size=0.25, random_state=39)
-
-    eval_pos_prompts, eval_neg_prompts = prompts.create_refusal_eval_data()
-    evaluation_prompts = eval_pos_prompts + eval_neg_prompts
-    evaluation_labels = [True] * len(eval_pos_prompts) + [False] * len(eval_neg_prompts)
-    evaluation_data = PromptData(evaluation_prompts, evaluation_labels)
-    logger.info(f"Loaded {len(evaluation_prompts)} prompts for evaluating the direction vector.")
-
-    if config['mode'] == "search":
-        logger.info("Running in SEARCH mode...")
-        framework.select_direction_vector(train_data, val_data)
-
-    elif config['mode'] in ["eyeball", "evaluate"]:
-        layer,pos = config['layer'], config['pos']
-        if layer is None or pos is None:
-            logger.error(f"Mode '{config['mode']}' requires a layer and position to be specified.")
-            return
-
-        logger.info(f"Computing vector for Layer {layer}, Position {pos}...")
-        difference_vectors = framework.direction_finder.compute_difference_vectors(train_data)
-        candidate_key = (layer, pos)
-
-        if candidate_key not in difference_vectors:
-            logger.error(f"The desired vector at {candidate_key} was not found. Exiting.")
-            return
-        
-        direction_to_test = DirectionVector(vector=difference_vectors[candidate_key], layer=layer, position_index=pos, score=0)
-        logger.info(f"Successfully selected direction vector from {candidate_key}.")
-
-        if config['mode'] == "eyeball":
-            logger.info("Running in EYEBALL mode...")
-            # Use a small sample for quick eyeballing
-            sample_positive_prompts = [p for p, l in zip(evaluation_data.prompts, evaluation_data.labels) if l][:3]
-            sample_negative_prompts = [p for p, l in zip(evaluation_data.prompts, evaluation_data.labels) if not l][:3]
-
-            # Test the BYPASS case on harmful prompts
-            framework.inspect_next_token_logits(
-                direction=direction_to_test,
-                prompts=sample_positive_prompts,
-                intervention_type='ablate'
-            )
-
-            # Test the INDUCE case on harmless prompts
-            framework.inspect_next_token_logits(
-                direction=direction_to_test,
-                prompts=sample_negative_prompts,
-                intervention_type='add'
-            )
-        
-        elif config['mode'] == "evaluate":
-            logger.info("Running in EVALUATION mode...")
-            # Use the full validation set for robust scores
-            eval_pos = [p for p, l in zip(evaluation_data.prompts, evaluation_data.labels) if l]
-            eval_neg = [p for p, l in zip(evaluation_data.prompts, evaluation_data.labels) if not l]
-            limit=config.get('limit', None) # number of prompts to try in MMLU/etc evals. Set to 100 for speed - set to 'full' to test the entire eval, which is slow. None yields defaults.
-            framework.big_evaluator.run_all_evaluations(direction_to_test, eval_pos, eval_neg, tasks=config['eval_tasks'], limit=limit)
-
-    logger.info("\nFramework execution finished.")
-
+    framework.run(config)
 
 if __name__ == "__main__":
     # config now in one dict
@@ -1157,8 +954,9 @@ if __name__ == "__main__":
         "layer": 13,     # ((13,-1) for Qwen (my analysis). Refusal paper suggests (15,-1) 
                          # Eventually this layer, position info goes in a dict, probably. Or I fully automate the selection).
         "pos": -1,
-        "eval_tasks": ["mmlu", "arc_challenge", "gsm8k", "truthfulqa"], #
-        "limit": 100
+        # "eval_tasks": ["mmlu", "arc_challenge", "gsm8k", "truthfulqa"], 
+        "eval_tasks":[],
+        "limit": 8
     }
 
     # SETUP LOGGING TO FILE (tmux is fiddly, we avoid)
@@ -1244,3 +1042,35 @@ if __name__ == "__main__":
 
 # Use community benchmarks - for refusal, consider things like HarmBench. Can also do other benchmarks for other behaviours X. See if the ran-one fine-tune did something.
 # Then also test robustness - did the model get worse on TruthfulQA? MMLU? ARC? GSM8K? ETC?
+    
+    
+# used in old version of codebase. Keeping the function in case we have future generation issues.
+#     def _manual_generate_with_kv_cache(self, prompt_input_ids: t.Tensor, max_new_tokens: int = 64) -> str:
+#         """A stable, high-performance manual generation loop using the KV cache."""
+#         eos_token_id = self.tokenizer.eos_token_id
+#         if isinstance(eos_token_id, list): eos_token_id = eos_token_id[0]
+        
+#         generated_ids = prompt_input_ids
+#         past_key_values = None
+        
+#         with t.no_grad():
+#             for _ in range(max_new_tokens):
+#                 current_input_ids = generated_ids[:, -1:] if past_key_values is not None else generated_ids
+                
+#                 outputs = self.model(
+#                     input_ids=current_input_ids,
+#                     past_key_values=past_key_values,
+#                     use_cache=True
+#                 )
+                
+#                 next_token_logits = outputs.logits[:, -1, :]
+#                 next_token_id = t.argmax(next_token_logits, dim=-1)
+                
+#                 past_key_values = outputs.past_key_values
+#                 generated_ids = t.cat([generated_ids, next_token_id.unsqueeze(0)], dim=-1)
+                
+#                 if next_token_id.item() == eos_token_id:
+#                     break
+        
+#         response_ids = generated_ids[0][prompt_input_ids.shape[1]:]
+#         return self.tokenizer.decode(response_ids, skip_special_tokens=True)
