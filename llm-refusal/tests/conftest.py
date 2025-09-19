@@ -1,6 +1,7 @@
 import pytest
 
 import warnings
+import logging
 
 # Suppress Pydantic v1 validator warnings only for Hugging Face / Transformers libraries
 warnings.filterwarnings(
@@ -12,6 +13,11 @@ warnings.filterwarnings(
 import torch as t
 from unittest.mock import MagicMock, PropertyMock
 from transformers import AutoTokenizer, AutoModelForCausalLM
+
+# Suppress verbose logging from libraries for cleaner test output
+logging.basicConfig(level=logging.WARNING)
+logging.getLogger("transformers").setLevel(logging.WARNING)
+logging.getLogger("scratch").setLevel(logging.WARNING)
 
 # --- Import classes from your main script ---
 # Note: To make this work, ensure your main script can be imported.
@@ -53,69 +59,63 @@ def pytest_collection_modifyitems(config, items):
         if "smoke" not in item.keywords:
             item.add_marker(skip_non_smoke)
 
-# --- Fixtures for Unit Tests (using Mocks) ---
-
-@pytest.fixture(scope="module")
-def mock_tokenizer():
-    """Provides a mock tokenizer that simulates basic functionality."""
-    tokenizer = MagicMock(spec=AutoTokenizer)
-    tokenizer.name_or_path = 'mock/gemma-tiny'
-    tokenizer.model_max_length = 512
-    tokenizer.pad_token = "<pad>"
-    tokenizer.eos_token = "<eos>"
-    tokenizer.bos_token = "<bos>"
-
-    tokenizer.encode = MagicMock()
-    def mock_encode_func(text, add_special_tokens=False):
-        # Return a deterministic, unique-ish integer list for any string.
-        return [abs(hash(text)) % 50000]
-    tokenizer.encode.side_effect = mock_encode_func
-    
-    # Simulate tokenization behavior
-    def format_batch_side_effect(prompts, **kwargs):
-        # A very basic tokenization simulation
-        input_ids = [[0] * 10 for _ in prompts]
-        attention_mask = [[1] * 10 for _ in prompts]
-        return {
-            'input_ids': t.tensor(input_ids, dtype=t.long),
-            'attention_mask': t.tensor(attention_mask, dtype=t.long)
-        }
-    tokenizer.side_effect = format_batch_side_effect
-    
-    # Mock for ChatPromptFormatter specifically
-    formatter_mock = MagicMock(spec=ChatPromptFormatter)
-    formatter_mock.format_batch.side_effect = format_batch_side_effect
-    
-    return formatter_mock, tokenizer
-
-@pytest.fixture(scope="module")
+@pytest.fixture
 def mock_model():
-    """Provides a mock model with a simplified structure."""
-    model = MagicMock()
+    """A more realistic mock for AutoModelForCausalLM."""
+    mock = MagicMock(spec=AutoModelForCausalLM)
     
-    # Mock config
-    config = MagicMock()
-    config.n_layer = 2
-    config.n_head = 2
-    type(model).config = PropertyMock(return_value=config)
+    # FIX: Add .dtype and .device attributes
+    mock.dtype = t.float32
+    mock.device = t.device("cpu")
     
-    # Mock device
-    type(model).device = PropertyMock(return_value=t.device("cpu"))
-
-    # Mock layers for ModelInterventionApplier
+    # FIX: Correctly mock the nested .model.layers structure
+    mock.model = MagicMock()
     mock_layer = MagicMock()
-    mock_layer.register_forward_hook.return_value = MagicMock()
-    type(model).model = PropertyMock(return_value=MagicMock(layers=[mock_layer] * 2))
-
-    # Mock call to return fake logits
-    def model_side_effect(*args, **kwargs):
-        input_ids = kwargs.get('input_ids')
-        batch_size, seq_len = input_ids.shape
-        mock_logits = t.randn(batch_size, seq_len, 50000) # vocab size
-        return MagicMock(logits=mock_logits)
-    model.return_value = model_side_effect
+    # Ensure the hook's remove() method is also a mock so it can be called
+    mock_layer.register_forward_hook.return_value = MagicMock(remove=MagicMock())
+    mock.model.layers = [mock_layer] 
     
-    return model
+    # Add a minimal config that the code expects, including the existence of a mock.config
+    mock.config = MagicMock()
+    mock.config.hidden_size = 10 
+    
+    return mock
+
+@pytest.fixture
+def mock_intervention_applier(mock_model):
+    """A mock for ModelInterventionApplier that includes the .model attribute."""
+    # FIX: The mock now correctly holds a reference to the mock_model
+    mock_applier = MagicMock(spec=ModelInterventionApplier)
+    mock_applier.model = mock_model
+    mock_applier.transformer_layers = mock_model.model.layers
+    return mock_applier
+
+@pytest.fixture(params=[True, False], ids=["with_chat_template", "without_chat_template"])
+def mock_tokenizer(request):
+    """
+    A parameterized fixture to mock AutoTokenizer with all necessary methods.
+    """
+    has_chat_template = request.param
+    mock = MagicMock(spec=AutoTokenizer)
+    
+    # FIX: Define all methods that could be called by ChatPromptFormatter
+    mock.apply_chat_template = MagicMock(return_value=t.tensor([[1, 2, 3]]))
+    mock.__call__ = MagicMock(return_value={'input_ids': t.tensor([[1, 2, 3]]), 'attention_mask': t.tensor([[1, 1, 1]])})
+    mock.encode = MagicMock(side_effect=lambda token, **kwargs: [hash(token) % 50000])
+
+    # Use PropertyMock to control the presence of .chat_template
+    if has_chat_template:
+        type(mock).chat_template = PropertyMock(return_value="A template string")
+    else:
+        type(mock).chat_template = PropertyMock(return_value=None)
+
+    # Add other necessary attributes
+    mock.pad_token = "[PAD]"
+    mock.pad_token_id = hash(mock.pad_token) % 50000
+    mock.padding_side = 'left'
+    mock.model_max_length = 4096
+    
+    return mock
 
 @pytest.fixture
 def sample_prompt_data():
@@ -125,17 +125,13 @@ def sample_prompt_data():
         labels=[True, True, False, False]
     )
 
-@pytest.fixture
-def mock_intervention_applier(mock_model):
-    """Provides a mock ModelInterventionApplier."""
-    return ModelInterventionApplier(mock_model)
-
 # --- Fixtures for Smoke Tests (using a real, tiny model) ---
 
 @pytest.fixture(scope="session")
 def tiny_model_name():
     """The name of a small, fast model for smoke testing."""
-    return "sshleifer/tiny-gpt2"
+    return "google/gemma-3-270m" # this model is not tiny - some of our tests rely on minmal model intelligence, so we scale up for now.
+    # return "sshleifer/tiny-gpt2"
 
 @pytest.fixture(scope="session")
 def real_tiny_model_and_tokenizer(tiny_model_name):
@@ -148,4 +144,44 @@ def real_tiny_model_and_tokenizer(tiny_model_name):
         return model, tokenizer
     except Exception as e:
         pytest.skip(f"Failed to load tiny model for smoke tests: {e}")
+
+
+# --- Fixtures for generation tests ---
+#GENERATION_TEST_MODELS = ["gpt2", "roneneldan/TinyStories-1M", "google/gemma-3-270m"]#, "Qwen/Qwen1.5-1.8B"] # add gemma, qwen, llama, etc
+GENERATION_TEST_MODELS = [
+    "google/gemma-3-1b-pt",
+    "google/gemma-3-1b-it", # Expected to fail. Fails
+    #"Qwen/Qwen1.5-1.8B-Chat", # Expected to pass, but doesn't
+    #"openai-community/gpt2",
+    "openai-community/gpt2-xl",
+]
+#GENERATION_TEST_MODELS = ["Qwen/Qwen1.5-1.8B"]
+@pytest.fixture(scope="session", params=GENERATION_TEST_MODELS)
+def model_and_tokenizer(request):
+    """
+    Pytest fixture to load a model and tokenizer once per session.
+    Parametrized to run tests across all models in GENERATION_TEST_MODELS.
+    """
+    model_name = request.param
+
+    if t.cuda.is_available():
+        device = t.device("cuda")
+    elif t.backends.mps.is_available():
+        device = t.device("mps")
+    else:
+        device = t.device("cpu")
+    
+    try:
+        model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+    except Exception as e:
+        pytest.fail(f"Failed to load model or tokenizer for {model_name}: {e}")
+
+    # --- Critical for Batching ---
+    # Ensure a pad token is set, and padding side is left for decoder-only models.
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = 'left'
+    
+    return model, tokenizer
 
