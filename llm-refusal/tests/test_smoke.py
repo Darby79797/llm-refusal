@@ -31,13 +31,14 @@ def test_full_pipeline_smoke(real_tiny_model_and_tokenizer):
             self.device = model.device
 
             # Manually instantiate dependencies
-            from scratch import ModelInterventionApplier, ChatPromptFormatter, ActivationExtractor, DifferenceInMeans, Three_Score_Evaluator, BigEvaluator
+            from scratch import ModelInterventionApplier, ChatPromptFormatter, ActivationExtractor, DifferenceInMeans, Three_Score_Evaluator, BigEvaluator, InterventionSuite
             self.intervention_applier = ModelInterventionApplier(self.model)
             self.prompt_formatter = ChatPromptFormatter(self.tokenizer)
             self.extractor = ActivationExtractor(self.model, self.tokenizer, self.intervention_applier.transformer_layers, self.prompt_formatter)
             self.direction_finder = DifferenceInMeans(self.extractor)
             self.cheap_evaluator = Three_Score_Evaluator(self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter)
             self.big_evaluator = BigEvaluator(self)
+            self.suite = InterventionSuite(self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter)
 
     framework = PatchedFramework()
 
@@ -67,7 +68,7 @@ def test_full_pipeline_smoke(real_tiny_model_and_tokenizer):
         # C. Run a single intervention test
         # We'll skip the full eval suite as it's slow, but test one intervention.
         test_prompts = ["This is a test prompt for intervention."]
-        results = framework.test_interventions(direction, test_prompts, n_comparisons=1)
+        results = framework.suite.test_generation(direction, test_prompts, intervention_type="add", strengths=[1.0])
         
     except Exception as e:
         # Fail the test for any other unexpected exception.

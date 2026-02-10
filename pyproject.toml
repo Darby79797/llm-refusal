@@ -8,27 +8,28 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.11,<4.0"
 dependencies = [
-    "numpy (>=1.3.2,<2.0.0)",
-    "torch (>=2.7,<3.0.0)",
-    "einops (>=0.8.1,<0.9.0)",
-    "scikit-learn (>=1.7.1,<2.0.0)",
-    "transformers (>=4.55.4,<5.0.0)",
-    "transformer-lens (>=2.16.1,<3.0.0)",
-    "lm-eval[gsm8k,mmlu,truthfulqa] (>=0.4.9.1,<0.5.0.0)",
-    "accelerate (>=1.10.1,<2.0.0)",
-    "matplotlib (>=3.10.6,<4.0.0)",
-    "seaborn (>=0.13.2,<0.14.0)",
-    "pytest (>=8.4.1,<9.0.0)",
-    "pytest-mock (>=3.14.1,<4.0.0)"
+    "numpy>=2.0,<3.0.0",
+    "torch>=2.7,<3.0.0",
+    "einops>=0.8.1,<0.9.0",
+    "scikit-learn>=1.7.1,<2.0.0",
+    "transformers>=4.55.4,<5.0.0",
+    "transformer-lens>=2.16.1,<3.0.0",
+    "lm-eval[gsm8k,mmlu,truthfulqa]>=0.4.9.1,<0.5.0.0",
+    "accelerate>=1.10.1,<2.0.0",
+    "matplotlib>=3.10.6,<4.0.0",
+    "seaborn>=0.13.2,<0.14.0",
+    "pytest>=8.4.1,<9.0.0",
+    "pytest-mock>=3.14.1,<4.0.0"
 ]
-[tool.poetry]
-package-mode = false
-
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []
 
 [tool.pytest.ini_options]
+pythonpath = ["llm-refusal"]
 markers = [
     "smoke: marks tests as smoke tests (for quick environment validation on cloud gpu)",
 ]

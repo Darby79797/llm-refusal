@@ -45,9 +45,19 @@ def test_chat_prompt_formatter_padding(model_and_tokenizer):
     
     # Check that padding was applied correctly (left padding)
     assert input_ids.shape[1] > tokenizer(prompts[0], return_tensors='pt')['input_ids'].shape[1]
-    assert attention_mask[0, 0].item() == 0, "The first token of the shorter prompt should be masked."
-    assert attention_mask[1, 0].item() == 1, "The first token of the longer prompt should not be masked."
-    
+
+    if formatter.prepend_bos:
+        # Base models: position 0 is BOS (attended) for ALL rows, padding starts at position 1
+        assert input_ids[0, 0].item() == tokenizer.bos_token_id, "First token of shorter prompt should be BOS."
+        assert input_ids[1, 0].item() == tokenizer.bos_token_id, "First token of longer prompt should be BOS."
+        assert attention_mask[0, 0].item() == 1, "BOS token should be attended to."
+        assert attention_mask[0, 1].item() == 0, "After BOS, shorter prompt should have padding."
+        assert attention_mask[1, 0].item() == 1, "BOS token of longer prompt should be attended to."
+    else:
+        # Instruction-tuned models: no BOS prepended, padding is at the start
+        assert attention_mask[0, 0].item() == 0, "The first token of the shorter prompt should be masked."
+        assert attention_mask[1, 0].item() == 1, "The first token of the longer prompt should not be masked."
+
     # Check that the last token is never a pad token
     assert input_ids[0, -1].item() != tokenizer.pad_token_id
     assert input_ids[1, -1].item() != tokenizer.pad_token_id

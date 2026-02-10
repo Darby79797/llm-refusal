@@ -1,7 +1,23 @@
-/.venv
-/.vscode
-**/__pycache__/**
-/.pytest_cache
-/results
-/plots
+# Virtual environment
+.venv/
+
+# IDE / editor
+.vscode/
+
+# Claude Code local state
+.claude/
+
+# Python
+__pycache__/
+*.egg-info/
+*.pyc
+
+# Testing
+.pytest_cache/
+
+# Output artifacts
+results/
+plots/
+
+# Build / dependency - we don't commit lock files because PyTorch.
 poetry.lock
