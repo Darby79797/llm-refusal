@@ -1,7 +1,12 @@
+import os
 import pytest
 
 import warnings
 import logging
+
+# Must be set before importing any ML libraries
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 # Suppress Pydantic v1 validator warnings only for Hugging Face / Transformers libraries
 warnings.filterwarnings(
@@ -17,22 +22,13 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 # Suppress verbose logging from libraries for cleaner test output
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("transformers").setLevel(logging.WARNING)
-logging.getLogger("scratch").setLevel(logging.WARNING)
 
-# --- Import classes from your main script ---
-# Note: To make this work, ensure your main script can be imported.
-# You might need to add an __init__.py file in the root and adjust sys.path if necessary.
-# For simplicity, we assume the classes are in a file named `main.py`.
-from scratch import (
-    PromptData,
-    ChatPromptFormatter,
-    ModelInterventionApplier,
-    ActivationExtractor,
-    DifferenceInMeans,
-    Three_Score_Evaluator,
-    DirectionVector,
-    LogOddsMetric
-)
+from datatypes import PromptData, DirectionVector
+from formatting import ChatPromptFormatter
+from interventions import ModelInterventionApplier
+from activations import ActivationExtractor
+from direction_methods import DifferenceInMeans
+from scoring import LogOddsMetric, Three_Score_Evaluator
 
 # --- Pytest Configuration Hooks ---
 

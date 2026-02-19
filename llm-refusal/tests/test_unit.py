@@ -3,18 +3,13 @@ import torch as t
 import numpy as np
 from unittest.mock import MagicMock
 
-import scratch
-from scratch import (
-    DirectionTestFramework,
-    PromptData,
-    ChatPromptFormatter,
-    DirectionVector,
-    ModelInterventionApplier,
-    ActivationExtractor,
-    DifferenceInMeans,
-    LogOddsMetric,
-    Three_Score_Evaluator
-)
+from datatypes import PromptData, DirectionVector
+from formatting import ChatPromptFormatter
+from interventions import ModelInterventionApplier
+from activations import ActivationExtractor
+from direction_methods import DifferenceInMeans
+from scoring import LogOddsMetric, Three_Score_Evaluator
+from framework import DirectionTestFramework
 import warnings
 
 def test_prompt_data_split(sample_prompt_data):
@@ -158,7 +153,7 @@ def test_compute_kl_score_logic(mocker, sample_prompt_data, mock_model, mock_tok
     evaluator = Three_Score_Evaluator(mock_model, mock_tokenizer, mock_intervention_applier, MagicMock())
 
     mocker.patch.object(evaluator, '_get_logits', return_value=[t.randn(10), t.randn(10)])
-    mocker.patch('scratch.F.kl_div', return_value=t.tensor(0.05))
+    mocker.patch('scoring.F.kl_div', return_value=t.tensor(0.05))
 
     kl_score = evaluator._compute_kl_score(MagicMock(), sample_prompt_data)
     assert kl_score == pytest.approx(0.05)

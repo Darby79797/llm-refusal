@@ -1,13 +1,11 @@
 import pytest
 import torch as t
 import warnings
-from scratch import ( # Replace with your actual module name
-    generate_with_hooks, 
-    ChatPromptFormatter, 
-    ModelInterventionApplier,
-    InterventionSuite,
-    DirectionVector
-)
+from generation import generate_with_hooks
+from formatting import ChatPromptFormatter
+from interventions import ModelInterventionApplier
+from evaluation import InterventionSuite
+from datatypes import DirectionVector
 
 # --- Test Scenarios ---
 # We define different prompt configurations to test against.
