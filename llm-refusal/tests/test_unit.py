@@ -240,3 +240,85 @@ def test_big_evaluator_judge_prompt_overrides_detection_fn(mock_model):
     evaluator._llm_judge.assert_called_once_with("some text")
     mock_fn.assert_not_called()
     assert result is False
+
+
+# --- DirectionVector save/load tests ---
+
+import tempfile
+import os
+
+
+def test_direction_vector_save_load():
+    """Round-trip: save then load preserves tensor + metadata."""
+    vec = t.randn(64)
+    dv = DirectionVector(vector=vec, layer=5, position_index=-1, score=0.42)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "test-direction")
+        dv.save(path)
+        assert os.path.exists(f"{path}.pt")
+        assert os.path.exists(f"{path}.json")
+        loaded = DirectionVector.load(path)
+        assert t.allclose(loaded.vector, vec)
+        assert loaded.layer == 5
+        assert loaded.position_index == -1
+        assert loaded.score == pytest.approx(0.42)
+
+
+# --- Cross-concept analysis tests ---
+
+from cross_concept import compute_pairwise_cosine_similarity, analyze_direction_subspace
+
+
+def test_pairwise_cosine_similarity_identical():
+    """Identical vectors → sim=1.0, diagonal always 1.0."""
+    vec = t.randn(32)
+    d1 = DirectionVector(vector=vec.clone(), layer=0, position_index=-1, score=0.0)
+    d2 = DirectionVector(vector=vec.clone(), layer=1, position_index=-1, score=0.0)
+    sim = compute_pairwise_cosine_similarity([d1, d2])
+    assert sim[0, 0] == pytest.approx(1.0, abs=1e-5)
+    assert sim[1, 1] == pytest.approx(1.0, abs=1e-5)
+    assert sim[0, 1] == pytest.approx(1.0, abs=1e-5)
+    assert sim[1, 0] == pytest.approx(1.0, abs=1e-5)
+
+
+def test_cosine_similarity_orthogonal():
+    """Orthogonal vectors → sim=0.0."""
+    v1 = t.zeros(32)
+    v1[0] = 1.0
+    v2 = t.zeros(32)
+    v2[1] = 1.0
+    d1 = DirectionVector(vector=v1, layer=0, position_index=-1, score=0.0)
+    d2 = DirectionVector(vector=v2, layer=0, position_index=-1, score=0.0)
+    sim = compute_pairwise_cosine_similarity([d1, d2])
+    assert sim[0, 1] == pytest.approx(0.0, abs=1e-5)
+
+
+def test_pca_subspace_1d():
+    """Vectors spanning a 1D subspace → first PC captures all variance."""
+    # Three unit vectors along e1 direction: e1, -e1, e1
+    v1 = t.zeros(64); v1[0] = 1.0
+    v2 = t.zeros(64); v2[0] = -1.0
+    v3 = t.zeros(64); v3[0] = 0.5  # normalizes to e1
+    d1 = DirectionVector(vector=v1, layer=0, position_index=-1, score=0.0)
+    d2 = DirectionVector(vector=v2, layer=1, position_index=-1, score=0.0)
+    d3 = DirectionVector(vector=v3, layer=2, position_index=-1, score=0.0)
+    pca_var = analyze_direction_subspace([d1, d2, d3])
+    # All unit vectors lie on a 1D line (e1 axis), so PC1 captures ~100%
+    assert pca_var[0] > 0.99
+
+
+# --- Hedging detection heuristic tests ---
+
+from concept import detect_hedging
+
+
+def test_detect_hedging_positive():
+    """Multiple hedging markers → True."""
+    text = "I think it's possible that the Earth is round, but perhaps I'm not entirely sure about this."
+    assert detect_hedging(text) is True
+
+
+def test_detect_hedging_negative():
+    """Direct answer → False."""
+    text = "The Earth is approximately spherical. It orbits the Sun once per year."
+    assert detect_hedging(text) is False
