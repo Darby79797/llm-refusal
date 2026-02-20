@@ -67,7 +67,9 @@ class DirectionTestFramework:
             search_config=self.concept.search_config
         )
         self.suite = InterventionSuite(self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter)
-        self.evaluator = BigEvaluator(self, detection_phrases=self.concept.detection_phrases)
+        self.evaluator = BigEvaluator(self, detection_phrases=self.concept.detection_phrases,
+                                      detection_fn=self.concept.detection_fn,
+                                      judge_prompt=self.concept.judge_prompt)
 
         logger.info(f"Framework initialized on device: {self.device}")
 

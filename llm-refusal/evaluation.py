@@ -78,15 +78,36 @@ class InterventionSuite:
 
 class BigEvaluator:
     """Handles quantitative evaluations for a given direction vector."""
-    def __init__(self, framework: Any, detection_phrases: Optional[List[str]] = None):
+    def __init__(self, framework: Any, detection_phrases: Optional[List[str]] = None,
+                 detection_fn=None, judge_prompt: Optional[str] = None):
         self.framework = framework
         self.model = framework.model
         self.tokenizer = framework.tokenizer
         self.intervention_applier = framework.intervention_applier
         self.detection_phrases = detection_phrases or DEFAULT_REFUSAL_PHRASES
+        self.detection_fn = detection_fn
+        self.judge_prompt = judge_prompt
 
     def _check_for_detection(self, text: str) -> bool:
+        if self.judge_prompt is not None:
+            return self._llm_judge(text)
+        if self.detection_fn is not None:
+            return self.detection_fn(text)
         return any(phrase.lower() in text.lower() for phrase in self.detection_phrases)
+
+    def _llm_judge(self, text: str) -> bool:
+        prompt = self.judge_prompt.format(response=text[:500])
+        formatted = self.framework.prompt_formatter.format_batch([prompt])
+        input_ids = formatted['input_ids'].to(self.model.device)
+        attention_mask = formatted['attention_mask'].to(self.model.device)
+        with t.no_grad():
+            output = self.model.generate(
+                input_ids, attention_mask=attention_mask,
+                max_new_tokens=5, do_sample=False,
+                pad_token_id=self.tokenizer.eos_token_id
+            )
+        response = self.tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
+        return response.strip().lower().startswith("yes")
 
     # Backward-compatible alias
     _check_for_refusal = _check_for_detection
