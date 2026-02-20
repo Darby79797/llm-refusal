@@ -30,10 +30,11 @@ examples:
     parser.add_argument("--model", dest="model_name", help="HuggingFace model ID")
     parser.add_argument(
         "--mode",
-        choices=["search", "evaluate", "eyeball"],
+        choices=["search", "evaluate", "eyeball", "cross_concept"],
         help="Experiment mode",
     )
     parser.add_argument("--concept", default="refusal", help="Concept to study (default: refusal)")
+    parser.add_argument("--concepts", default=None, help="Comma-separated concept names for cross_concept mode")
     parser.add_argument("--layer", type=int, default=None, help="Layer index (required for evaluate/eyeball)")
     parser.add_argument("--pos", type=int, default=None, help="Position index (required for evaluate/eyeball)")
     parser.add_argument("--torch-dtype", default="auto", help="Torch dtype for from_pretrained (default: auto)")
@@ -64,6 +65,7 @@ examples:
             "model_name": args.model_name,
             "mode": args.mode,
             "concept": args.concept,
+            "concepts": [s.strip() for s in args.concepts.split(",")] if args.concepts else [],
             "layer": args.layer,
             "pos": args.pos,
             "torch_dtype": args.torch_dtype,

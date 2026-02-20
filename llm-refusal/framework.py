@@ -1,3 +1,4 @@
+import os
 import torch as t
 from typing import Dict, List, Union, Optional
 import logging
@@ -103,6 +104,12 @@ class DirectionTestFramework:
                 logger.error("Search concluded without finding a suitable direction vector.")
                 return
 
+            # Auto-save the found direction vector for later reuse
+            model_short = self.model_name.split('/')[-1]
+            save_path = f"results/{model_short}-{self.concept.name}-direction"
+            direction_to_test.save(save_path)
+            logger.info(f"Direction vector saved to {save_path}.pt/.json")
+
         elif config['mode'] in ["eyeball", "evaluate"]:
             layer, pos = config.get('layer'), config.get('pos')
             if layer is None or pos is None:
@@ -142,12 +149,49 @@ class DirectionTestFramework:
 
         logger.info("Framework execution finished.")
 
+    def run_cross_concept(self, config: Dict):
+        """Load saved direction vectors for multiple concepts and run cross-concept analysis."""
+        from cross_concept import run_cross_concept_analysis
+
+        concept_names = config.get('concepts', [])
+        if len(concept_names) < 2:
+            logger.error("cross_concept mode requires at least 2 concepts (--concepts a,b).")
+            return
+
+        model_short = self.model_name.split('/')[-1]
+        directions = []
+        concepts = []
+        for name in concept_names:
+            path = f"results/{model_short}-{name}-direction"
+            if not os.path.exists(f"{path}.pt") or not os.path.exists(f"{path}.json"):
+                logger.error(
+                    f"Saved direction not found for concept '{name}' at {path}.pt/.json. "
+                    f"Run --mode search --concept {name} first."
+                )
+                return
+            dv = DirectionVector.load(path)
+            directions.append(dv)
+            concepts.append(get_concept(name))
+            logger.info(f"Loaded direction for '{name}': layer={dv.layer}, pos={dv.position_index}, score={dv.score:.4f}")
+
+        result = run_cross_concept_analysis(
+            model=self.model,
+            tokenizer=self.tokenizer,
+            intervention_applier=self.intervention_applier,
+            prompt_formatter=self.prompt_formatter,
+            directions=directions,
+            concepts=concepts,
+            model_name=self.model_name,
+        )
+        logger.info("Cross-concept analysis finished.")
+        return result
+
 
 def main(
     config: Dict
 ):
     """
-    Main execution function with multiple modes: search, evaluate, or eyeball
+    Main execution function with multiple modes: search, evaluate, eyeball, or cross_concept
     """
     framework = DirectionTestFramework(
         model_name=config['model_name'],
@@ -155,4 +199,7 @@ def main(
         force_cpu=config['force_cpu'],
         concept=config.get('concept', 'refusal')
     )
-    framework.run(config)
+    if config['mode'] == 'cross_concept':
+        framework.run_cross_concept(config)
+    else:
+        framework.run(config)
