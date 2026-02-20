@@ -176,4 +176,10 @@ class DirectionFinder:
             self._print_debug_info("Induce", best_induce_info)
             self._print_debug_info("KL", best_kl_info)
 
+            # Fall back to best overall direction so downstream analysis can proceed
+            if best_overall_info['dir'] is not None:
+                selected_direction = best_overall_info['dir']
+                selected_direction.score = best_overall_info['score']
+                logger.warning(f"Falling back to best overall direction: Layer {selected_direction.layer}, Pos {selected_direction.position_index}")
+
         return selected_direction
