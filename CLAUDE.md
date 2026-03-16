@@ -1,191 +1,113 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-Mechanistic interpretability research investigating how LLMs implement learned behaviors (refusal, sycophancy, etc.) via directions in the residual stream activation space. Currently configured for refusal (reproducing and extending Arditi & Obeso's paper "Refusal in Language Models is Mediated by a Single Direction"). The framework is concept-generic: new behaviors can be studied by registering a `ConceptDefinition` without modifying core pipeline code.
-
-## Repository Structure
-
-```
-llm-refusal/
-├── CLAUDE.md
-├── pyproject.toml              # setuptools, Python >=3.11
-└── llm-refusal/
-    ├── datatypes.py            # PromptData, DirectionScores, DirectionVector (+save/load)
-    ├── concept.py              # ConceptDefinition, concept registry, refusal/sycophancy/hedging
-    ├── formatting.py           # ChatPromptFormatter
-    ├── activations.py          # ActivationExtractor
-    ├── interventions.py        # ModelInterventionApplier, InterventionStrategy + subclasses
-    ├── direction_methods.py    # DirectionMethod ABC, DifferenceInMeans
-    ├── scoring.py              # LogOddsMetric, DirectionEvaluator ABC, Three_Score_Evaluator
-    ├── search.py               # DirectionFinder
-    ├── evaluation.py           # InterventionSuite, BigEvaluator
-    ├── generation.py           # generate_with_hooks
-    ├── cross_concept.py        # Cross-concept analysis (cosine sim, PCA, interference, plots)
-    ├── framework.py            # DirectionTestFramework, main()
-    ├── prompts.py              # Train + eval prompt datasets (refusal, sycophancy, hedging)
-    ├── run_experiment.py       # CLI runner (argparse, --model/--mode flags or --json)
-    ├── scripts/
-    │   ├── debug_batch_padding.py    # Reproduces batched-generation padding bugs
-    │   └── inspect_chat_template.py  # Prints the resolved chat template for a model
-    └── tests/
-        ├── conftest.py         # Shared fixtures, pytest hooks, model list
-        ├── test_unit.py        # Unit tests with mocks
-        ├── test_generation.py  # Integration tests for batched generation
-        └── test_smoke.py       # Quick smoke tests on small models
-```
-
-Output directories (gitignored): `results/` (log files), `plots/` (PNG visualizations).
+Mechanistic interpretability research: finding directions in the residual stream that mediate learned behaviors (refusal, sycophancy, hedging). Extends Arditi & Obeso's "Refusal in Language Models is Mediated by a Single Direction". Concept-generic: register a `ConceptDefinition` to study new behaviors without touching core code.
 
 ## Commands
 
 ```bash
-# Install dependencies (pip/setuptools, not poetry)
-pip install -e .
+pip install -e .                          # setuptools, Python >=3.11
+pytest llm-refusal/tests/                 # unit tests (excludes smoke)
+pytest --run-smoke llm-refusal/tests/     # smoke tests (gemma-3-270m)
 
-# Run all tests (excludes smoke tests by default)
-pytest llm-refusal/tests/
-
-# Run only smoke tests (quick validation, uses google/gemma-3-270m)
-pytest --run-smoke llm-refusal/tests/
-
-# Run a single test file
-pytest llm-refusal/tests/test_unit.py
-
-# Run an experiment via CLI
-python llm-refusal/run_experiment.py --model Qwen/Qwen1.5-1.8B-Chat --mode search
-python llm-refusal/run_experiment.py --model Qwen/Qwen1.5-1.8B-Chat --mode evaluate --layer 10 --pos -1
-
-# Or pass config as JSON (inline or file path)
-python llm-refusal/run_experiment.py --json '{"model_name": "Qwen/Qwen1.5-1.8B-Chat", "mode": "search"}'
-
-# Cross-concept analysis (requires saved directions from prior search runs)
-python llm-refusal/run_experiment.py --model Qwen/Qwen1.5-1.8B-Chat --mode cross_concept --concepts refusal,sycophancy,hedging
+# Main CLI
+python llm-refusal/run_experiment.py --model Qwen/Qwen2.5-3B-Instruct --mode search
+python llm-refusal/run_experiment.py --model Qwen/Qwen2.5-3B-Instruct --mode evaluate --layer 18 --pos -1
+python llm-refusal/run_experiment.py --model Qwen/Qwen2.5-3B-Instruct --mode eyeball --layer 18 --pos -1
+python llm-refusal/run_experiment.py --model Qwen/Qwen2.5-3B-Instruct --mode cross_concept --concepts refusal,sycophancy
+python llm-refusal/run_experiment.py --json '{"model_name": "...", "mode": "search"}'
 ```
 
-## Configuration
+## Key Config Options
 
-`run_experiment.py` accepts the following config (via flags or `--json`):
+| Flag | Default | Notes |
+|------|---------|-------|
+| `--model` | required | HuggingFace model ID |
+| `--mode` | required | `search`, `evaluate`, `eyeball`, `cross_concept` |
+| `--concept` | `refusal` | Registry key: `refusal`, `refusal_arditi`, `sycophancy`, `sycophancy_neutral`, `hedging` |
+| `--layer`, `--pos` | — | Required for evaluate/eyeball (pos is typically -1) |
+| `--filter-prompts` | off | Filter train prompts by actual model behavior before computing directions |
+| `--force-cpu` | off | Override device (default: CUDA > MPS > CPU) |
+| `--concepts` | — | For cross_concept: comma-separated list |
+| `--judge-*` | env vars | External API judge: `JUDGE_API_BASE`, `JUDGE_API_KEY`, `JUDGE_MODEL` |
+| `--arditi-evals` | off | Enable LlamaGuard2 + JailbreakBench + Alpaca CE loss |
 
-```python
-config = {
-    "model_name": "Qwen/Qwen1.5-1.8B-Chat",  # HuggingFace model ID
-    "torch_dtype": "auto",   # Passed to from_pretrained()
-    "force_cpu": False,       # Override device selection to CPU
-    "mode": "search",         # "search", "evaluate", "eyeball", or "cross_concept"
-    "layer": None,            # Required for evaluate/eyeball (int)
-    "pos": None,              # Required for evaluate/eyeball (int, typically -1)
-    "eval_tasks": [],         # lm-eval tasks: "mmlu", "arc_challenge", "gsm8k", "truthfulqa"
-    "limit": 100,             # Sample limit for lm-eval benchmark runs
-    "concept": "refusal",     # Concept to study (string key into concept registry)
-    "concepts": []            # For cross_concept mode: list of concept names
-}
-```
+Hardcoded: `max_positions=1`, val split 20% (`random_state=39`), `batch_size=2`, `max_new_tokens=64`, `layer_cutoff_frac=0.65`.
 
-**Modes:**
-- **search** — Scans first 80% of layers to find the best direction via multi-objective optimization. Produces plots in `plots/`. Auto-saves direction vector to `results/` for reuse.
-- **evaluate** — Requires `layer` and `pos`. Runs quantitative evaluation: detection rates (with/without intervention) and optional lm-eval benchmarks.
-- **eyeball** — Requires `layer` and `pos`. Generates text side-by-side (baseline vs. intervened) for qualitative inspection.
-- **cross_concept** — Requires `concepts` (comma-separated list). Loads saved direction vectors from prior search runs and analyzes their geometric/behavioral relationships: cosine similarity, PCA subspace analysis, intervention interference, multi-ablation composition tests.
+## Architecture (one-line per module)
 
-## Architecture
+All under `llm-refusal/`. Flat imports (`from formatting import ...`), set by `pythonpath = ["llm-refusal"]` in pyproject.toml.
 
-The codebase is organized into focused modules with clean interfaces.
+| Module | Purpose |
+|--------|---------|
+| `datatypes.py` | `PromptData`, `DirectionScores`, `DirectionVector` (with `.save()`/`.load()`) |
+| `concept.py` | `ConceptDefinition` dataclass, registry (`register_concept`/`get_concept`), all concept definitions |
+| `prompts.py` | Train + eval prompt datasets per concept, all return `(positive, negative)` |
+| `formatting.py` | `ChatPromptFormatter` — chat templates, tokenization, left-padding |
+| `activations.py` | `ActivationExtractor` — residual stream hooks, casts to float64 for stability |
+| `direction_methods.py` | `DirectionMethod` ABC, `DifferenceInMeans` (mean_pos - mean_neg in float64) |
+| `interventions.py` | `ModelInterventionApplier` — add/subtract/ablate hooks on transformer layers |
+| `scoring.py` | `LogOddsMetric`, `Three_Score_Evaluator` (bypass/induce/KL) |
+| `search.py` | `DirectionFinder` — multi-objective search with progressive fallback tiers |
+| `evaluation.py` | `BigEvaluator` (detection rates, LlamaGuard2, lm-eval), `InterventionSuite` (eyeball) |
+| `generation.py` | `generate_with_hooks()` — autoregressive gen with KV-cache (hooks work per-step) |
+| `cross_concept.py` | Cosine similarity, PCA, interference matrix, multi-ablation composition |
+| `framework.py` | `DirectionTestFramework` — orchestrator, model loading, mode dispatch |
+| `run_experiment.py` | CLI (argparse or `--json`) |
 
-### Concepts (`concept.py`)
-- **`ConceptDefinition`** — Dataclass bundling everything needed to study a behavior: `name`, `train_data_fn`, `eval_data_fn`, `target_tokens`, `detection_phrases`, `search_config`. Pure data — no behavior to override.
-- **`make_refusal_concept()`** — Factory that builds the refusal `ConceptDefinition` using prompts from `prompts.py`.
-- **`CONCEPT_REGISTRY`** / `register_concept()` / `get_concept()` — String-keyed registry mapping concept names to factory functions. `"refusal"` is registered by default. New concepts are added via `register_concept("sycophancy", make_sycophancy_concept)`.
-- **`DEFAULT_REFUSAL_TOKENS`**, **`DEFAULT_REFUSAL_PHRASES`**, **`DEFAULT_SEARCH_CONFIG`** — Constants bundled into the refusal concept by `make_refusal_concept()`.
-- **Sycophancy concept** — `detect_sycophancy()` heuristic (agreement + no contradiction), `SYCOPHANCY_JUDGE_PROMPT`, relaxed search config.
-- **Hedging concept** — `detect_hedging()` heuristic (>=2 hedging markers in first 500 chars), `HEDGING_JUDGE_PROMPT`. Targets excessive qualification on straightforward factual questions.
+Scripts in `scripts/`: `search_calibration.py`, `arditi_comparison.py`, `cross_dataset_comparison.py`, `layer_sweep.py`, `llama2_strength_sweep.py`, `compare_lg2_lg3.py`, `arditi_replication.py`, `arditi_raw_addition.py`, `arditi_evals_factorial.py`, `inspect_ablated_outputs.py`, `probe_layer_directions.py`, `scale_experiment.py`, `debug_batch_padding.py`, `inspect_chat_template.py`.
 
-### Data & Formatting
-- **`prompts.py`** — Prompt datasets for each concept: `create_refusal_train_data()`, `create_sycophancy_train_data()`, `create_hedging_train_data()` (and corresponding eval functions). All return `(positive_prompts, negative_prompts)`. Train and eval sets are disjoint. Sycophancy and hedging use topic-matched contrastive pairs.
-- **`PromptData`** (`datatypes.py`) — Dataclass for prompts + boolean labels (`True`=positive). Has `.train_val_split()`.
-- **`ChatPromptFormatter`** (`formatting.py`) — Applies chat templates, tokenizes, and left-pads for batched generation. Auto-detects instruction-tuned models by checking for `-it`, `-instruct`, or `-chat` in the model name. Falls back to manual templates for Gemma, Qwen, Yi, Llama-2, Llama-3. Base models get pass-through with BOS prepending.
+Output dirs (gitignored): `results/` (logs, `.pt`/`.json` directions, calibration JSON), `plots/` (PNGs).
 
-### Extraction & Direction Finding
-- **`ActivationExtractor`** (`activations.py`) — Extracts residual stream activations from all layers at specified positions using forward hooks.
-- **`DirectionMethod`** (`direction_methods.py`) — ABC defining `compute_direction_vectors(train_data, max_positions) -> Dict[(layer, pos), Tensor]`. New direction-finding methods implement this interface.
-- **`DifferenceInMeans`** (`direction_methods.py`) — Computes direction vectors (mean_positive − mean_negative) for each (layer, position) pair. Implements `DirectionMethod`. Keeps `compute_difference_vectors` as a backward-compat alias.
+## Adding a New Concept
 
-### Intervention
-- **`ModelInterventionApplier`** (`interventions.py`) — Registers forward hooks on transformer layers for `add`, `subtract`, or `ablate` (projection removal) interventions. Auto-detects layer structure (`.model.layers` or `.transformer.h`).
-- **`InterventionStrategy`** (`interventions.py`) ABC with two subclasses:
-  - **`GlobalInterventionStrategy`** — Applies to all layers.
-  - **`LayerSpecificInterventionStrategy`** — Applies only to the layer where the direction was found.
-- **`DirectionVector`** (`datatypes.py`) — Dataclass holding vector tensor, layer index, position index, and score. Has `.unit` property, `save(path)` / `load(path)` for persistence (`.pt` tensor + `.json` metadata sidecar).
+1. **`prompts.py`**: Add `create_<concept>_train_data()` and `create_<concept>_eval_data()` returning `(positive, negative)`. Use topic-matched contrastive pairs. Train/eval disjoint.
+2. **`concept.py`**: Define tokens (include space-prefixed), phrases, search config. Optionally add `detect_<concept>()` heuristic and judge prompt. Create factory, call `register_concept()`.
+3. Run `--mode search --concept <name>`.
+4. Add detection heuristic tests in `test_unit.py`.
 
-### Evaluation
-- **`LogOddsMetric`** (`scoring.py`) — Log-odds ratio of target tokens vs. all other tokens from next-token logits.
-- **`Three_Score_Evaluator`** (`scoring.py`) — Concept-parameterized via `target_tokens`. Evaluates directions on three metrics:
-  - **bypass** (lower=better): Log-odds on positive prompts with global ablation.
-  - **induce** (higher=better): Log-odds on negative prompts with layer-specific addition.
-  - **kl** (lower=better): KL divergence on negative prompts with global ablation.
-- **`DirectionFinder`** (`search.py`) — Multi-objective search with injected `DirectionMethod`, `Three_Score_Evaluator`, and `search_config` (from concept). Satisfices on induce > threshold and KL < threshold, then minimizes bypass. Produces score-vs-layer plots.
+## Adding a New Model Architecture
 
-### Testing & Orchestration
-- **`InterventionSuite`** (`evaluation.py`) — Qualitative: generates text with/without interventions at various strengths.
-- **`BigEvaluator`** (`evaluation.py`) — Concept-parameterized via `detection_phrases`. Quantitative: detection rate (string-match) + lm-eval benchmarks (wraps model in `HFLM`). Methods `_check_for_detection` / `evaluate_detection_rate` have backward-compat aliases `_check_for_refusal` / `evaluate_refusal_rate`.
-- **`DirectionTestFramework`** (`framework.py`) — Main orchestrator. Accepts `concept` string (default `"refusal"`), looks up `ConceptDefinition` from registry, loads model/tokenizer, wires concept through to all components, dispatches to mode. Search mode auto-saves direction vectors. `run_cross_concept()` method handles cross-concept analysis mode.
-- **`generate_with_hooks()`** (`generation.py`) — Standalone autoregressive generation with KV-cache. Needed because `model.generate()` doesn't invoke registered forward hooks on every step.
+- `interventions.py`: Add branch to `_get_transformer_layers()` (currently: `.model.layers`, `.transformer.h`).
+- `formatting.py`: Add manual chat template fallback if model lacks `tokenizer.chat_template`.
 
-### Cross-Concept Analysis (`cross_concept.py`)
-- **`CrossConceptResult`** — Dataclass holding similarity matrix, interference matrix, PCA explained variance, and multi-ablation results.
-- **`compute_pairwise_cosine_similarity(directions)`** — Cosine similarity matrix between unit direction vectors.
-- **`analyze_direction_subspace(directions)`** — PCA on stacked unit vectors to identify low-rank behavioral subspaces.
-- **`measure_interference(model, ..., directions, concepts)`** — For each pair (A,B): ablate A's direction globally, measure change in B's detection rate. Diagonal = self-ablation effect (sanity check).
-- **`test_multi_ablation(..., ablate_names, measure_name)`** — Ablate multiple directions simultaneously, compare to sum of individual ablations (tests compositionality).
-- **`plot_similarity_heatmap()` / `plot_interference_matrix()`** — Heatmap PNGs saved to `plots/`.
-- **`run_cross_concept_analysis()`** — Top-level orchestrator calling all of the above.
-- **`_FrameworkProxy`** — Minimal proxy satisfying `BigEvaluator`'s framework interface without requiring full `DirectionTestFramework`.
+## Gotchas
 
-### Import DAG (no cycles)
+- **Hook cleanup**: `clear_interventions()` after every intervention (use try/finally). Leaked hooks corrupt results.
+- **Environment variables**: `TOKENIZERS_PARALLELISM=false` and `PYTORCH_ENABLE_MPS_FALLBACK=0` must be set before importing ML libs (already done in `run_experiment.py` and `conftest.py`).
+- **MPS float16**: Framework auto-upcasts float16 to bfloat16 on MPS to prevent attention overflow.
+- **Addition uses raw (unnormalized) vectors** (matching Arditi). Ablation uses unit vectors (projection removal is scale-invariant).
+- **NaN in scoring**: `LogOddsMetric` returns nan for inf/nan logits; downstream uses `nanmean`. Not an error.
+- **Search fallback**: Strict criteria rarely met on models <=1.8B. Progressive tiers: (Δinduce>+3, KL<5) → (Δinduce>+1.5, KL<10) → (Δinduce>+0, KL<20) → best induce. Tiers rank by induce score.
+- **Detection hierarchy**: API judge → `detection_fn` heuristic → phrase matching. Study model never self-judges.
+- **LlamaGuard 2 not 3**: LG3 flags by topic (80-93% FP on refusals). LG2 flags by compliance. Use LG2.
+- **`generate_with_hooks()`** exists because `model.generate()` doesn't invoke forward hooks every step.
 
-```
-datatypes
-├── concept           (+ prompts)
-├── formatting
-├── activations       (+ formatting)
-├── interventions     (+ datatypes)
-├── direction_methods (+ activations, datatypes)
-├── scoring           (+ interventions, formatting, datatypes, concept)
-├── generation        (+ formatting)
-├── search            (+ direction_methods, scoring, interventions, concept, datatypes)
-├── evaluation        (+ interventions, formatting, datatypes, concept)
-├── cross_concept     (+ datatypes, evaluation, interventions, concept)
-└── framework         (+ all above, cross_concept)
-```
+## Best Layers (Refusal)
 
-## Device Handling
+| Model | Best | Pos | Ablation Δ | Induction | Notes |
+|-------|------|-----|------------|-----------|-------|
+| Qwen2.5-0.5B (24L) | 12 | -1 | -38pp | 89% | |
+| Qwen2.5-1.5B (28L) | 13 | -1 | -20pp | 100% | Sweet spot L12-14 |
+| Qwen2.5-3B (36L) | 18 | -1 | -83pp | 98% | Strongest result |
+| Qwen2.5-7B (28L) | 14 | -1 | -1pp | 91% | Ablation-resistant |
+| Llama-2-7B (32L) | 6 | -1 | 0pp | 100% | Needs strength=3 |
 
-`DirectionTestFramework` selects device: CUDA > MPS > CPU (overridable via `force_cpu: True`). If a model loads as `float16` on MPS, it is upcast to `bfloat16` to prevent attention overflow (NaN/Inf).
+Sweet spot is ~35-60% depth. Full results: `results/results_summary.md`, experiment log: `results/extended_results_list.md`.
 
-## Test Structure
+## Key Findings
 
-- `test_unit.py` — Unit tests with mocks for data splitting, hooks, interventions, metrics. Patches `scoring.F.kl_div` for KL score tests.
-- `test_generation.py` — Integration tests parametrized across: `google/gemma-3-1b-pt`, `google/gemma-3-1b-it` (expected to fail), `openai-community/gpt2-xl`.
-- `test_smoke.py` — End-to-end pipeline smoke test on `google/gemma-3-270m`.
-- `conftest.py` — Shared fixtures (`model_and_tokenizer` parametrized across test models, session-scoped), `--run-smoke` CLI option, mock factories.
+- **Refusal direction works**: 89-100% induction across all Qwen2.5 models at ~50% depth, raw strength=1.
+- **Ablation is model-dependent**: 3B loses 83pp refusal; 7B loses 1pp (redundant circuits).
+- **Our dataset >> Arditi's**: Topic-matched 80+80 pairs produce 20x stronger directions than Arditi's 260+18793 (class imbalance dilutes signal).
+- **Sycophancy is harder**: Low induction rates (2-12%), no clean single direction on small models.
+- **Asymmetric interference**: Ablating refusal increases sycophancy +17pp; ablating sycophancy reduces refusal -57pp on 3B (strong cross-interference despite cos=0.176).
+- **Prompt filtering has zero effect**: 3-21% mislabeled prompts don't contaminate difference-in-means. Not worth compute.
+- **Search calibration**: LogOdds induce scores mislead at deep layers (>60% depth). Fixed via `layer_cutoff_frac=0.65`.
+- **Hedging: negative result**: Search finds directions with positive LogOdds induce scores, but 0% behavioral detection across all conditions on all 4 Qwen2.5 models. Models don't hedge on factual questions at baseline.
+- **3-way cross-concept (3B)**: Refusal/sycophancy/hedging directions span a 2D subspace. Ablating sycophancy direction reduces refusal by 57pp (strong cross-interference).
 
-## Output Artifacts
+## Next Steps
 
-- `results/` — Log files: `{ModelShortName}-{mode}[-L{layer}][-P{pos}].log`
-- `results/` — Saved direction vectors: `{ModelShortName}-{concept}-direction.pt` + `.json` (auto-saved by search mode)
-- `plots/` — PNGs: `{ModelShortName}-induce_score_vs_layer.png`, `{ModelShortName}-bypass_score_vs_layer.png`
-- `plots/` — Cross-concept PNGs: `{ModelShortName}-cross_concept_similarity.png`, `{ModelShortName}-cross_concept_interference.png`
-
-## Experimental Notes
-
-**Model size caveat.** Strict search criteria (induce > threshold AND KL < threshold) are never jointly satisfied on models <=1.8B for any concept. The search falls back to the best-overall direction. Expect cleaner results on 7B+ models.
-
-**Concept status (Qwen1.5-1.8B-Chat).** Refusal and sycophancy have both been searched and cross-analyzed. Hedging is defined in code but has never been run.
-
-**Key finding: asymmetric interference.** Ablating the refusal direction increases sycophancy detection by +16.7pp, but ablating sycophancy has zero effect on refusal detection. Multi-ablation composes linearly (no interaction term). Cosine similarity between directions is -0.15 (near-orthogonal). The directions are geometrically independent but functionally coupled in one direction only.
-
-**Sycophancy is harder than refusal.** The best bypass candidate and the best induce/KL candidate live in different layers (18 vs 0), suggesting sycophancy is not mediated by a single clean direction in small models.
-
-**Full results.** See `results/cross-concept-run-2026-02-20.md` for exact numbers.
+- Hedging: try opinion/subjective prompts instead of factual questions (models may hedge more on ambiguous topics)
+- Larger models (7B+) for cleaner sycophancy directions
+- Investigate refusal-sycophancy cross-interference: why does ablating sycophancy direction reduce refusal by 57pp?
