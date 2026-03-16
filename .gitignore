@@ -15,9 +15,10 @@ __pycache__/
 # Testing
 .pytest_cache/
 
-# Output artifacts
+# Input/Output artifacts
 results/
 plots/
+data/
 
 # Build / dependency - we don't commit lock files because PyTorch.
 poetry.lock
