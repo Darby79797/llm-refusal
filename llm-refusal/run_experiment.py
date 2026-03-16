@@ -41,6 +41,17 @@ examples:
     parser.add_argument("--force-cpu", action="store_true", help="Force CPU device")
     parser.add_argument("--eval-tasks", nargs="*", default=[], help="lm-eval tasks: mmlu, arc_challenge, gsm8k, truthfulqa")
     parser.add_argument("--limit", type=int, default=100, help="Sample limit for lm-eval benchmarks (default: 100)")
+    parser.add_argument("--judge-api-base", default=None, help="OpenAI-compatible API base URL for judge (env: JUDGE_API_BASE)")
+    parser.add_argument("--judge-api-key", default=None, help="API key for judge endpoint (env: JUDGE_API_KEY)")
+    parser.add_argument("--judge-model", default=None, help="Model name at the judge API (env: JUDGE_MODEL)")
+    parser.add_argument("--arditi-evals", action="store_true", help="Enable Arditi-style evals (LlamaGuard2, JailbreakBench, Alpaca CE loss)")
+    parser.add_argument("--llamaguard-api-base", default=None, help="API base URL for LlamaGuard2 (env: LLAMAGUARD_API_BASE)")
+    parser.add_argument("--llamaguard-api-key", default=None, help="API key for LlamaGuard2 (env: LLAMAGUARD_API_KEY)")
+    parser.add_argument("--llamaguard-model", default=None, help="Model name for LlamaGuard2 (env: LLAMAGUARD_MODEL)")
+    parser.add_argument("--jbb-api-key", default=None, help="Together AI API key for JailbreakBench (env: JBB_API_KEY)")
+    parser.add_argument("--alpaca-max-prompts", type=int, default=500, help="Max prompts for Alpaca CE loss (default: 500)")
+    parser.add_argument("--filter-prompts", action="store_true",
+                        help="Filter train prompts to only keep those where model behavior matches the label")
     parser.add_argument(
         "--json",
         dest="json_config",
@@ -72,6 +83,16 @@ examples:
             "force_cpu": args.force_cpu,
             "eval_tasks": args.eval_tasks,
             "limit": args.limit,
+            "judge_api_base": args.judge_api_base or os.environ.get("JUDGE_API_BASE"),
+            "judge_api_key": args.judge_api_key or os.environ.get("JUDGE_API_KEY"),
+            "judge_model": args.judge_model or os.environ.get("JUDGE_MODEL"),
+            "arditi_evals": args.arditi_evals,
+            "llamaguard_api_base": args.llamaguard_api_base or os.environ.get("LLAMAGUARD_API_BASE"),
+            "llamaguard_api_key": args.llamaguard_api_key or os.environ.get("LLAMAGUARD_API_KEY"),
+            "llamaguard_model": args.llamaguard_model or os.environ.get("LLAMAGUARD_MODEL"),
+            "jbb_api_key": args.jbb_api_key or os.environ.get("JBB_API_KEY"),
+            "alpaca_max_prompts": args.alpaca_max_prompts,
+            "filter_prompts": args.filter_prompts,
         }
 
     return config

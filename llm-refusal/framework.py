@@ -22,7 +22,10 @@ class DirectionTestFramework:
     """
     Main orchestrator for finding, evaluating, and testing direction vectors.
     """
-    def __init__(self, model_name: str, torch_dtype: Union[str, t.dtype] = "auto", force_cpu: bool = False, concept: str = "refusal"):
+    def __init__(self, model_name: str, torch_dtype: Union[str, t.dtype] = "auto", force_cpu: bool = False, concept: str = "refusal",
+                 judge_api_base: Optional[str] = None, judge_api_key: Optional[str] = None, judge_model: Optional[str] = None,
+                 llamaguard_api_base: Optional[str] = None, llamaguard_api_key: Optional[str] = None,
+                 llamaguard_model: Optional[str] = None, jbb_api_key: Optional[str] = None):
         self.model_name = model_name
         self.concept = get_concept(concept)
 
@@ -70,9 +73,48 @@ class DirectionTestFramework:
         self.suite = InterventionSuite(self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter)
         self.evaluator = BigEvaluator(self, detection_phrases=self.concept.detection_phrases,
                                       detection_fn=self.concept.detection_fn,
-                                      judge_prompt=self.concept.judge_prompt)
+                                      judge_prompt=self.concept.judge_prompt,
+                                      judge_api_base=judge_api_base,
+                                      judge_api_key=judge_api_key,
+                                      judge_model=judge_model,
+                                      llamaguard_api_base=llamaguard_api_base,
+                                      llamaguard_api_key=llamaguard_api_key,
+                                      llamaguard_model=llamaguard_model,
+                                      jbb_api_key=jbb_api_key)
 
         logger.info(f"Framework initialized on device: {self.device}")
+
+    def _filter_prompts_by_behavior(self, positive_prompts, negative_prompts):
+        """Filter prompts to only keep those where model behavior matches the label.
+
+        Generates baseline responses and checks detection. Keeps:
+        - Positive prompts where detection fires (model actually refuses)
+        - Negative prompts where detection doesn't fire (model actually complies)
+        """
+        logger.info(f"Filtering prompts by model behavior ({len(positive_prompts)} positive, {len(negative_prompts)} negative)...")
+
+        pos_responses = self.evaluator.generate_responses(positive_prompts)
+        filtered_pos = [p for p, r in zip(positive_prompts, pos_responses)
+                        if self.evaluator._check_for_detection(r)]
+
+        neg_responses = self.evaluator.generate_responses(negative_prompts)
+        filtered_neg = [p for p, r in zip(negative_prompts, neg_responses)
+                        if not self.evaluator._check_for_detection(r)]
+
+        pos_dropped = len(positive_prompts) - len(filtered_pos)
+        neg_dropped = len(negative_prompts) - len(filtered_neg)
+        logger.info(f"Filtering complete: "
+                    f"positive {len(positive_prompts)}→{len(filtered_pos)} (dropped {pos_dropped} non-refused), "
+                    f"negative {len(negative_prompts)}→{len(filtered_neg)} (dropped {neg_dropped} false-refused)")
+
+        if len(filtered_pos) == 0:
+            raise ValueError("All positive prompts were filtered out — model refuses none of them. "
+                             "Cannot compute contrastive direction.")
+        if len(filtered_neg) == 0:
+            raise ValueError("All negative prompts were filtered out — model refuses all of them. "
+                             "Cannot compute contrastive direction.")
+
+        return filtered_pos, filtered_neg
 
     def _print_eyeball_results(self, results: Dict[str, List[Dict]]):
         """Pretty-prints the results from InterventionSuite.test_generation()."""
@@ -90,6 +132,10 @@ class DirectionTestFramework:
         Main execution method based on the provided config.
         """
         positive_prompts, negative_prompts = self.concept.train_data_fn()
+        if config.get('filter_prompts', False):
+            positive_prompts, negative_prompts = self._filter_prompts_by_behavior(
+                positive_prompts, negative_prompts
+            )
         train_data = PromptData(positive_prompts + negative_prompts, [True]*len(positive_prompts) + [False]*len(negative_prompts))
         train_data, val_data = train_data.train_val_split()
 
@@ -144,7 +190,9 @@ class DirectionTestFramework:
             self.evaluator.run_all_evaluations(
                 direction_to_test, eval_pos, eval_neg,
                 tasks=config.get('eval_tasks', []),
-                limit=config.get('limit', 100)
+                limit=config.get('limit', 100),
+                run_arditi_evals=config.get('arditi_evals', False),
+                alpaca_max_prompts=config.get('alpaca_max_prompts', 500),
             )
 
         logger.info("Framework execution finished.")
@@ -197,7 +245,14 @@ def main(
         model_name=config['model_name'],
         torch_dtype=config['torch_dtype'],
         force_cpu=config['force_cpu'],
-        concept=config.get('concept', 'refusal')
+        concept=config.get('concept', 'refusal'),
+        judge_api_base=config.get('judge_api_base'),
+        judge_api_key=config.get('judge_api_key'),
+        judge_model=config.get('judge_model'),
+        llamaguard_api_base=config.get('llamaguard_api_base'),
+        llamaguard_api_key=config.get('llamaguard_api_key'),
+        llamaguard_model=config.get('llamaguard_model'),
+        jbb_api_key=config.get('jbb_api_key'),
     )
     if config['mode'] == 'cross_concept':
         framework.run_cross_concept(config)
