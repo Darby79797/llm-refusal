@@ -16,19 +16,13 @@ warnings.filterwarnings(
 )
 
 import torch as t
-from unittest.mock import MagicMock, PropertyMock
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # Suppress verbose logging from libraries for cleaner test output
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("transformers").setLevel(logging.WARNING)
 
-from datatypes import PromptData, DirectionVector
-from formatting import ChatPromptFormatter
-from interventions import ModelInterventionApplier
-from activations import ActivationExtractor
-from direction_methods import DifferenceInMeans
-from scoring import LogOddsMetric, Three_Score_Evaluator
+from datatypes import PromptData
 
 # --- Pytest Configuration Hooks ---
 
@@ -54,64 +48,6 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "smoke" not in item.keywords:
             item.add_marker(skip_non_smoke)
-
-@pytest.fixture
-def mock_model():
-    """A more realistic mock for AutoModelForCausalLM."""
-    mock = MagicMock(spec=AutoModelForCausalLM)
-    
-    # FIX: Add .dtype and .device attributes
-    mock.dtype = t.float32
-    mock.device = t.device("cpu")
-    
-    # FIX: Correctly mock the nested .model.layers structure
-    mock.model = MagicMock()
-    mock_layer = MagicMock()
-    # Ensure the hook's remove() method is also a mock so it can be called
-    mock_layer.register_forward_hook.return_value = MagicMock(remove=MagicMock())
-    mock.model.layers = [mock_layer] 
-    
-    # Add a minimal config that the code expects, including the existence of a mock.config
-    mock.config = MagicMock()
-    mock.config.hidden_size = 10 
-    
-    return mock
-
-@pytest.fixture
-def mock_intervention_applier(mock_model):
-    """A mock for ModelInterventionApplier that includes the .model attribute."""
-    # FIX: The mock now correctly holds a reference to the mock_model
-    mock_applier = MagicMock(spec=ModelInterventionApplier)
-    mock_applier.model = mock_model
-    mock_applier.transformer_layers = mock_model.model.layers
-    return mock_applier
-
-@pytest.fixture(params=[True, False], ids=["with_chat_template", "without_chat_template"])
-def mock_tokenizer(request):
-    """
-    A parameterized fixture to mock AutoTokenizer with all necessary methods.
-    """
-    has_chat_template = request.param
-    mock = MagicMock(spec=AutoTokenizer)
-    
-    # FIX: Define all methods that could be called by ChatPromptFormatter
-    mock.apply_chat_template = MagicMock(return_value=t.tensor([[1, 2, 3]]))
-    mock.__call__ = MagicMock(return_value={'input_ids': t.tensor([[1, 2, 3]]), 'attention_mask': t.tensor([[1, 1, 1]])})
-    mock.encode = MagicMock(side_effect=lambda token, **kwargs: [hash(token) % 50000])
-
-    # Use PropertyMock to control the presence of .chat_template
-    if has_chat_template:
-        type(mock).chat_template = PropertyMock(return_value="A template string")
-    else:
-        type(mock).chat_template = PropertyMock(return_value=None)
-
-    # Add other necessary attributes
-    mock.pad_token = "[PAD]"
-    mock.pad_token_id = hash(mock.pad_token) % 50000
-    mock.padding_side = 'left'
-    mock.model_max_length = 4096
-    
-    return mock
 
 @pytest.fixture
 def sample_prompt_data():
