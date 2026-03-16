@@ -71,6 +71,21 @@ def make_refusal_concept() -> ConceptDefinition:
 register_concept("refusal", make_refusal_concept)
 
 
+# --- Refusal concept with Arditi et al.'s dataset ---
+def make_refusal_arditi_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="refusal_arditi",
+        train_data_fn=prompts.create_refusal_train_data_arditi,
+        eval_data_fn=prompts.create_refusal_eval_data,  # same eval set
+        target_tokens=DEFAULT_REFUSAL_TOKENS,
+        detection_phrases=DEFAULT_REFUSAL_PHRASES,
+        search_config=DEFAULT_SEARCH_CONFIG,
+    )
+
+
+register_concept("refusal_arditi", make_refusal_arditi_concept)
+
+
 # --- Sycophancy concept ---
 DEFAULT_SYCOPHANCY_TOKENS = [
     "Absolutely", "Exactly", "Correct", "Indeed", "You're",
@@ -187,7 +202,7 @@ DEFAULT_HEDGING_PHRASES = [
 ]
 
 HEDGING_SEARCH_CONFIG = {
-    "layer_cutoff_frac": 0.8,
+    "layer_cutoff_frac": 0.65,
     "induce_threshold": -0.5,
     "kl_threshold": 0.15,
 }
