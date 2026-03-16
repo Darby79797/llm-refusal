@@ -53,10 +53,13 @@ class ActivationExtractor:
                     for pos_idx in range(-1, -min(max_positions, true_len) - 1, -1):
                         key = (layer_idx, pos_idx)
                         # This indexing is now correct because layer_acts_batch is guaranteed to be 3D
-                        activation = layer_acts_batch[i, true_len + pos_idx, :]
+                        # Cast to float64 for numerical stability when averaging
+                        # (bf16 quantization noise accumulates over ~100 samples)
+                        activation = layer_acts_batch[i, true_len + pos_idx, :].to(t.float64)
 
                         if key not in all_activations:
                             all_activations[key] = []
                         all_activations[key].append(activation)
 
+        # Mean computed in float64 for precision; stays float64 for downstream subtraction
         return {key: t.stack(acts).mean(dim=0) for key, acts in all_activations.items()}

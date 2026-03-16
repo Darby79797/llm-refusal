@@ -87,13 +87,15 @@ class DirectionFinder:
             logger.error(f"Failed to generate or save bypass score plot: {e}")
 
     def find_best_direction(
-        self, train_data: PromptData, val_data: PromptData, max_positions: int = 5
+        self, train_data: PromptData, val_data: PromptData, max_positions: Optional[int] = None
     ) -> Optional[DirectionVector]:
         """
         Selects a direction vector based on strict multi-objective criteria.
         Also logs a summary of the best candidates found for each metric.
         """
-        logger.info("Computing difference-in-means vectors...")
+        if max_positions is None:
+            max_positions = self.search_config.get("max_positions", 1)
+        logger.info(f"Computing difference-in-means vectors (max_positions={max_positions})...")
         difference_vectors = self.direction_finder_method.compute_difference_vectors(train_data, max_positions)
 
         logger.info("Pre-computing baseline scores and logits on the validation set...")
@@ -114,7 +116,7 @@ class DirectionFinder:
         logger.info(f"Evaluating direction candidates with multi-objective criteria...")
 
         all_scores_data = []
-        best_overall_info = {'score': float('inf'), 'dir': None, 'scores': None}
+        all_candidates = []  # (direction, scores) for fallback selection
         best_bypass_info = {'score': float('inf'), 'dir': None, 'scores': None}
         best_induce_info = {'score': float('-inf'), 'dir': None, 'scores': None}
         best_kl_info = {'score': float('inf'), 'dir': None, 'scores': None}
@@ -137,10 +139,8 @@ class DirectionFinder:
                 'induce_score': scores.induce,
                 'kl_score': scores.kl
             })
+            all_candidates.append((current_direction, scores))
 
-            lenient_score = (10 * scores.bypass) + scores.kl - scores.induce
-            if lenient_score < best_overall_info['score']:
-                best_overall_info.update({'score': lenient_score, 'dir': current_direction, 'scores': scores})
             if scores.bypass < best_bypass_info['score']:
                 best_bypass_info.update({'score': scores.bypass, 'dir': current_direction, 'scores': scores})
             if scores.induce > best_induce_info['score']:
@@ -159,7 +159,6 @@ class DirectionFinder:
         if all_scores_data:
             results_df = pd.DataFrame(all_scores_data)
             model_short_name = self.model.name_or_path.split('/')[-1] if hasattr(self.model, 'name_or_path') else 'unknown_model'
-            # --- FIX: Call the plotting function ---
             self._plot_and_save_search_results(results_df, model_short_name)
         else:
             logger.warning("No data was collected during search; skipping data saving and plotting.")
@@ -169,17 +168,68 @@ class DirectionFinder:
             logger.info(f"Layer: {selected_direction.layer}, Position: {selected_direction.position_index}")
             logger.info(f"Final Bypass Score (minimized): {selected_direction.score:.4f}")
         else:
-            logger.warning("\nNo direction vector was found that met all strict selection criteria. Printing additional information for debugging:")
+            logger.warning("\nNo direction met strict criteria (induce > %.2f, KL < %.2f). Trying progressive relaxation...",
+                           self.search_config["induce_threshold"], self.search_config["kl_threshold"])
             logger.info(f"  {'Baseline':<7}:               | Bypass: {baseline_bypass_score:7.4f}, Induce: {baseline_induce_score:7.4f}, KL: {0.0:7.4f}")
-            self._print_debug_info("Overall", best_overall_info)
             self._print_debug_info("Bypass", best_bypass_info)
             self._print_debug_info("Induce", best_induce_info)
             self._print_debug_info("KL", best_kl_info)
 
-            # Fall back to best overall direction so downstream analysis can proceed
-            if best_overall_info['dir'] is not None:
-                selected_direction = best_overall_info['dir']
-                selected_direction.score = best_overall_info['score']
-                logger.warning(f"Falling back to best overall direction: Layer {selected_direction.layer}, Pos {selected_direction.position_index}")
+            selected_direction = self._progressive_fallback(
+                all_candidates, baseline_induce_score
+            )
 
         return selected_direction
+
+    def _progressive_fallback(
+        self,
+        candidates: list,
+        baseline_induce: float,
+    ) -> Optional[DirectionVector]:
+        """
+        Progressive relaxation fallback: filter by increasingly relaxed induce
+        delta thresholds, rank by induce (highest first) among passing candidates.
+
+        On small models, bypass and induce rankings diverge — layers with the best
+        ablation properties often have poor induction. Since induction is the
+        better predictor of actual generation behavior, we rank by induce within
+        each tier rather than bypass.
+        """
+        # Relaxation tiers: (min induce delta above baseline, max KL)
+        # Calibrated against behavioral induction rates on Qwen2.5-{0.5B,1.5B,3B,7B}.
+        # Good layers consistently have KL > 1.0, so KL thresholds are generous.
+        # The layer_cutoff_frac (0.65) does the heavy lifting to exclude deep layers
+        # where high induce scores don't translate to actual behavioral induction.
+        tiers = [
+            (3.0, 5.0,  "induce Δ>+3, KL<5.0"),
+            (1.5, 10.0, "induce Δ>+1.5, KL<10.0"),
+            (0.0, 20.0, "induce Δ>+0, KL<20.0"),
+        ]
+
+        for min_delta, max_kl, label in tiers:
+            passing = [
+                (d, s) for d, s in candidates
+                if (s.induce - baseline_induce) > min_delta and s.kl < max_kl
+            ]
+            if passing:
+                # Rank by induce (highest = best induction) among passing candidates
+                passing.sort(key=lambda x: x[1].induce, reverse=True)
+                best_dir, best_scores = passing[0]
+                best_dir.score = best_scores.induce
+                delta = best_scores.induce - baseline_induce
+                logger.info(f"  Relaxed selection ({label}): "
+                            f"Layer {best_dir.layer}, Pos {best_dir.position_index} | "
+                            f"Bypass: {best_scores.bypass:.4f}, Induce: {best_scores.induce:.4f} "
+                            f"(Δ={delta:+.4f}), KL: {best_scores.kl:.4f}")
+                return best_dir
+
+        # Absolute last resort: best induce candidate regardless of other metrics
+        if candidates:
+            candidates.sort(key=lambda x: x[1].induce, reverse=True)
+            best_dir, best_scores = candidates[0]
+            best_dir.score = best_scores.induce
+            logger.warning(f"  No candidates passed any relaxed tier. "
+                           f"Falling back to best induce: Layer {best_dir.layer}, Pos {best_dir.position_index}")
+            return best_dir
+
+        return None

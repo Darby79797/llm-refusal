@@ -37,8 +37,9 @@ class ModelInterventionApplier:
             layers = list(range(len(self.transformer_layers)))
 
         unit_dir = direction.unit.to(self.model.dtype)
+        raw_dir = direction.vector.to(self.model.dtype)
 
-        def make_intervention_hook(intervention_type, strength, unit_dir):
+        def make_intervention_hook(intervention_type, strength, unit_dir, raw_dir):
             def hook(module, input, output):
                 # --- ROBUST HOOK LOGIC ---
                 is_tuple_output = isinstance(output, tuple)
@@ -46,10 +47,16 @@ class ModelInterventionApplier:
                 device_unit_dir = unit_dir.to(hidden_states.device)
 
                 if intervention_type == "add":
-                    modified_states = hidden_states + strength * device_unit_dir
+                    # Use raw (unnormalized) direction for addition (matches Arditi et al.)
+                    # strength=1.0 adds one full direction vector's worth
+                    device_raw_dir = raw_dir.to(hidden_states.device)
+                    modified_states = hidden_states + strength * device_raw_dir
                 elif intervention_type == "subtract":
-                    modified_states = hidden_states - strength * device_unit_dir
+                    # Use raw direction for subtraction (symmetric with add)
+                    device_raw_dir = raw_dir.to(hidden_states.device)
+                    modified_states = hidden_states - strength * device_raw_dir
                 elif intervention_type == "ablate":
+                    # Use unit direction for ablation (projection removal is scale-invariant)
                     projection = t.sum(hidden_states * device_unit_dir, dim=-1, keepdim=True)
                     modified_states = hidden_states - projection * device_unit_dir
                 else:
@@ -62,7 +69,7 @@ class ModelInterventionApplier:
                     return modified_states
             return hook
 
-        hook_fn = make_intervention_hook(intervention_type, strength, unit_dir)
+        hook_fn = make_intervention_hook(intervention_type, strength, unit_dir, raw_dir)
         for layer_idx in layers:
             if 0 <= layer_idx < len(self.transformer_layers):
                 hook = self.transformer_layers[layer_idx].register_forward_hook(hook_fn)

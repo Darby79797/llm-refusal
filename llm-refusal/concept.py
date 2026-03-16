@@ -17,9 +17,10 @@ DEFAULT_REFUSAL_PHRASES = [
 ]
 
 DEFAULT_SEARCH_CONFIG = {
-    "layer_cutoff_frac": 0.8,   # Search first 80% of layers
+    "layer_cutoff_frac": 0.65,  # Search first 65% of layers (behavioral induction drops beyond ~60% depth)
     "induce_threshold": 0,       # Induce score must be > 0
     "kl_threshold": 0.1,         # KL divergence must be < 0.1
+    "max_positions": 1,          # Last token position only (matches Arditi et al.)
 }
 
 

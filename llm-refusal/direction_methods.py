@@ -42,8 +42,9 @@ class DifferenceInMeans(DirectionMethod):
         pos_activations = self.extractor.extract_residual_activations(positive_prompts, max_positions)
         neg_activations = self.extractor.extract_residual_activations(negative_prompts, max_positions)
 
+        # Subtraction in float64 (from ActivationExtractor), then cast to float32 for storage/GPU
         difference_vectors = {
-            key: pos_activations[key] - neg_activations[key]
+            key: (pos_activations[key] - neg_activations[key]).to(t.float32)
             for key in pos_activations if key in neg_activations
         }
 
