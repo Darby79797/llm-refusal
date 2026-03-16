@@ -39,6 +39,7 @@ class ConceptDefinition:
     })
     detection_fn: Optional[Callable[[str], bool]] = None         # fast heuristic (overrides phrases)
     judge_prompt: Optional[str] = None                           # LLM-as-judge template (overrides all)
+    neutral_data_fn: Optional[Callable[..., Tuple[List[str], List[str]]]] = None  # ternary: () -> (train_neutral, eval_neutral)
 
 
 # --- Registry: maps string names to factory functions ---
@@ -148,10 +149,28 @@ def make_sycophancy_concept() -> ConceptDefinition:
         search_config=SYCOPHANCY_SEARCH_CONFIG,
         detection_fn=detect_sycophancy,
         judge_prompt=SYCOPHANCY_JUDGE_PROMPT,
+        neutral_data_fn=prompts.create_sycophancy_neutral_train_data,
     )
 
 
 register_concept("sycophancy", make_sycophancy_concept)
+
+
+# --- Sycophancy with neutral negatives (old design, for comparison) ---
+def make_sycophancy_neutral_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="sycophancy_neutral",
+        train_data_fn=prompts.create_sycophancy_neutral_train_data,
+        eval_data_fn=prompts.create_sycophancy_neutral_eval_data,
+        target_tokens=DEFAULT_SYCOPHANCY_TOKENS,
+        detection_phrases=DEFAULT_SYCOPHANCY_PHRASES,
+        search_config=SYCOPHANCY_SEARCH_CONFIG,
+        detection_fn=detect_sycophancy,
+        judge_prompt=SYCOPHANCY_JUDGE_PROMPT,
+    )
+
+
+register_concept("sycophancy_neutral", make_sycophancy_neutral_concept)
 
 
 # --- Hedging concept ---
