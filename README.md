@@ -7,6 +7,7 @@ Reproduce Arditi's paper, using only the paper and writing my own code, using my
 
 # Part 2: 
 - mostly completed
+
 Extend this from "just refusal" to "refusal, and also other concepts".
 
 # Part 3: 
