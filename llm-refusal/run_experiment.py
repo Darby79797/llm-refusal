@@ -50,8 +50,11 @@ examples:
     parser.add_argument("--llamaguard-model", default=None, help="Model name for LlamaGuard2 (env: LLAMAGUARD_MODEL)")
     parser.add_argument("--jbb-api-key", default=None, help="Together AI API key for JailbreakBench (env: JBB_API_KEY)")
     parser.add_argument("--alpaca-max-prompts", type=int, default=500, help="Max prompts for Alpaca CE loss (default: 500)")
-    parser.add_argument("--filter-prompts", action="store_true",
-                        help="Filter train prompts to only keep those where model behavior matches the label")
+    parser.add_argument("--no-filter-prompts", dest="filter_prompts", action="store_false",
+                        help="Disable filtering train prompts by actual model behavior (on by default)")
+    parser.set_defaults(filter_prompts=True)
+    parser.add_argument("--induce-mode", choices=["single_layer", "all_layers"], default="single_layer",
+                        help="Induce score mode for search selection: single_layer (default) or all_layers (Arditi-style)")
     parser.add_argument(
         "--json",
         dest="json_config",
@@ -93,6 +96,7 @@ examples:
             "jbb_api_key": args.jbb_api_key or os.environ.get("JBB_API_KEY"),
             "alpaca_max_prompts": args.alpaca_max_prompts,
             "filter_prompts": args.filter_prompts,
+            "induce_mode": args.induce_mode,
         }
 
     return config

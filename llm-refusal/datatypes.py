@@ -29,6 +29,7 @@ class DirectionScores:
     bypass: float  # Lower is better. We optimise on this score. Avg logodds metric on positive prompts with global ablation, testing how much we eliminate the behaviour.
     induce: float  # Higher is better. We satisfice on this score>0. Avg metric on negative prompts with layer-specific addition, testing sufficiency.
     kl: float      # Lower is better. We satisfice on this score<0.1. KL divergence on negative prompts with global ablation, testing if ablation nukes performance.
+    induce_global: float = 0.0  # Like induce, but adds direction at all layers (Arditi-style). Default 0.0 for backward compat.
 
 @dataclass
 class DirectionVector:

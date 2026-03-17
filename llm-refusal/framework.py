@@ -64,11 +64,12 @@ class DirectionTestFramework:
         direction_method = DifferenceInMeans(extractor)
         evaluator = Three_Score_Evaluator(self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter, target_tokens=self.concept.target_tokens)
 
+        self.search_config = dict(self.concept.search_config)  # mutable copy
         self.finder = DirectionFinder(
             self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter,
             direction_method=direction_method,
             evaluator=evaluator,
-            search_config=self.concept.search_config
+            search_config=self.search_config,
         )
         self.suite = InterventionSuite(self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter)
         self.evaluator = BigEvaluator(self, detection_phrases=self.concept.detection_phrases,
@@ -145,6 +146,8 @@ class DirectionTestFramework:
 
         if config['mode'] == "search":
             logger.info("Running in SEARCH mode...")
+            if config.get('induce_mode'):
+                self.search_config["induce_mode"] = config['induce_mode']
             direction_to_test = self.finder.find_best_direction(train_data, val_data)
             if direction_to_test is None:
                 logger.error("Search concluded without finding a suitable direction vector.")

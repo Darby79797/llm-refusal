@@ -101,6 +101,14 @@ class Three_Score_Evaluator:
         logits_with_addition = self._get_logits(negative_prompts, intervention=(direction, "add", [direction.layer]))
         return np.nanmean([self.metric.compute_log_odds(logits) for logits in logits_with_addition])
 
+    def _compute_induce_score_global(self, direction: DirectionVector, val_data: PromptData) -> float:
+        """Induce score with direction added at ALL layers (Arditi-style)."""
+        negative_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if not label]
+        if not negative_prompts: return 0.0
+        num_layers = len(self.intervention_applier.transformer_layers)
+        logits = self._get_logits(negative_prompts, intervention=(direction, "add", list(range(num_layers))))
+        return np.nanmean([self.metric.compute_log_odds(l) for l in logits])
+
     def _compute_kl_score(self, direction: DirectionVector, val_data: PromptData, baseline_logits: Optional[List[t.Tensor]] = None) -> float:
         negative_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if not label]
         if not negative_prompts: return 0.0
@@ -115,5 +123,6 @@ class Three_Score_Evaluator:
     def compute_all_scores(self, direction_vector: DirectionVector, val_data: PromptData, baseline_neg_logits: Optional[List[t.Tensor]] = None) -> DirectionScores:
         bypass_score = self._compute_bypass_score(direction_vector, val_data)
         induce_score = self._compute_induce_score(direction_vector, val_data)
+        induce_global = self._compute_induce_score_global(direction_vector, val_data)
         kl_score = self._compute_kl_score(direction_vector, val_data, baseline_logits=baseline_neg_logits)
-        return DirectionScores(bypass=bypass_score, induce=induce_score, kl=kl_score)
+        return DirectionScores(bypass=bypass_score, induce=induce_score, kl=kl_score, induce_global=induce_global)

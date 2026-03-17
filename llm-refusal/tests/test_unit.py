@@ -478,6 +478,46 @@ def test_filter_prompts_by_behavior_empty_negative_raises():
 
 
 # ============================================================
+# DirectionScores backward compat
+# ============================================================
+
+def test_direction_scores_backward_compat():
+    """induce_global defaults to 0.0 when not provided (backward compat)."""
+    scores = DirectionScores(bypass=-1.0, induce=2.0, kl=0.5)
+    assert scores.induce_global == 0.0
+
+
+def test_direction_scores_with_induce_global():
+    """induce_global can be set explicitly."""
+    scores = DirectionScores(bypass=-1.0, induce=2.0, kl=0.5, induce_global=3.5)
+    assert scores.induce_global == 3.5
+
+
+# ============================================================
+# Search with induce_global in fallback
+# ============================================================
+
+def test_search_fallback_uses_induce_global_when_all_layers():
+    """When induce_mode='all_layers', fallback ranks by induce_global."""
+    from search import DirectionFinder
+
+    finder = DirectionFinder.__new__(DirectionFinder)
+    candidates = [
+        (DirectionVector(vector=t.randn(32), layer=5, position_index=-1, score=0),
+         DirectionScores(bypass=-1.0, induce=1.0, kl=3.0, induce_global=5.0)),  # better global
+        (DirectionVector(vector=t.randn(32), layer=8, position_index=-1, score=0),
+         DirectionScores(bypass=-0.5, induce=6.0, kl=3.0, induce_global=2.0)),  # better single
+    ]
+    # With single_layer mode, layer 8 wins (induce=6.0 > 1.0)
+    result_single = finder._progressive_fallback(candidates, baseline_induce=0.0, induce_mode="single_layer")
+    assert result_single.layer == 8
+
+    # With all_layers mode, layer 5 wins (induce_global=5.0 > 2.0)
+    result_global = finder._progressive_fallback(candidates, baseline_induce=0.0, induce_mode="all_layers")
+    assert result_global.layer == 5
+
+
+# ============================================================
 # Assistant prefix tokens
 # ============================================================
 

@@ -26,6 +26,7 @@ python llm-refusal/run_experiment.py --json '{"model_name": "...", "mode": "sear
 | `--concept` | `refusal` | Registry key: `refusal`, `refusal_arditi`, `sycophancy`, `sycophancy_neutral`, `hedging` |
 | `--layer`, `--pos` | — | Required for evaluate/eyeball (pos is typically -1) |
 | `--filter-prompts` | off | Filter train prompts by actual model behavior before computing directions |
+| `--induce-mode` | `single_layer` | Search induce mode: `single_layer` or `all_layers` (Arditi-style) |
 | `--force-cpu` | off | Override device (default: CUDA > MPS > CPU) |
 | `--concepts` | — | For cross_concept: comma-separated list |
 | `--judge-*` | env vars | External API judge: `JUDGE_API_BASE`, `JUDGE_API_KEY`, `JUDGE_MODEL` |
