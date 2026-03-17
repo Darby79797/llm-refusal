@@ -31,7 +31,7 @@ python llm-refusal/run_experiment.py --json '{"model_name": "...", "mode": "sear
 | `--judge-*` | env vars | External API judge: `JUDGE_API_BASE`, `JUDGE_API_KEY`, `JUDGE_MODEL` |
 | `--arditi-evals` | off | Enable LlamaGuard2 + JailbreakBench + Alpaca CE loss |
 
-Hardcoded: `max_positions=1`, val split 20% (`random_state=39`), `batch_size=2`, `max_new_tokens=64`, `layer_cutoff_frac=0.65`.
+Hardcoded: `max_positions=auto` (derived from assistant prefix tokens), val split 20% (`random_state=39`), `batch_size=2`, `max_new_tokens=64`, `layer_cutoff_frac=0.65`.
 
 ## Architecture (one-line per module)
 

@@ -94,7 +94,14 @@ class DirectionFinder:
         Also logs a summary of the best candidates found for each metric.
         """
         if max_positions is None:
-            max_positions = self.search_config.get("max_positions", 1)
+            cfg_positions = self.search_config.get("max_positions", 1)
+            if cfg_positions == "auto":
+                apt = getattr(self.prompt_formatter, 'assistant_prefix_tokens', 0)
+                max_positions = apt + 1
+                logger.info(f"Auto max_positions: assistant_prefix_tokens={apt} → "
+                            f"max_positions={max_positions} (covering pos -1 through -{max_positions}, EOI ≈ -{apt + 1})")
+            else:
+                max_positions = cfg_positions
         logger.info(f"Computing difference-in-means vectors (max_positions={max_positions})...")
         difference_vectors = self.direction_finder_method.compute_difference_vectors(train_data, max_positions)
 

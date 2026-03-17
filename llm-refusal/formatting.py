@@ -55,6 +55,60 @@ class ChatPromptFormatter:
             # Base models get a pass-through template
             self.template = "{x}"
 
+        # --- Compute assistant prefix token count ---
+        # Number of tokens between the end of the user's instruction and the
+        # final token of the formatted prompt (i.e. the assistant turn suffix).
+        # Used by search to auto-derive max_positions covering -1 through the
+        # end-of-instruction (EOI) token position.
+        self.assistant_prefix_tokens = self._compute_assistant_prefix_tokens()
+
+    def _compute_assistant_prefix_tokens(self) -> int:
+        """Count tokens after the user instruction in the formatted prompt.
+
+        Uses a dummy instruction to measure how many tokens the chat template
+        appends after the instruction content. For base models (template="{x}")
+        this returns 0.
+        """
+        dummy = "DUMMY_INSTRUCTION_MARKER"
+
+        if self.template is not None:
+            # Manual template or pass-through ("{x}")
+            formatted = self.template.format(x=dummy)
+        else:
+            # Built-in chat_template
+            formatted = self.tokenizer.apply_chat_template(
+                [{'role': 'user', 'content': dummy}],
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+
+        # Tokenize the full formatted prompt and the instruction alone
+        full_ids = self.tokenizer.encode(formatted, add_special_tokens=False)
+        instruction_ids = self.tokenizer.encode(dummy, add_special_tokens=False)
+
+        # Find where the instruction tokens end in the full sequence
+        # Search for the instruction token subsequence
+        instr_len = len(instruction_ids)
+        match_pos = None
+        for i in range(len(full_ids) - instr_len + 1):
+            if full_ids[i:i + instr_len] == instruction_ids:
+                match_pos = i
+                break
+
+        if match_pos is not None:
+            suffix_tokens = len(full_ids) - (match_pos + instr_len)
+        else:
+            # Fallback: tokenize just the suffix portion of the template
+            if self.template is not None and "{x}" in self.template:
+                suffix_str = self.template.split("{x}")[-1]
+                suffix_tokens = len(self.tokenizer.encode(suffix_str, add_special_tokens=False))
+            else:
+                suffix_tokens = 0
+                logger.warning("Could not determine assistant prefix tokens; defaulting to 0.")
+
+        logger.info(f"Assistant prefix tokens: {suffix_tokens} (tokens between EOI and position -1)")
+        return suffix_tokens
+
     def format_batch(self, prompts: List[str]) -> Dict[str, t.Tensor]:
         """
         Formats a batch of prompts, applying the chat template then tokenizing.

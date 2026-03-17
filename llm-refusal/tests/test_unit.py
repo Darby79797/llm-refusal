@@ -477,6 +477,85 @@ def test_filter_prompts_by_behavior_empty_negative_raises():
         )
 
 
+# ============================================================
+# Assistant prefix tokens
+# ============================================================
+
+def test_assistant_prefix_tokens_qwen_template():
+    """Qwen-style manual template has ~5 suffix tokens (im_end, newline, im_start, assistant, newline)."""
+    from formatting import ChatPromptFormatter
+
+    tokenizer = MagicMock()
+    tokenizer.name_or_path = "Qwen/Qwen2.5-3B-Instruct"
+    tokenizer.pad_token = "<|endoftext|>"
+    tokenizer.eos_token = "<|endoftext|>"
+    tokenizer.chat_template = None
+    tokenizer.model_max_length = 4096
+    tokenizer.bos_token_id = 0
+
+    # Simulate encoding: the template is "<|im_start|>user\n{x}<|im_end|>\n<|im_start|>assistant\n"
+    # Full formatted = prefix_tokens + instruction_tokens + suffix_tokens
+    # Suffix = "<|im_end|>\n<|im_start|>assistant\n" = e.g. 5 tokens
+    def mock_encode(text, add_special_tokens=False):
+        # Return realistic token counts based on content
+        if text == "DUMMY_INSTRUCTION_MARKER":
+            return [101, 102, 103]  # 3 tokens for instruction
+        elif "<|im_start|>" in text:
+            # Full template: prefix(3) + instruction(3) + suffix(5) = 11 tokens
+            return [1, 2, 3, 101, 102, 103, 4, 5, 6, 7, 8]
+        return [hash(text) % 50000]
+
+    tokenizer.encode = mock_encode
+    tokenizer.__call__ = MagicMock()
+
+    formatter = ChatPromptFormatter(tokenizer)
+    assert formatter.assistant_prefix_tokens == 5
+
+
+def test_assistant_prefix_tokens_base_model():
+    """Base model (pass-through template) has 0 suffix tokens."""
+    from formatting import ChatPromptFormatter
+
+    tokenizer = MagicMock()
+    tokenizer.name_or_path = "gpt2"
+    tokenizer.pad_token = "<|endoftext|>"
+    tokenizer.eos_token = "<|endoftext|>"
+    tokenizer.chat_template = None
+    tokenizer.model_max_length = 1024
+    tokenizer.bos_token_id = 0
+
+    def mock_encode(text, add_special_tokens=False):
+        if text == "DUMMY_INSTRUCTION_MARKER":
+            return [101, 102, 103]
+        elif text == "DUMMY_INSTRUCTION_MARKER":  # pass-through: "{x}" -> just the instruction
+            return [101, 102, 103]
+        else:
+            # For pass-through template, formatted == instruction
+            return [101, 102, 103]
+
+    tokenizer.encode = mock_encode
+    tokenizer.__call__ = MagicMock()
+
+    formatter = ChatPromptFormatter(tokenizer)
+    assert formatter.assistant_prefix_tokens == 0
+
+
+# ============================================================
+# Auto max_positions in search
+# ============================================================
+
+def test_search_auto_max_positions():
+    """When max_positions='auto', search derives from formatter.assistant_prefix_tokens."""
+    from search import DirectionFinder
+    from concept import DEFAULT_SEARCH_CONFIG
+
+    assert DEFAULT_SEARCH_CONFIG["max_positions"] == "auto"
+
+
+# ============================================================
+# BigEvaluator: Alpaca CE loss (existing test below)
+# ============================================================
+
 def test_evaluate_alpaca_ce_loss(mocker, tmp_path):
     """Computes CE loss on Alpaca-style prompts."""
     evaluator = _make_evaluator()
