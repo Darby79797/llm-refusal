@@ -25,6 +25,14 @@ class ModelInterventionApplier:
             return self.model.transformer.h  # GPT-2, DialoGPT
         raise AttributeError(f"Could not automatically identify transformer layers for model {self.model.__class__.__name__}.")
 
+    def _get_sublayers(self, block):
+        """Returns (attention_sublayer, mlp_sublayer) for a transformer block."""
+        if hasattr(block, 'self_attn') and hasattr(block, 'mlp'):
+            return block.self_attn, block.mlp  # Llama, Gemma, Qwen2
+        elif hasattr(block, 'attn') and hasattr(block, 'mlp'):
+            return block.attn, block.mlp  # GPT-2, DialoGPT
+        raise AttributeError(f"Could not identify sublayers for block {block.__class__.__name__}.")
+
     def apply_direction_intervention(
         self,
         direction: DirectionVector,
@@ -39,41 +47,57 @@ class ModelInterventionApplier:
         unit_dir = direction.unit.to(self.model.dtype)
         raw_dir = direction.vector.to(self.model.dtype)
 
-        def make_intervention_hook(intervention_type, strength, unit_dir, raw_dir):
-            def hook(module, input, output):
-                # --- ROBUST HOOK LOGIC ---
-                is_tuple_output = isinstance(output, tuple)
-                hidden_states = output[0] if is_tuple_output else output
+        def make_block_pre_hook(intervention_type, strength, unit_dir, raw_dir):
+            """Pre-hook on transformer block: modifies residual stream before the layer processes it."""
+            def hook(module, args):
+                hidden_states = args[0]
                 device_unit_dir = unit_dir.to(hidden_states.device)
 
                 if intervention_type == "add":
-                    # Use raw (unnormalized) direction for addition (matches Arditi et al.)
-                    # strength=1.0 adds one full direction vector's worth
                     device_raw_dir = raw_dir.to(hidden_states.device)
                     modified_states = hidden_states + strength * device_raw_dir
                 elif intervention_type == "subtract":
-                    # Use raw direction for subtraction (symmetric with add)
                     device_raw_dir = raw_dir.to(hidden_states.device)
                     modified_states = hidden_states - strength * device_raw_dir
                 elif intervention_type == "ablate":
-                    # Use unit direction for ablation (projection removal is scale-invariant)
                     projection = t.sum(hidden_states * device_unit_dir, dim=-1, keepdim=True)
                     modified_states = hidden_states - projection * device_unit_dir
                 else:
                     raise ValueError(f"Unknown intervention type: {intervention_type}")
 
-                # Repack the output to match the original structure precisely.
+                return (modified_states,) + args[1:]
+            return hook
+
+        def make_sublayer_post_hook(unit_dir):
+            """Post-hook on attn/mlp sublayer: projects out direction from sublayer output.
+            Prevents the sublayer from re-injecting the direction into the residual stream."""
+            def hook(module, input, output):
+                is_tuple_output = isinstance(output, tuple)
+                hidden_states = output[0] if is_tuple_output else output
+                device_unit_dir = unit_dir.to(hidden_states.device)
+
+                projection = t.sum(hidden_states * device_unit_dir, dim=-1, keepdim=True)
+                modified_states = hidden_states - projection * device_unit_dir
+
                 if is_tuple_output:
                     return (modified_states,) + output[1:]
                 else:
                     return modified_states
             return hook
 
-        hook_fn = make_intervention_hook(intervention_type, strength, unit_dir, raw_dir)
+        block_hook_fn = make_block_pre_hook(intervention_type, strength, unit_dir, raw_dir)
         for layer_idx in layers:
             if 0 <= layer_idx < len(self.transformer_layers):
-                hook = self.transformer_layers[layer_idx].register_forward_hook(hook_fn)
+                block = self.transformer_layers[layer_idx]
+                hook = block.register_forward_pre_hook(block_hook_fn)
                 self.intervention_hooks.append(hook)
+
+                # For ablation: also hook sublayer outputs to prevent re-injection
+                if intervention_type == "ablate":
+                    attn, mlp = self._get_sublayers(block)
+                    sublayer_hook_fn = make_sublayer_post_hook(unit_dir)
+                    self.intervention_hooks.append(attn.register_forward_hook(sublayer_hook_fn))
+                    self.intervention_hooks.append(mlp.register_forward_hook(sublayer_hook_fn))
 
     def clear_interventions(self):
         """Removes all active intervention hooks."""

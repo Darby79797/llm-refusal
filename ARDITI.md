@@ -23,7 +23,7 @@ A structured comparison between [Arditi & Obeso's `refusal_direction` repo](http
 
 **Arditi**: Registers `pre` hooks on each transformer block's forward pass, extracting the block input (i.e., the residual stream entering that layer). Uses incremental mean computation — updates a running mean as each example is processed, never storing all activations in memory.
 
-**Ours** (`activations.py`): Also uses pre-hooks on block inputs (same interception point). Collects all activations into a list, then averages at the end. Casts to float64 before averaging for numerical stability.
+**Ours** (`activations.py`): Uses pre-hooks on block inputs (same interception point as Arditi). Collects all activations into a list, then averages at the end. Casts to float64 before averaging for numerical stability.
 
 **Impact**: None. Both extract from the same point. Incremental vs batch mean is mathematically identical (barring floating point ordering effects, which are negligible at float64).
 
@@ -64,12 +64,9 @@ This ensures the direction captures "what's different when the model refuses vs 
 
 At each hook point, they project out the direction component. This is more thorough — it removes the direction not just from the residual stream but also from each sublayer's contribution, preventing the direction from being "re-injected" by attention or MLP computations within the layer.
 
-**Ours** (`interventions.py`): Hooks only the block input (residual stream). The direction component is removed from the residual stream as it enters each layer, but sublayer outputs within each layer can still inject direction-aligned components.
+**Ours** (`interventions.py`): Now matches Arditi's 3-hook-per-layer approach for ablation: pre-hook on block input + post-hooks on `self_attn` and `mlp` sublayers. For addition/subtraction, uses a single pre-hook on the block input (same as Arditi).
 
-**Impact**: **Surprisingly low in practice**. Our ablation achieved 95%→0% refusal detection on Qwen1.5-1.8B-Chat despite only hooking block inputs. This suggests that for refusal, the direction component in the residual stream is the primary carrier, and sublayer re-injection is minimal. However, this difference might matter more for:
-- Larger models with more complex internal representations
-- Other concepts (sycophancy, hedging) where the direction is less clean
-- Partial-layer interventions where you only ablate at specific layers
+**Impact**: Now identical to Arditi. Previously we only hooked block inputs, which worked well on smaller models but may have allowed sublayer re-injection on larger models.
 
 ### 6. Addition / Steering
 

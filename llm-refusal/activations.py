@@ -35,13 +35,14 @@ class ActivationExtractor:
         with t.no_grad():
             activations_by_layer = {}
             def make_hook(layer_idx):
-                def hook(module, input, output):
-                    # Ensure robustness over model architectures. Some return tuples (hidden_state, ...), others just the hidden_state tensor.
-                    hidden_states = output[0] if isinstance(output, tuple) else output
+                def hook(module, args):
+                    # Pre-hook: args[0] is hidden_states (residual stream entering the layer)
+                    # Matches Arditi: captures residual stream *before* this layer processes it
+                    hidden_states = args[0]
                     activations_by_layer[layer_idx] = hidden_states.clone().cpu()
                 return hook
 
-            hooks = [layer.register_forward_hook(make_hook(i)) for i, layer in enumerate(self.transformer_layers)]
+            hooks = [layer.register_forward_pre_hook(make_hook(i)) for i, layer in enumerate(self.transformer_layers)]
 
             self.model(input_ids=input_ids, attention_mask=attention_mask)
 

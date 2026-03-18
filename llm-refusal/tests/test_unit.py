@@ -478,6 +478,50 @@ def test_filter_prompts_by_behavior_empty_negative_raises():
 
 
 # ============================================================
+# Intervention hook counts
+# ============================================================
+
+def test_intervention_hook_count_addition():
+    """Addition registers 1 pre-hook per layer (block only)."""
+    from interventions import ModelInterventionApplier
+
+    model = MagicMock()
+    model.dtype = t.float32
+    model.model.layers = [MagicMock() for _ in range(4)]
+    for layer in model.model.layers:
+        layer.self_attn = MagicMock()
+        layer.mlp = MagicMock()
+        layer.register_forward_pre_hook = MagicMock(return_value=MagicMock())
+
+    applier = ModelInterventionApplier(model)
+    direction = DirectionVector(vector=t.randn(32), layer=0, position_index=-1, score=1.0)
+    applier.apply_direction_intervention(direction, intervention_type="add", layers=[0, 1])
+
+    assert len(applier.intervention_hooks) == 2  # 1 per layer
+
+
+def test_intervention_hook_count_ablation():
+    """Ablation registers 3 hooks per layer (block pre + attn post + mlp post)."""
+    from interventions import ModelInterventionApplier
+
+    model = MagicMock()
+    model.dtype = t.float32
+    model.model.layers = [MagicMock() for _ in range(4)]
+    for layer in model.model.layers:
+        layer.self_attn = MagicMock()
+        layer.mlp = MagicMock()
+        layer.register_forward_pre_hook = MagicMock(return_value=MagicMock())
+        layer.self_attn.register_forward_hook = MagicMock(return_value=MagicMock())
+        layer.mlp.register_forward_hook = MagicMock(return_value=MagicMock())
+
+    applier = ModelInterventionApplier(model)
+    direction = DirectionVector(vector=t.randn(32), layer=0, position_index=-1, score=1.0)
+    applier.apply_direction_intervention(direction, intervention_type="ablate", layers=[0, 1])
+
+    assert len(applier.intervention_hooks) == 6  # 3 per layer
+
+
+# ============================================================
 # DirectionScores backward compat
 # ============================================================
 

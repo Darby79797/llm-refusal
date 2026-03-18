@@ -25,12 +25,17 @@ python llm-refusal/run_experiment.py --json '{"model_name": "...", "mode": "sear
 | `--mode` | required | `search`, `evaluate`, `eyeball`, `cross_concept` |
 | `--concept` | `refusal` | Registry key: `refusal`, `refusal_arditi`, `sycophancy`, `sycophancy_neutral`, `hedging` |
 | `--layer`, `--pos` | — | Required for evaluate/eyeball (pos is typically -1) |
-| `--filter-prompts` | off | Filter train prompts by actual model behavior before computing directions |
+| `--no-filter-prompts` | on by default | Disable filtering train prompts by actual model behavior |
 | `--induce-mode` | `single_layer` | Search induce mode: `single_layer` or `all_layers` (Arditi-style) |
 | `--force-cpu` | off | Override device (default: CUDA > MPS > CPU) |
+| `--torch-dtype` | `auto` | Torch dtype for `from_pretrained` |
 | `--concepts` | — | For cross_concept: comma-separated list |
+| `--eval-tasks` | — | lm-eval tasks: `mmlu`, `arc_challenge`, `gsm8k`, `truthfulqa` |
+| `--limit` | `100` | Sample limit for lm-eval benchmarks |
 | `--judge-*` | env vars | External API judge: `JUDGE_API_BASE`, `JUDGE_API_KEY`, `JUDGE_MODEL` |
 | `--arditi-evals` | off | Enable LlamaGuard2 + JailbreakBench + Alpaca CE loss |
+| `--alpaca-max-prompts` | `500` | Max prompts for Alpaca CE loss |
+| `--json` | — | JSON config string or file path (overrides all flags) |
 
 Hardcoded: `max_positions=auto` (derived from assistant prefix tokens), val split 20% (`random_state=39`), `batch_size=2`, `max_new_tokens=64`, `layer_cutoff_frac=0.65`.
 
@@ -40,22 +45,22 @@ All under `llm-refusal/`. Flat imports (`from formatting import ...`), set by `p
 
 | Module | Purpose |
 |--------|---------|
-| `datatypes.py` | `PromptData`, `DirectionScores`, `DirectionVector` (with `.save()`/`.load()`) |
-| `concept.py` | `ConceptDefinition` dataclass, registry (`register_concept`/`get_concept`), all concept definitions |
+| `datatypes.py` | `PromptData` (with stratified `train_val_split`), `DirectionScores` (bypass/induce/induce_global/KL), `DirectionVector` (with `.save()`/`.load()`) |
+| `concept.py` | `ConceptDefinition` dataclass, registry (`register_concept`/`get_concept`), `DEFAULT_SEARCH_CONFIG`, all concept definitions |
 | `prompts.py` | Train + eval prompt datasets per concept, all return `(positive, negative)` |
-| `formatting.py` | `ChatPromptFormatter` — chat templates, tokenization, left-padding |
-| `activations.py` | `ActivationExtractor` — residual stream hooks, casts to float64 for stability |
+| `formatting.py` | `ChatPromptFormatter` — chat templates, tokenization, left-padding, `assistant_prefix_tokens` for auto max_positions |
+| `activations.py` | `ActivationExtractor` — pre-hooks on block inputs (residual stream entering each layer), casts to float64 for stability |
 | `direction_methods.py` | `DirectionMethod` ABC, `DifferenceInMeans` (mean_pos - mean_neg in float64) |
-| `interventions.py` | `ModelInterventionApplier` — add/subtract/ablate hooks on transformer layers |
-| `scoring.py` | `LogOddsMetric`, `Three_Score_Evaluator` (bypass/induce/KL) |
-| `search.py` | `DirectionFinder` — multi-objective search with progressive fallback tiers |
-| `evaluation.py` | `BigEvaluator` (detection rates, LlamaGuard2, lm-eval), `InterventionSuite` (eyeball) |
-| `generation.py` | `generate_with_hooks()` — autoregressive gen with KV-cache (hooks work per-step) |
+| `interventions.py` | `ModelInterventionApplier` — pre-hooks for add/subtract/ablate + sublayer post-hooks for ablation (3 hooks/layer, matches Arditi) |
+| `scoring.py` | `LogOddsMetric`, `Three_Score_Evaluator` (bypass/induce/induce_global/KL) |
+| `search.py` | `DirectionFinder` — multi-objective search with progressive fallback tiers, supports `induce_mode` |
+| `evaluation.py` | `BigEvaluator` (detection rates, LlamaGuard2, JailbreakBench, Alpaca CE, lm-eval), `InterventionSuite` (eyeball) |
+| `generation.py` | `generate_with_hooks()` — autoregressive gen with KV-cache (hooks fire per-step) |
 | `cross_concept.py` | Cosine similarity, PCA, interference matrix, multi-ablation composition |
-| `framework.py` | `DirectionTestFramework` — orchestrator, model loading, mode dispatch |
+| `framework.py` | `DirectionTestFramework` — orchestrator, model loading, mode dispatch, prompt filtering |
 | `run_experiment.py` | CLI (argparse or `--json`) |
 
-Scripts in `scripts/`: `search_calibration.py`, `arditi_comparison.py`, `cross_dataset_comparison.py`, `layer_sweep.py`, `llama2_strength_sweep.py`, `compare_lg2_lg3.py`, `arditi_replication.py`, `arditi_raw_addition.py`, `arditi_evals_factorial.py`, `inspect_ablated_outputs.py`, `probe_layer_directions.py`, `scale_experiment.py`, `debug_batch_padding.py`, `inspect_chat_template.py`.
+Scripts in `scripts/`: `search_calibration.py`, `arditi_comparison.py`, `cross_dataset_comparison.py`, `layer_sweep.py`, `llama2_strength_sweep.py`, `llama2_replication_diagnostic.py`, `compare_lg2_lg3.py`, `arditi_replication.py`, `arditi_raw_addition.py`, `arditi_evals_factorial.py`, `inspect_ablated_outputs.py`, `probe_layer_directions.py`, `scale_experiment.py`, `debug_batch_padding.py`, `inspect_chat_template.py`.
 
 Output dirs (gitignored): `results/` (logs, `.pt`/`.json` directions, calibration JSON), `plots/` (PNGs).
 
@@ -68,7 +73,7 @@ Output dirs (gitignored): `results/` (logs, `.pt`/`.json` directions, calibratio
 
 ## Adding a New Model Architecture
 
-- `interventions.py`: Add branch to `_get_transformer_layers()` (currently: `.model.layers`, `.transformer.h`).
+- `interventions.py`: Add branch to `_get_transformer_layers()` (currently: `.model.layers`, `.transformer.h`) and `_get_sublayers()` (currently: `.self_attn`+`.mlp`, `.attn`+`.mlp`).
 - `formatting.py`: Add manual chat template fallback if model lacks `tokenizer.chat_template`.
 
 ## Gotchas
@@ -76,12 +81,13 @@ Output dirs (gitignored): `results/` (logs, `.pt`/`.json` directions, calibratio
 - **Hook cleanup**: `clear_interventions()` after every intervention (use try/finally). Leaked hooks corrupt results.
 - **Environment variables**: `TOKENIZERS_PARALLELISM=false` and `PYTORCH_ENABLE_MPS_FALLBACK=0` must be set before importing ML libs (already done in `run_experiment.py` and `conftest.py`).
 - **MPS float16**: Framework auto-upcasts float16 to bfloat16 on MPS to prevent attention overflow.
-- **Addition uses raw (unnormalized) vectors** (matching Arditi). Ablation uses unit vectors (projection removal is scale-invariant).
+- **Addition uses raw (unnormalized) vectors** (matching Arditi). Ablation uses unit vectors (projection removal is scale-invariant). All interventions use pre-hooks on block inputs; ablation additionally hooks `self_attn` and `mlp` post-hooks to prevent re-injection (3 hooks/layer).
 - **NaN in scoring**: `LogOddsMetric` returns nan for inf/nan logits; downstream uses `nanmean`. Not an error.
-- **Search fallback**: Strict criteria rarely met on models <=1.8B. Progressive tiers: (Δinduce>+3, KL<5) → (Δinduce>+1.5, KL<10) → (Δinduce>+0, KL<20) → best induce. Tiers rank by induce score.
+- **Search fallback**: Strict criteria rarely met on models <=1.8B. Progressive tiers: (Δinduce>+3, KL<5) → (Δinduce>+1.5, KL<10) → (Δinduce>+0, KL<20) → best induce. Tiers rank by induce score. When `induce_mode=all_layers`, tiers use `induce_global` instead of `induce`.
 - **Detection hierarchy**: API judge → `detection_fn` heuristic → phrase matching. Study model never self-judges.
 - **LlamaGuard 2 not 3**: LG3 flags by topic (80-93% FP on refusals). LG2 flags by compliance. Use LG2.
 - **`generate_with_hooks()`** exists because `model.generate()` doesn't invoke forward hooks every step.
+- **Prompt filtering on by default** but has zero measured effect (3-21% mislabeled prompts don't contaminate difference-in-means). Use `--no-filter-prompts` to disable.
 
 ## Best Layers (Refusal)
 
