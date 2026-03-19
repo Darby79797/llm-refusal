@@ -392,7 +392,8 @@ class BigEvaluator:
 
     def run_all_evaluations(self, direction: DirectionVector, positive_prompts: List[str], negative_prompts: List[str],
                             tasks: List[str], limit: Optional[int],
-                            run_arditi_evals: bool = False, alpaca_max_prompts: int = 500):
+                            run_arditi_evals: bool = False, alpaca_max_prompts: int = 500,
+                            strength: float = 1.0):
         """
         Orchestrates the entire evaluation suite. Now accepts tasks and limit.
         If run_arditi_evals is True, also runs LlamaGuard2, JailbreakBench, and Alpaca CE loss.
@@ -422,7 +423,7 @@ class BigEvaluator:
                 results["baseline"].update(alpaca)
 
         logger.info("\n--- Evaluating Global Ablation (All Layers) ---")
-        self.intervention_applier.apply_direction_intervention(direction, "ablate", 1.0, layers=list(range(num_layers)))
+        self.intervention_applier.apply_direction_intervention(direction, "ablate", strength, layers=list(range(num_layers)))
         results["global_ablation"] = {}
         _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["global_ablation"])
         results["global_ablation"]["standard_eval_scores"] = self.run_standard_evals(tasks, limit=limit)
@@ -433,7 +434,7 @@ class BigEvaluator:
         self.intervention_applier.clear_interventions()
 
         logger.info(f"\n--- Evaluating Layer-Specific Ablation (Layer {direction.layer}) ---")
-        self.intervention_applier.apply_direction_intervention(direction, "ablate", 1.0, layers=[direction.layer])
+        self.intervention_applier.apply_direction_intervention(direction, "ablate", strength, layers=[direction.layer])
         results["layer_specific_ablation"] = {}
         _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["layer_specific_ablation"])
         results["layer_specific_ablation"]["standard_eval_scores"] = self.run_standard_evals(tasks, limit=limit)
@@ -444,13 +445,13 @@ class BigEvaluator:
         self.intervention_applier.clear_interventions()
 
         logger.info(f"\n--- Evaluating Layer-Specific Addition (Layer {direction.layer}) ---")
-        self.intervention_applier.apply_direction_intervention(direction, "add", 1.0, layers=[direction.layer])
+        self.intervention_applier.apply_direction_intervention(direction, "add", strength, layers=[direction.layer])
         results["layer_specific_addition"] = {}
         _run_condition(negative_prompts, "refusal_rate_on_negative_prompts", results["layer_specific_addition"])
         self.intervention_applier.clear_interventions()
 
         logger.info(f"\n--- Evaluating Global Addition (All Layers) ---")
-        self.intervention_applier.apply_direction_intervention(direction, "add", 1.0, layers=list(range(num_layers)))
+        self.intervention_applier.apply_direction_intervention(direction, "add", strength, layers=list(range(num_layers)))
         results["global_addition"] = {}
         _run_condition(negative_prompts, "refusal_rate_on_negative_prompts", results["global_addition"])
         self.intervention_applier.clear_interventions()

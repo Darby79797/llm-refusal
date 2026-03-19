@@ -53,6 +53,8 @@ examples:
     parser.add_argument("--no-filter-prompts", dest="filter_prompts", action="store_false",
                         help="Disable filtering train prompts by actual model behavior (on by default)")
     parser.set_defaults(filter_prompts=True)
+    parser.add_argument("--strength", type=float, default=1.0,
+                        help="Intervention strength for evaluate mode (default: 1.0)")
     parser.add_argument("--induce-mode", choices=["single_layer", "all_layers"], default="single_layer",
                         help="Induce score mode for search selection: single_layer (default) or all_layers (Arditi-style)")
     parser.add_argument(
@@ -97,6 +99,7 @@ examples:
             "alpaca_max_prompts": args.alpaca_max_prompts,
             "filter_prompts": args.filter_prompts,
             "induce_mode": args.induce_mode,
+            "strength": args.strength,
         }
 
     return config

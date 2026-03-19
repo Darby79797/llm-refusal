@@ -196,6 +196,7 @@ class DirectionTestFramework:
                 limit=config.get('limit', 100),
                 run_arditi_evals=config.get('arditi_evals', False),
                 alpaca_max_prompts=config.get('alpaca_max_prompts', 500),
+                strength=config.get('strength', 1.0),
             )
 
         logger.info("Framework execution finished.")
