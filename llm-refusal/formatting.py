@@ -28,32 +28,29 @@ class ChatPromptFormatter:
         else:
             self.safe_max_length = max_len
 
-        # --- CRITICAL: Explicitly define if a BOS token is needed ---
-        # Base models like GPT-2 benefit from an explicit BOS token.
-        self.prepend_bos = not self.is_instruction_tuned
-
         # Determine the template
+        # Check for known models FIRST (manual templates override built-in ones
+        # when the built-in template has known issues, e.g. Llama-2's doesn't
+        # respond to add_generation_prompt).
+        model_name = tokenizer.name_or_path.lower()
         if self.is_instruction_tuned:
-            if tokenizer.chat_template:
+            manual_template = self._get_manual_template(model_name, bool(tokenizer.chat_template))
+            if manual_template is not None:
+                self.template = manual_template
+                # Manual templates don't include BOS — prepend it
+                self.prepend_bos = True
+            elif tokenizer.chat_template:
                 self.template = None # Signal to use built-in template
+                self.prepend_bos = False  # Built-in templates include BOS
             else:
-                # Manual templates for known instruction-tuned models
-                model_name = tokenizer.name_or_path.lower()
-                if "gemma" in model_name:
-                    self.template = "<start_of_turn>user\n{x}<end_of_turn>\n<start_of_turn>model\n"
-                elif "qwen1.5" in model_name:
-                    self.template = "<|im_start|>user\n{x}<|im_end|>\n<|im_start|>assistant\n"
-                elif "qwen" in model_name:
-                    self.template = "<|im_start|>user\n{x}<|im_end|>\n<|im_start|>assistant\n"
-                elif "yi" in model_name:
-                    self.template = "<|im_start|>user\n{x}<|im_end|>\n<|im_start|>assistant\n"
-                elif "llama-3" in model_name:
-                    self.template = "<|start_header_id|>user<|end_header_id|>\n\n{x}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-                elif "llama-2" in model_name:
-                    self.template = "[INST] {x} [/INST]" # Note the space before [/INST]
+                self.template = None
+                self.prepend_bos = False
+                logger.warning(f"No chat template found for {tokenizer.name_or_path}. "
+                               "Generation may be incorrect.")
         else:
-            # Base models get a pass-through template
+            # Base models get a pass-through template with explicit BOS
             self.template = "{x}"
+            self.prepend_bos = True
 
         # --- Compute assistant prefix token count ---
         # Number of tokens between the end of the user's instruction and the
@@ -61,6 +58,38 @@ class ChatPromptFormatter:
         # Used by search to auto-derive max_positions covering -1 through the
         # end-of-instruction (EOI) token position.
         self.assistant_prefix_tokens = self._compute_assistant_prefix_tokens()
+
+    @staticmethod
+    def _get_manual_template(model_name: str, has_builtin: bool):
+        """Return a manual chat template for known models, or None to use built-in.
+
+        Only overrides the built-in template when it has known issues
+        (e.g. Llama-2's doesn't respond to add_generation_prompt).
+        For models without a built-in template, provides a fallback.
+        """
+        # Models with broken built-in templates — always override
+        if "llama-2" in model_name:
+            # Trailing space matches Arditi's format — the model's assistant turn
+            # starts with a space, so including it in the prompt means pos -1 is
+            # the actual generation boundary where the refusal decision is made.
+            return "[INST] {x} [/INST] "
+
+        # For everything below, only use manual templates as fallbacks
+        # when no built-in template exists
+        if has_builtin:
+            return None
+
+        if "gemma" in model_name:
+            return "<start_of_turn>user\n{x}<end_of_turn>\n<start_of_turn>model\n"
+        elif "qwen1.5" in model_name:
+            return "<|im_start|>user\n{x}<|im_end|>\n<|im_start|>assistant\n"
+        elif "qwen" in model_name:
+            return "<|im_start|>user\n{x}<|im_end|>\n<|im_start|>assistant\n"
+        elif "yi" in model_name:
+            return "<|im_start|>user\n{x}<|im_end|>\n<|im_start|>assistant\n"
+        elif "llama-3" in model_name:
+            return "<|start_header_id|>user<|end_header_id|>\n\n{x}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+        return None
 
     def _compute_assistant_prefix_tokens(self) -> int:
         """Count tokens after the user instruction in the formatted prompt.

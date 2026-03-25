@@ -81,11 +81,12 @@ Output dirs (gitignored): `results/` (logs, `.pt`/`.json` directions, calibratio
 - **Hook cleanup**: `clear_interventions()` after every intervention (use try/finally). Leaked hooks corrupt results.
 - **Environment variables**: `TOKENIZERS_PARALLELISM=false` and `PYTORCH_ENABLE_MPS_FALLBACK=0` must be set before importing ML libs (already done in `run_experiment.py` and `conftest.py`).
 - **MPS float16**: Framework auto-upcasts float16 to bfloat16 on MPS to prevent attention overflow.
-- **Addition uses raw (unnormalized) vectors** (matching Arditi). Ablation uses unit vectors (projection removal is scale-invariant). All interventions use pre-hooks on block inputs; ablation additionally hooks `self_attn` and `mlp` post-hooks to prevent re-injection (3 hooks/layer).
+- **Addition uses raw (unnormalized) vectors** (matching Arditi). Ablation uses unit vectors (projection removal is scale-invariant). Subtraction uses raw vectors (like addition but reversed). All interventions use pre-hooks on block inputs; ablation additionally hooks `self_attn` and `mlp` post-hooks to prevent re-injection (3 hooks/layer). On Llama-2, ablation is ineffective but subtraction works — the projection magnitude is too small to overcome refusal at a single layer.
 - **NaN in scoring**: `LogOddsMetric` returns nan for inf/nan logits; downstream uses `nanmean`. Not an error.
 - **Search fallback**: Strict criteria rarely met on models <=1.8B. Progressive tiers: (Δinduce>+3, KL<5) → (Δinduce>+1.5, KL<10) → (Δinduce>+0, KL<20) → best induce. Tiers rank by induce score. When `induce_mode=all_layers`, tiers use `induce_global` instead of `induce`.
 - **Detection hierarchy**: API judge → `detection_fn` heuristic → phrase matching. Study model never self-judges.
 - **LlamaGuard 2 not 3**: LG3 flags by topic (80-93% FP on refusals). LG2 flags by compliance. Use LG2.
+- **Llama-2 chat template**: HuggingFace's built-in template doesn't add a generation prompt. We override it with `[INST] {x} [/INST] ` (trailing space) so pos -1 is the generation boundary, not `]`. Without this, difference-in-means finds a garbage direction and induction fails completely.
 - **`generate_with_hooks()`** exists because `model.generate()` doesn't invoke forward hooks every step.
 - **Prompt filtering on by default** but has zero measured effect (3-21% mislabeled prompts don't contaminate difference-in-means). Use `--no-filter-prompts` to disable.
 
@@ -97,13 +98,18 @@ Output dirs (gitignored): `results/` (logs, `.pt`/`.json` directions, calibratio
 | Qwen2.5-1.5B (28L) | 13 | -1 | -20pp | 100% | Sweet spot L12-14 |
 | Qwen2.5-3B (36L) | 18 | -1 | -83pp | 98% | Strongest result |
 | Qwen2.5-7B (28L) | 14 | -1 | -1pp | 91% | Ablation-resistant |
-| Llama-2-7B (32L) | 6 | -1 | 0pp | 100% | Needs strength=3 |
+| Llama-3-8B (32L) | 14 | -1 | -20pp | 16% (s=1), 0% (s=3) | Ablation works, induction fails |
+| Llama-3.1-8B (32L) | 15 | -2 | -28pp | 4% (s=1), 0% (s=3) | Best Llama ablation |
+| Llama-2-7B (32L) | 14 | -1 | -70pp (subtract s=2) | 71% (add s=2) | Template fix critical; single-layer only |
 
 Sweet spot is ~35-60% depth. Full results: `results/results_summary.md`, experiment log: `results/extended_results_list.md`.
 
 ## Key Findings
 
-- **Refusal direction works**: 89-100% induction across all Qwen2.5 models at ~50% depth, raw strength=1.
+- **Refusal direction works on Qwen**: 89-100% induction across all Qwen2.5 models at ~50% depth, raw strength=1.
+- **Llama-2 template bug fixed**: HuggingFace's Llama-2 chat template doesn't respond to `add_generation_prompt`, causing pos -1 to be `]` instead of the generation-boundary space token. Fixing this (`[INST] {x} [/INST] ` with trailing space) moved induction from 0% to 71% at L14/s=2 (single-layer). Llama-3/3.1 templates are correct.
+- **Llama-2 bidirectional result**: Same L14/-1 direction induces refusal (+71%) and removes it (-70pp). Ablation (projection) fails — subtraction (scaled vector removal) required. Single-layer only; all-layer garbles.
+- **Llama-3/3.1: weaker results**: Ablation -1 to -28pp, induction 0-16%. May benefit from single-layer subtract approach (not yet tested).
 - **Ablation is model-dependent**: 3B loses 83pp refusal; 7B loses 1pp (redundant circuits).
 - **Our dataset >> Arditi's**: Topic-matched 80+80 pairs produce 20x stronger directions than Arditi's 260+18793 (class imbalance dilutes signal).
 - **Sycophancy is harder**: Low induction rates (2-12%), no clean single direction on small models.
@@ -118,3 +124,5 @@ Sweet spot is ~35-60% depth. Full results: `results/results_summary.md`, experim
 - Hedging: try opinion/subjective prompts instead of factual questions (models may hedge more on ambiguous topics)
 - Larger models (7B+) for cleaner sycophancy directions
 - Investigate refusal-sycophancy cross-interference: why does ablating sycophancy direction reduce refusal by 57pp?
+- Re-evaluate Llama-3/3.1 with template awareness (their templates are correct but results may improve with single-layer addition + higher strength)
+- Check if Qwen results are affected by the template change (they use built-in templates, should be unaffected)

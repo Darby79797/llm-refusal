@@ -456,6 +456,12 @@ class BigEvaluator:
         _run_condition(negative_prompts, "refusal_rate_on_negative_prompts", results["global_addition"])
         self.intervention_applier.clear_interventions()
 
+        logger.info(f"\n--- Evaluating Layer-Specific Subtraction (Layer {direction.layer}) ---")
+        self.intervention_applier.apply_direction_intervention(direction, "subtract", strength, layers=[direction.layer])
+        results["layer_specific_subtraction"] = {}
+        _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["layer_specific_subtraction"])
+        self.intervention_applier.clear_interventions()
+
         # --- Build the report as a string and log it ---
         report_lines = []
         for key, data in results.items():
