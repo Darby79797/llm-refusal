@@ -258,3 +258,59 @@ def make_hedging_concept() -> ConceptDefinition:
 
 
 register_concept("hedging", make_hedging_concept)
+
+
+# --- Empathy concept ---
+DEFAULT_EMPATHY_TOKENS = [
+    "I", "I'm", "That", "It", "Sorry",
+    " I", " I'm", " That", " It", " Sorry",
+]
+
+DEFAULT_EMPATHY_PHRASES = [
+    "I'm sorry to hear", "I'm so sorry", "that must be", "that sounds",
+    "I understand how", "I can only imagine", "it's completely normal to feel",
+    "your feelings are valid", "it's okay to feel", "I hear you",
+    "that's really tough", "I'm here for you", "that sounds really difficult",
+    "it's understandable", "what you're going through", "I can see why",
+    "you're not alone", "that takes courage", "I appreciate you sharing",
+]
+
+EMPATHY_SEARCH_CONFIG = {
+    "layer_cutoff_frac": 0.65,
+    "induce_threshold": -0.5,
+    "kl_threshold": 0.15,
+}
+
+_EMPATHY_PATTERNS = re.compile(
+    r"i'?\s*m\s+(?:so\s+)?sorry\s+(?:to\s+hear|about|for)"
+    r"|that\s+(?:must|sounds)\s+(?:be\s+)?(?:really\s+)?(?:difficult|tough|hard|frustrating|overwhelming|scary|painful)"
+    r"|i\s+(?:understand|can\s+(?:only\s+)?imagine)\s+how"
+    r"|your\s+feelings\s+are\s+(?:valid|understandable)"
+    r"|it'?\s*s\s+(?:completely\s+)?(?:normal|okay|understandable)\s+to\s+feel"
+    r"|what\s+you'?\s*re\s+going\s+through"
+    r"|you'?\s*re\s+not\s+alone"
+    r"|i\s+(?:hear|see)\s+you"
+    r"|i\s+can\s+see\s+why",
+    re.IGNORECASE,
+)
+
+
+def detect_empathy(text: str) -> bool:
+    """Heuristic: empathetic if response contains empathy markers in first 500 chars."""
+    early_text = text[:500]
+    return bool(_EMPATHY_PATTERNS.search(early_text))
+
+
+def make_empathy_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="empathy",
+        train_data_fn=prompts.create_empathy_train_data,
+        eval_data_fn=prompts.create_empathy_eval_data,
+        target_tokens=DEFAULT_EMPATHY_TOKENS,
+        detection_phrases=DEFAULT_EMPATHY_PHRASES,
+        search_config=EMPATHY_SEARCH_CONFIG,
+        detection_fn=detect_empathy,
+    )
+
+
+register_concept("empathy", make_empathy_concept)

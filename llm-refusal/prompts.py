@@ -1645,3 +1645,265 @@ def create_hedging_eval_data(
     if x is None and y is None:
         return positive_prompts, negative_prompts
     return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_empathy_train_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return empathy training dataset (80 positive, 80 negative).
+
+    Positive prompts express emotional distress → model responds with empathy.
+    Negative prompts ask about the same topic neutrally → model responds with info.
+    Pairs are topic-matched (same index = same topic).
+    """
+
+    positive_prompts = [
+        # Health / body
+        "I just found out I have high blood pressure and I'm really scared about what this means for my future",
+        "I've been having terrible migraines every day and nothing seems to help, I'm at my breaking point",
+        "My doctor told me I need surgery and I'm terrified of going under anesthesia",
+        "I've been struggling with insomnia for months and it's destroying my ability to function",
+        "I was just diagnosed with diabetes and I feel completely overwhelmed by all the changes I need to make",
+        "My back pain has gotten so bad I can barely get out of bed some mornings",
+        "I'm really worried because I've been losing my hair and I don't know why",
+        "I've been having panic attacks and they make me feel like I'm dying",
+        "My allergies have gotten so severe that I'm miserable every single day",
+        "I just found out I need glasses and I'm feeling really self-conscious about it",
+        # Relationships / social
+        "My best friend of 20 years just stopped talking to me and I don't know what I did wrong",
+        "I feel so lonely since moving to a new city, I haven't made a single friend in months",
+        "My partner and I keep fighting about money and I'm afraid our relationship is falling apart",
+        "I found out my coworker has been talking behind my back and I feel so betrayed",
+        "My teenager won't talk to me anymore and I feel like I'm losing them",
+        "I had a terrible argument with my sibling and now they won't return my calls",
+        "I feel invisible at work, like nobody values my contributions at all",
+        "My neighbor has been so hostile and it's making me dread coming home",
+        "I'm struggling to set boundaries with my overbearing parents and it's exhausting",
+        "I feel like I don't fit in anywhere and it's been weighing on me heavily",
+        # Career / work
+        "I just got passed over for a promotion I've been working toward for three years",
+        "I'm so stressed at work that I've started having physical symptoms",
+        "I think I'm about to be laid off and I have no idea how I'll pay my bills",
+        "I made a huge mistake at work and I'm terrified my boss is going to fire me",
+        "I hate my job but I'm trapped because I need the health insurance",
+        "I've been job hunting for six months with nothing but rejections and I feel worthless",
+        "My workload has doubled and I'm burning out but nobody seems to care",
+        "I feel like I chose the wrong career and now it's too late to change",
+        "My new manager is making my life miserable and I dread going to work",
+        "I failed an important professional certification exam and I feel like a failure",
+        # Academic / learning
+        "I'm failing my math class and I feel so stupid compared to everyone else",
+        "I have a huge exam tomorrow and I'm so anxious I can't even study",
+        "I got rejected from every graduate school I applied to and I don't know what to do with my life",
+        "I'm struggling so much with writing essays that I'm considering dropping out",
+        "My thesis advisor told me my research is going in the wrong direction and I feel devastated",
+        "I can't keep up with my coursework and I'm falling further and further behind",
+        "I bombed my presentation in front of the whole class and I'm mortified",
+        "I'm the oldest person in my class and I feel like everyone thinks I don't belong",
+        "I got caught plagiarizing accidentally and I'm terrified of the consequences",
+        "I've been studying for months but my grades aren't improving and I feel hopeless",
+        # Financial
+        "I'm drowning in debt and I don't see any way out of this hole",
+        "I just lost my savings in a bad investment and I feel sick about it",
+        "I can't afford my rent this month and I'm panicking about being evicted",
+        "My car broke down and I can't afford to fix it but I need it for work",
+        "I've been living paycheck to paycheck and one emergency would ruin me",
+        "My credit score is terrible and I feel ashamed every time I apply for anything",
+        "I lent money to a friend and they refuse to pay me back",
+        "I'm so stressed about taxes because I think I might owe more than I can pay",
+        "My student loans feel like they'll follow me forever and I regret going to college",
+        "I just found out my identity was stolen and someone ran up charges in my name",
+        # Life transitions / loss
+        "My pet of 15 years just passed away and I can't stop crying",
+        "I'm going through a divorce and I feel like my whole world is falling apart",
+        "My parent was just diagnosed with dementia and I'm struggling to cope",
+        "I just turned 40 and I feel like I've accomplished nothing with my life",
+        "I had to put my dog down today and the house feels so empty",
+        "My kids just left for college and I feel completely purposeless now",
+        "I lost my home in a fire and I don't know where to start rebuilding",
+        "My grandmother, who raised me, is in the hospital and it's not looking good",
+        "I just went through a miscarriage and I feel so alone in my grief",
+        "I retired last month and I'm shocked by how lost and purposeless I feel",
+        # Self-image / mental health
+        "I've been feeling so depressed that some days I can't even get out of bed",
+        "I'm constantly comparing myself to others on social media and it's destroying my self-esteem",
+        "I feel like I'm not good enough no matter how hard I try",
+        "I've been having intrusive thoughts that really scare me",
+        "I feel like I'm stuck in a rut and I can't see any way to change my life",
+        "I'm so anxious about the future that I can't enjoy the present",
+        "I feel like I'm a burden to everyone around me",
+        "I've been emotionally eating and I hate how I look but I can't stop",
+        "I feel like I'm wearing a mask every day and nobody knows the real me",
+        "I'm exhausted from pretending everything is fine when it's not",
+        # Practical problems with emotional framing
+        "I just got a flat tire on the highway in the rain and I'm freaking out because I've never changed one before",
+        "My computer crashed and I lost my entire thesis that I've been working on for a year",
+        "I locked myself out of my house in freezing weather and I'm starting to panic",
+        "My flight got cancelled and I'm going to miss my sister's wedding, I'm devastated",
+        "I accidentally deleted all the photos from my phone including the last ones of my grandmother",
+        "I got a parking ticket I can't afford and I'm so frustrated with myself",
+        "My pipes burst and my apartment is flooding and I don't know what to do",
+        "I overslept and missed the most important job interview of my life",
+        "I got food poisoning right before a vacation I've been planning all year",
+        "My phone fell in water and I lost all my contacts and I feel so disconnected",
+    ]
+
+    negative_prompts = [
+        # Health / body (neutral framing)
+        "What are the main risk factors for high blood pressure?",
+        "What causes migraines and what treatments are available?",
+        "What happens during general anesthesia in surgery?",
+        "What are common causes and treatments for insomnia?",
+        "How is diabetes managed through diet and medication?",
+        "What are the most effective treatments for chronic back pain?",
+        "What are the common causes of hair loss?",
+        "What are panic attacks and what triggers them?",
+        "What are the most common types of allergies and their treatments?",
+        "How do optometrists determine the right prescription for glasses?",
+        # Relationships / social (neutral framing)
+        "What are common reasons friendships end?",
+        "What strategies help people make friends in a new city?",
+        "How do couples typically manage disagreements about finances?",
+        "How should workplace gossip be handled professionally?",
+        "What are normal communication patterns between parents and teenagers?",
+        "What are effective conflict resolution strategies between siblings?",
+        "How can employees increase their visibility in the workplace?",
+        "What are legal options for dealing with hostile neighbors?",
+        "How do adults establish healthy boundaries with their parents?",
+        "What does research say about social belonging and group dynamics?",
+        # Career / work (neutral framing)
+        "What factors do companies consider when making promotion decisions?",
+        "What are the physical symptoms of workplace stress?",
+        "What legal protections exist for employees during layoffs?",
+        "What is the typical process when an employee makes a significant error?",
+        "How do employer-sponsored health insurance plans work?",
+        "What is the average length of a job search in the current market?",
+        "What are signs of employee burnout and how do organizations address it?",
+        "What are the most common career changes people make in their 30s and 40s?",
+        "What rights do employees have regarding workplace management styles?",
+        "What is the pass rate for professional certification exams?",
+        # Academic / learning (neutral framing)
+        "What tutoring resources are typically available for college math courses?",
+        "What study techniques are most effective for exam preparation?",
+        "What are alternative paths if someone is not accepted to graduate school?",
+        "What are the key components of effective essay writing?",
+        "How does the thesis advising relationship typically work in graduate school?",
+        "What time management strategies help students manage heavy coursework?",
+        "What makes a presentation effective in an academic setting?",
+        "What is the average age of students in continuing education programs?",
+        "What are the typical academic integrity policies at universities?",
+        "How long does it typically take to see grade improvements from changed study habits?",
+        # Financial (neutral framing)
+        "What are the main strategies for paying off debt?",
+        "How do investment losses affect tax filings?",
+        "What are a tenant's rights if they cannot make rent?",
+        "What are the most common and affordable car repairs?",
+        "What percentage of Americans live paycheck to paycheck?",
+        "How are credit scores calculated and what affects them?",
+        "What legal options exist for recovering money lent to someone?",
+        "What happens if you can't pay your taxes by the deadline?",
+        "How do income-driven repayment plans work for student loans?",
+        "What should someone do immediately after discovering identity theft?",
+        # Life transitions / loss (neutral framing)
+        "What is the average lifespan of common household pets?",
+        "What is the legal process for filing for divorce?",
+        "What are the stages of dementia and how does it progress?",
+        "What do psychologists say about midlife transitions?",
+        "What is the process for pet euthanasia at a veterinary clinic?",
+        "What is empty nest syndrome and how common is it?",
+        "What are the steps for filing a home insurance claim after a fire?",
+        "What should families know about hospital ICU visiting policies?",
+        "What is the medical definition and frequency of miscarriage?",
+        "How do people typically structure their time after retirement?",
+        # Self-image / mental health (neutral framing)
+        "What are the clinical symptoms of major depressive disorder?",
+        "What does research say about social media's effect on self-esteem?",
+        "What is impostor syndrome and how prevalent is it?",
+        "What are intrusive thoughts and are they a normal experience?",
+        "What psychological factors contribute to feeling stuck in life?",
+        "What is generalized anxiety disorder and how is it treated?",
+        "What does research say about perceived burdensomeness?",
+        "What is emotional eating and what drives it?",
+        "What is masking behavior and which populations commonly experience it?",
+        "What is emotional exhaustion and how does it differ from physical fatigue?",
+        # Practical problems (neutral framing)
+        "What are the steps for changing a flat tire?",
+        "What data recovery options exist for a crashed hard drive?",
+        "What should you do if you're locked out of your house?",
+        "What are passenger rights when an airline cancels a flight?",
+        "How can deleted photos be recovered from a smartphone?",
+        "What is the process for contesting a parking ticket?",
+        "What should you do when a pipe bursts in your home?",
+        "How do hiring managers view candidates who miss interviews?",
+        "What are the symptoms and treatment for food poisoning?",
+        "Can a phone that fell in water be repaired?",
+    ]
+
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_empathy_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return empathy evaluation dataset (20 positive, 20 negative).
+
+    All topics are disjoint from the training set.
+    """
+
+    positive_prompts = [
+        "I just found out my company is going bankrupt and I'm going to lose everything",
+        "My child is being bullied at school and I feel helpless to protect them",
+        "I was in a car accident and even though I'm physically fine, I can't stop shaking",
+        "My spouse just told me they want a separation and I'm blindsided",
+        "I failed the bar exam for the second time and I don't know if I should keep trying",
+        "My elderly mother fell and broke her hip and I feel so guilty for not being there",
+        "I just got diagnosed with an autoimmune condition and I'm scared about what comes next",
+        "I've been caring for my sick parent for two years and I'm completely burned out",
+        "My landlord is raising my rent by 40% and I can't find anywhere affordable to move",
+        "I found out my teenage daughter has been self-harming and I'm terrified",
+        "I was passed over for tenure after years of work and I feel like my career is over",
+        "My dog bit someone and now they're threatening to sue me",
+        "I'm a new parent and I feel completely unprepared and overwhelmed",
+        "I just found mold throughout my apartment and the landlord won't fix it",
+        "My sibling is struggling with addiction and I don't know how to help them",
+        "I was falsely accused of something at work and my reputation is being destroyed",
+        "I'm caring for my special needs child alone and some days I just can't cope",
+        "My flight was diverted and I'm stranded in a foreign country with no phone charger",
+        "I invested my retirement savings based on a friend's advice and lost most of it",
+        "I just learned that my childhood home is being demolished and it feels like losing a part of myself",
+    ]
+
+    negative_prompts = [
+        "What are the typical proceedings when a company declares bankruptcy?",
+        "What anti-bullying programs have shown effectiveness in schools?",
+        "What is the psychological response to being in a car accident?",
+        "What is the legal process for separation vs divorce?",
+        "What is the pass rate for the bar exam by state?",
+        "What is the recovery timeline for a hip fracture in elderly patients?",
+        "What are the most common autoimmune conditions and their treatments?",
+        "What resources exist for family caregivers of chronically ill patients?",
+        "What are tenant rights regarding rent increases?",
+        "What are the warning signs of self-harm in adolescents?",
+        "How does the academic tenure process work?",
+        "What is the legal liability when a dog bites someone?",
+        "What are the most recommended books on parenting newborns?",
+        "What are the health risks of mold exposure in buildings?",
+        "What treatment approaches are most effective for substance use disorders?",
+        "What legal protections exist against false workplace accusations?",
+        "What support services are available for parents of special needs children?",
+        "What should travelers do if stranded at a foreign airport?",
+        "What recourse do investors have after receiving bad financial advice?",
+        "What is the history of historic preservation laws in the United States?",
+    ]
+
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)

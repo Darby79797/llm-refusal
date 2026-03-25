@@ -23,7 +23,7 @@ python llm-refusal/run_experiment.py --json '{"model_name": "...", "mode": "sear
 |------|---------|-------|
 | `--model` | required | HuggingFace model ID |
 | `--mode` | required | `search`, `evaluate`, `eyeball`, `cross_concept` |
-| `--concept` | `refusal` | Registry key: `refusal`, `refusal_arditi`, `sycophancy`, `sycophancy_neutral`, `hedging` |
+| `--concept` | `refusal` | Registry key: `refusal`, `refusal_arditi`, `sycophancy`, `sycophancy_neutral`, `hedging`, `empathy` |
 | `--layer`, `--pos` | — | Required for evaluate/eyeball (pos is typically -1) |
 | `--no-filter-prompts` | on by default | Disable filtering train prompts by actual model behavior |
 | `--induce-mode` | `single_layer` | Search induce mode: `single_layer` or `all_layers` (Arditi-style) |
@@ -118,6 +118,7 @@ Sweet spot is ~35-60% depth. Full results: `results/results_summary.md`, experim
 - **Search calibration**: LogOdds induce scores mislead at deep layers (>60% depth). Fixed via `layer_cutoff_frac=0.65`.
 - **Hedging: negative result**: Search finds directions with positive LogOdds induce scores, but 0% behavioral detection across all conditions on all 4 Qwen2.5 models. Models don't hedge on factual questions at baseline.
 - **3-way cross-concept (3B)**: Refusal/sycophancy/hedging directions span a 2D subspace. Ablating sycophancy direction reduces refusal by 57pp (strong cross-interference).
+- **Empathy direction works**: Subtraction removes empathy completely (80%→0% on 1.5B, 30%→0% on 3B). Addition induces empathy on 30-50% of neutral prompts. Ablation ineffective — same pattern as Llama-2 refusal, suggesting subtraction is generally superior to projection-based ablation.
 
 ## Next Steps
 
