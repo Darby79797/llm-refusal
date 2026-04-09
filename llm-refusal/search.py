@@ -94,7 +94,7 @@ class DirectionFinder:
         Also logs a summary of the best candidates found for each metric.
         """
         if max_positions is None:
-            cfg_positions = self.search_config.get("max_positions", 1)
+            cfg_positions = self.search_config.get("max_positions", "auto")
             if cfg_positions == "auto":
                 apt = getattr(self.prompt_formatter, 'assistant_prefix_tokens', 0)
                 max_positions = apt + 1

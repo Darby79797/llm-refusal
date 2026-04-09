@@ -17,7 +17,7 @@ class ChatPromptFormatter:
         if self.tokenizer.pad_token is None:
             logger.info("Tokenizer has no pad_token. Setting to eos_token.")
             self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.tokenizer.padding_side = 'left'
+        self.tokenizer.padding_side = 'right'
 
         self.is_instruction_tuned = any(tag in tokenizer.name_or_path.lower() for tag in ["-it", "-instruct", "-chat"])
 
@@ -182,4 +182,12 @@ class ChatPromptFormatter:
                 input_ids = input_ids[:, -self.tokenizer.model_max_length:]
                 attention_mask = attention_mask[:, -self.tokenizer.model_max_length:]
 
-        return {'input_ids': input_ids, 'attention_mask': attention_mask}
+        # --- Compute position_ids for left-padding correctness ---
+        # Without explicit position_ids, models with RoPE (Llama, etc.) assign
+        # wrong rotary positions to padded tokens, corrupting attention even
+        # though the attention_mask zeros them out. This matches HuggingFace's
+        # internal logic in prepare_inputs_for_generation().
+        position_ids = attention_mask.long().cumsum(-1) - 1
+        position_ids.masked_fill_(attention_mask == 0, 1)
+
+        return {'input_ids': input_ids, 'attention_mask': attention_mask, 'position_ids': position_ids}

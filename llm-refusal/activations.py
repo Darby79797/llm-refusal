@@ -28,6 +28,7 @@ class ActivationExtractor:
         batch = self.prompt_formatter.format_batch(prompts)
         input_ids = batch['input_ids'].to(self.device)
         attention_mask = batch['attention_mask'].to(self.device)
+        position_ids = batch['position_ids'].to(self.device)
 
         batch_size, seq_len = input_ids.shape
         true_lengths = attention_mask.sum(dim=1)
@@ -44,7 +45,7 @@ class ActivationExtractor:
 
             hooks = [layer.register_forward_pre_hook(make_hook(i)) for i, layer in enumerate(self.transformer_layers)]
 
-            self.model(input_ids=input_ids, attention_mask=attention_mask)
+            self.model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
 
             for hook in hooks: hook.remove()
 

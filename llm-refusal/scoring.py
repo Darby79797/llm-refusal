@@ -76,7 +76,8 @@ class Three_Score_Evaluator:
             with t.no_grad():
                 batch = self.prompt_formatter.format_batch(prompts)
                 input_ids, attention_mask = batch['input_ids'].to(self.device), batch['attention_mask'].to(self.device)
-                outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+                position_ids = batch['position_ids'].to(self.device)
+                outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
                 last_token_indices = attention_mask.sum(dim=1) - 1
                 batch_logits = outputs.logits[t.arange(outputs.logits.size(0)), last_token_indices, :]
                 if t.isinf(batch_logits).any() or t.isnan(batch_logits).any():

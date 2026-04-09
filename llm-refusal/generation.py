@@ -19,16 +19,22 @@ def generate_with_hooks(
     batch = prompt_formatter.format_batch(prompts)
     input_ids = batch['input_ids'].to(model.device)
     attention_mask = batch['attention_mask'].to(model.device)
+    position_ids = batch['position_ids'].to(model.device)
 
     batch_size = input_ids.shape[0]
     generated_ids_list = [[] for _ in range(batch_size)]
     finished_sequences = [False] * batch_size
 
     with t.no_grad():
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, use_cache=True)
+        outputs = model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids, use_cache=True)
         past_key_values = outputs.past_key_values
-        next_token_logits = outputs.logits[:, -1, :]
+        # Get logits at last REAL token (not last padded position)
+        last_real_indices = attention_mask.sum(dim=1) - 1
+        next_token_logits = outputs.logits[t.arange(batch_size), last_real_indices, :]
         next_token_ids = t.argmax(next_token_logits, dim=-1)
+
+        # Track next position for each sequence in the batch
+        next_position = position_ids.max(dim=-1).values + 1
 
         for _ in range(max_new_tokens):
             if all(finished_sequences): break
@@ -43,8 +49,10 @@ def generate_with_hooks(
 
             current_input_ids = next_token_ids.unsqueeze(-1)
             attention_mask = t.cat([attention_mask, t.ones(batch_size, 1, device=model.device)], dim=1)
+            step_position_ids = next_position.unsqueeze(-1)
+            next_position = next_position + 1
 
-            outputs = model(input_ids=current_input_ids, past_key_values=past_key_values, attention_mask=attention_mask, use_cache=True)
+            outputs = model(input_ids=current_input_ids, past_key_values=past_key_values, attention_mask=attention_mask, position_ids=step_position_ids, use_cache=True)
             past_key_values = outputs.past_key_values
             next_token_logits = outputs.logits[:, -1, :]
             next_token_ids = t.argmax(next_token_logits, dim=-1)
