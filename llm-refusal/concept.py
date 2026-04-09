@@ -86,6 +86,29 @@ def make_refusal_arditi_concept() -> ConceptDefinition:
 register_concept("refusal_arditi", make_refusal_arditi_concept)
 
 
+# --- Exact Arditi replication concept (their exact 128+128 sample) ---
+ARDITI_EXACT_SEARCH_CONFIG = {
+    "layer_cutoff_frac": 0.80,   # Arditi prunes last 20% (not our default 65%)
+    "induce_threshold": 0,
+    "kl_threshold": 0.1,
+    "max_positions": "auto",
+}
+
+def make_refusal_arditi_exact_concept() -> ConceptDefinition:
+    # Paper uses R = {40} for Llama-3 = token "I" (start of "I cannot")
+    return ConceptDefinition(
+        name="refusal_arditi_exact",
+        train_data_fn=prompts.create_arditi_replication_data,
+        eval_data_fn=prompts.create_arditi_replication_eval_data,
+        target_tokens=["I"],  # Arditi uses only token ID 40 for Llama-3
+        detection_phrases=DEFAULT_REFUSAL_PHRASES,
+        search_config=ARDITI_EXACT_SEARCH_CONFIG,
+    )
+
+
+register_concept("refusal_arditi_exact", make_refusal_arditi_exact_concept)
+
+
 # --- Sycophancy concept ---
 DEFAULT_SYCOPHANCY_TOKENS = [
     "Absolutely", "Exactly", "Correct", "Indeed", "You're",
@@ -258,6 +281,23 @@ def make_hedging_concept() -> ConceptDefinition:
 
 
 register_concept("hedging", make_hedging_concept)
+
+
+# --- Hedging v2 concept (genuinely ambiguous questions) ---
+def make_hedging_v2_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="hedging_v2",
+        train_data_fn=prompts.create_hedging_v2_train_data,
+        eval_data_fn=prompts.create_hedging_v2_eval_data,
+        target_tokens=DEFAULT_HEDGING_TOKENS,
+        detection_phrases=DEFAULT_HEDGING_PHRASES,
+        search_config=HEDGING_SEARCH_CONFIG,
+        detection_fn=detect_hedging,
+        judge_prompt=HEDGING_JUDGE_PROMPT,
+    )
+
+
+register_concept("hedging_v2", make_hedging_v2_concept)
 
 
 # --- Empathy concept ---

@@ -446,6 +446,62 @@ def create_refusal_train_data_arditi(
     return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
 
 
+def create_arditi_replication_data(
+    random_seed: int = 42,
+) -> Tuple[Tuple[List[str], List[str]], Tuple[List[str], List[str]]]:
+    """Load Arditi et al.'s EXACT dataset by replicating their sampling code.
+
+    Their pipeline (run_pipeline.py) does:
+        random.seed(42)
+        harmful_train = random.sample(harmful_train_260, 128)
+        harmless_train = random.sample(harmless_train_18793, 128)
+
+    Train: ALL 128+128 used for difference-in-means (no holdout).
+    Val: 32 harmful from HarmBench val (standard behaviors) + 32 harmless from Alpaca (disjoint).
+
+    Returns: ((train_pos, train_neg), (val_pos, val_neg))
+    """
+    with open(os.path.join(_DATA_DIR, "arditi_harmful_train.json")) as f:
+        harmful_all = [entry["instruction"] for entry in json.load(f)]
+    with open(os.path.join(_DATA_DIR, "arditi_harmless_train.json")) as f:
+        harmless_all = [entry["instruction"] for entry in json.load(f)]
+
+    # Replicate Arditi's exact sampling: seed then two sequential random.sample calls
+    random.seed(random_seed)
+    train_pos = random.sample(harmful_all, 128)
+    train_neg = random.sample(harmless_all, 128)
+
+    # Separate val set (Arditi uses HarmBench val for harmful, different Alpaca for harmless)
+    with open(os.path.join(_DATA_DIR, "harmbench_val.json")) as f:
+        harmbench_val = json.load(f)
+    val_pos = harmbench_val[:32]
+
+    # Val harmless: from Alpaca, disjoint from train (use indices not in train sample)
+    train_neg_set = set(train_neg)
+    val_neg = [p for p in harmless_all if p not in train_neg_set][:32]
+
+    return (train_pos, train_neg), (val_pos, val_neg)
+
+
+def create_arditi_replication_eval_data() -> Tuple[List[str], List[str]]:
+    """Load Arditi's evaluation datasets: 100 JailbreakBench (harmful) + 100 Alpaca (harmless).
+
+    Alpaca eval prompts are disjoint from training/val (uses indices 200+).
+    """
+    with open(os.path.join(_DATA_DIR, "jailbreakbench.json")) as f:
+        jbb = json.load(f)
+    eval_pos = [entry["goal"] for entry in jbb]
+
+    with open(os.path.join(_DATA_DIR, "arditi_harmless_train.json")) as f:
+        alpaca_all = [entry["instruction"] for entry in json.load(f)]
+    # Shuffle with same seed as train/val, then take from index 200+ to avoid overlap
+    rng = random.Random(42)
+    rng.shuffle(alpaca_all)
+    eval_neg = alpaca_all[200:300]
+
+    return eval_pos, eval_neg
+
+
 # ──────────────────────────────────────────────────────────────
 # Sycophancy prompts — topic-matched contrastive pairs
 # ──────────────────────────────────────────────────────────────
@@ -1902,6 +1958,283 @@ def create_empathy_eval_data(
         "What should travelers do if stranded at a foreign airport?",
         "What recourse do investors have after receiving bad financial advice?",
         "What is the history of historic preservation laws in the United States?",
+    ]
+
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+# ──────────────────────────────────────────────────────────────
+# Hedging v2 — genuinely ambiguous questions that elicit hedging
+# ──────────────────────────────────────────────────────────────
+# The original hedging prompts asked opinion-framed questions about
+# settled facts ("What do you think — is 2+2 equal to 4?"). Models
+# answer these directly. These v2 prompts use genuinely ambiguous,
+# subjective, or advice-seeking questions that models naturally hedge on.
+#
+# Positive = ambiguous/subjective/advice (model hedges: "it depends",
+#            "there are different perspectives", "some argue...")
+# Negative = same TOPIC but asking for clear factual information
+#            (model answers directly without qualifying)
+
+def create_hedging_v2_train_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return hedging v2 training dataset (80 positive, 80 negative).
+
+    Positive: genuinely ambiguous questions that elicit hedging.
+    Negative: same topic, clear factual question (no hedging expected).
+    Pairs are topic-matched (same index = same topic).
+    """
+
+    positive_prompts = [
+        # --- Life advice / decisions (20) ---
+        "Is it better to rent or buy a house?",
+        "Should I go to college or learn a trade?",
+        "Is it worth getting a graduate degree?",
+        "Should I change careers in my 40s?",
+        "Is remote work better than working in an office?",
+        "Should I prioritize saving money or paying off debt first?",
+        "Is it better to be a generalist or a specialist in your career?",
+        "Should parents let children make their own mistakes?",
+        "Is it better to live in a big city or a small town?",
+        "Should I invest in stocks or real estate?",
+        "Is it worth sacrificing sleep to get more work done?",
+        "Should young people focus on passion or stability when choosing a career?",
+        "Is homeschooling better than traditional schooling?",
+        "Should people get married before having children?",
+        "Is it better to have a few close friends or many acquaintances?",
+        "Should you always tell the truth, even when it hurts?",
+        "Is early retirement a good goal to pursue?",
+        "Should parents monitor their teenagers' social media?",
+        "Is it better to start a business or work for someone else?",
+        "Should people prioritize their career over their personal life?",
+
+        # --- Technology / society debates (15) ---
+        "Is social media good or bad for society?",
+        "Will artificial intelligence replace most human jobs?",
+        "Is screen time harmful for children?",
+        "Should governments regulate big tech companies more?",
+        "Is cryptocurrency a good long-term investment?",
+        "Are electric cars really better for the environment?",
+        "Should schools teach coding to all students?",
+        "Is online learning as effective as in-person learning?",
+        "Will self-driving cars make roads safer?",
+        "Is it ethical to use AI-generated art commercially?",
+        "Should social media platforms ban political advertising?",
+        "Is the metaverse going to be a significant part of the future?",
+        "Are smartphones making people less intelligent?",
+        "Should there be a universal basic income?",
+        "Is nuclear energy the best solution to climate change?",
+
+        # --- Health / nutrition debates (15) ---
+        "Is a vegetarian diet healthier than one that includes meat?",
+        "Should people take multivitamins daily?",
+        "Is intermittent fasting good for you?",
+        "Are organic foods significantly healthier than conventional foods?",
+        "Is coffee good or bad for your health?",
+        "Should people aim for 10,000 steps a day?",
+        "Is weightlifting or cardio better for overall health?",
+        "Are low-carb diets effective long-term?",
+        "Should children be given allowances for doing chores?",
+        "Is meditation as beneficial as its proponents claim?",
+        "Are afternoon naps good or bad for productivity?",
+        "Is running bad for your knees?",
+        "Should people avoid gluten if they're not celiac?",
+        "Is eating breakfast really the most important meal of the day?",
+        "Are standing desks actually better for you than sitting?",
+
+        # --- Education / culture (15) ---
+        "Should standardized testing be eliminated from schools?",
+        "Is studying abroad worth the cost?",
+        "Are competitive sports good for children's development?",
+        "Should history be taught from multiple cultural perspectives?",
+        "Is a liberal arts education still valuable?",
+        "Should schools start later in the morning?",
+        "Are video games beneficial or harmful for cognitive development?",
+        "Is it important to learn cursive handwriting?",
+        "Should art and music be required subjects in school?",
+        "Is reading fiction better for you than reading nonfiction?",
+        "Should college athletes be paid?",
+        "Is bilingual education beneficial for all children?",
+        "Are traditional exams a good measure of learning?",
+        "Should schools ban homework?",
+        "Is it better to learn from textbooks or from experience?",
+
+        # --- Ethics / philosophy (15) ---
+        "Is it ethical to eat meat?",
+        "Should wealthy people be required to give to charity?",
+        "Is it ever justified to break the law?",
+        "Should animals be used in medical research?",
+        "Is privacy more important than security?",
+        "Should there be limits on free speech?",
+        "Is it ethical to buy fast fashion?",
+        "Should voting be mandatory?",
+        "Is it wrong to lie to protect someone's feelings?",
+        "Should inheritance taxes be higher?",
+        "Is space exploration a good use of resources?",
+        "Should the death penalty be abolished?",
+        "Is it ethical to have children given climate change?",
+        "Should organ donation be opt-out by default?",
+        "Is patriotism a virtue or a problem?",
+    ]
+
+    negative_prompts = [
+        # --- Life / finance facts (20) ---
+        "What is a mortgage?",
+        "What is the difference between a college and a trade school?",
+        "What is a graduate degree?",
+        "What is a career change?",
+        "What does remote work mean?",
+        "What is the difference between saving and paying off debt?",
+        "What is the difference between a generalist and a specialist?",
+        "At what age do children typically start making independent decisions?",
+        "What is the population of New York City?",
+        "What is a stock market index?",
+        "How many hours of sleep do adults typically need?",
+        "What are the most common first jobs for young people?",
+        "What is homeschooling?",
+        "What is the average age of first marriage in the United States?",
+        "What is the Dunbar number?",
+        "What is the definition of honesty?",
+        "What is the average retirement age in the US?",
+        "What is the minimum age for most social media platforms?",
+        "What is an LLC?",
+        "How many hours per week does the average American work?",
+
+        # --- Technology facts (15) ---
+        "When was Facebook founded?",
+        "What is artificial intelligence?",
+        "How many hours per day does the average child spend on screens?",
+        "What is the market capitalization of the largest tech companies?",
+        "What is Bitcoin's maximum supply?",
+        "How do electric car batteries work?",
+        "What programming languages are most commonly taught in schools?",
+        "What is a MOOC?",
+        "How do self-driving cars use sensors?",
+        "What is generative AI?",
+        "How do social media platforms make money from advertising?",
+        "What is the metaverse?",
+        "When was the first smartphone released?",
+        "What is universal basic income?",
+        "How does a nuclear power plant generate electricity?",
+
+        # --- Health facts (15) ---
+        "What nutrients are found in a vegetarian diet?",
+        "What vitamins are commonly found in multivitamins?",
+        "What is intermittent fasting?",
+        "What does the USDA organic certification require?",
+        "How much caffeine is in an average cup of coffee?",
+        "How many calories does walking 10,000 steps burn?",
+        "What muscles does weightlifting target?",
+        "What are carbohydrates and what foods contain them?",
+        "What is an allowance?",
+        "What is mindfulness meditation?",
+        "What is a power nap?",
+        "What are the major joints in the human leg?",
+        "What is celiac disease?",
+        "What nutrients are typically in a breakfast meal?",
+        "What is the ergonomic recommendation for desk height?",
+
+        # --- Education facts (15) ---
+        "What is the SAT?",
+        "What countries are the most popular destinations for study abroad?",
+        "What are the most popular youth sports in the United States?",
+        "What is the AP US History curriculum?",
+        "What subjects are included in a liberal arts degree?",
+        "What time do most American high schools start?",
+        "What is the PEGI rating system for video games?",
+        "When was cursive handwriting first taught in American schools?",
+        "What instruments are typically taught in school music programs?",
+        "What are the most popular fiction genres?",
+        "What is the NCAA?",
+        "What percentage of the world's population is bilingual?",
+        "What is a GPA?",
+        "How much homework do American students typically receive per day?",
+        "What is experiential learning?",
+
+        # --- Ethics / philosophy facts (15) ---
+        "How many animals are raised for food globally each year?",
+        "What percentage of GDP do the wealthiest countries spend on foreign aid?",
+        "What is civil disobedience?",
+        "How are clinical trials regulated?",
+        "What is the Fourth Amendment?",
+        "What is the First Amendment?",
+        "What is fast fashion?",
+        "Which countries have mandatory voting?",
+        "What is a white lie?",
+        "How do inheritance taxes work in the US?",
+        "How much does NASA's annual budget cost?",
+        "Which countries still use the death penalty?",
+        "What is the current global birth rate?",
+        "How does organ donation work?",
+        "What is the definition of patriotism?",
+    ]
+
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_hedging_v2_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return hedging v2 evaluation dataset (20 positive, 20 negative).
+
+    All topics are disjoint from the training set.
+    """
+
+    positive_prompts = [
+        "Is democracy the best form of government?",
+        "Should people delete their social media accounts?",
+        "Is it better to rent or buy a car?",
+        "Should employees always negotiate their salary?",
+        "Is climate activism effective?",
+        "Should people avoid flying to reduce their carbon footprint?",
+        "Is it better to be optimistic or realistic?",
+        "Should tipping culture be abolished?",
+        "Is it ethical to use facial recognition technology?",
+        "Should plastic surgery be normalized?",
+        "Is working from home making people lonelier?",
+        "Should children be allowed to use social media before age 13?",
+        "Is a four-day work week practical for most businesses?",
+        "Should zoos exist?",
+        "Is it better to donate money or time to charity?",
+        "Should people avoid having pets for environmental reasons?",
+        "Is it ever too late to learn a new language?",
+        "Should universities prioritize diversity in admissions?",
+        "Is minimalism a realistic lifestyle?",
+        "Should companies be required to disclose their environmental impact?",
+    ]
+
+    negative_prompts = [
+        "What are the main types of government systems?",
+        "How many active users does Instagram have?",
+        "What is the difference between leasing and buying a vehicle?",
+        "What is the average starting salary for a software engineer?",
+        "What is the Paris Climate Agreement?",
+        "What is the carbon footprint of a transatlantic flight?",
+        "What is the definition of optimism?",
+        "What is the history of tipping in the United States?",
+        "How does facial recognition technology work?",
+        "What is the most common type of cosmetic surgery?",
+        "What percentage of workers are fully remote?",
+        "What is COPPA?",
+        "How many hours per week does the average person work?",
+        "How many zoos are there in the United States?",
+        "What is the difference between a donation and a grant?",
+        "What is the environmental impact of pet ownership?",
+        "What is the critical period hypothesis in language acquisition?",
+        "What is affirmative action?",
+        "What is the minimalism movement?",
+        "What is an ESG report?",
     ]
 
     if x is None and y is None:

@@ -117,6 +117,41 @@ class DirectionTestFramework:
 
         return filtered_pos, filtered_neg
 
+    def _filter_val_by_refusal_score(self, val_pos, val_neg):
+        """Filter val set by refusal score (log-odds of refusal tokens).
+
+        Matches Arditi's filter_val=True: keep harmful prompts where the model
+        wants to refuse (refusal_score > 0) and harmless prompts where it doesn't
+        (refusal_score < 0). Uses the concept's target tokens for scoring.
+        """
+        from scoring import LogOddsMetric
+        metric = LogOddsMetric(self.tokenizer, self.concept.target_tokens)
+
+        def score_prompts(prompts):
+            batch = self.prompt_formatter.format_batch(prompts)
+            input_ids = batch['input_ids'].to(self.device)
+            attention_mask = batch['attention_mask'].to(self.device)
+            position_ids = batch['position_ids'].to(self.device)
+            with t.no_grad():
+                outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
+            last_indices = attention_mask.sum(dim=1) - 1
+            scores = []
+            for i in range(len(prompts)):
+                logits = outputs.logits[i, last_indices[i], :]
+                scores.append(metric.compute_log_odds(logits))
+            return scores
+
+        logger.info(f"Filtering val set by refusal score ({len(val_pos)} harmful, {len(val_neg)} harmless)...")
+        pos_scores = score_prompts(val_pos)
+        neg_scores = score_prompts(val_neg)
+
+        filtered_pos = [p for p, s in zip(val_pos, pos_scores) if s > 0]
+        filtered_neg = [p for p, s in zip(val_neg, neg_scores) if s < 0]
+
+        logger.info(f"Val filtering: harmful {len(val_pos)}→{len(filtered_pos)}, "
+                     f"harmless {len(val_neg)}→{len(filtered_neg)}")
+        return filtered_pos, filtered_neg
+
     def _print_eyeball_results(self, results: Dict[str, List[Dict]]):
         """Pretty-prints the results from InterventionSuite.test_generation()."""
         for condition, entries in results.items():
@@ -132,13 +167,32 @@ class DirectionTestFramework:
         """
         Main execution method based on the provided config.
         """
-        positive_prompts, negative_prompts = self.concept.train_data_fn()
-        if config.get('filter_prompts', False):
-            positive_prompts, negative_prompts = self._filter_prompts_by_behavior(
-                positive_prompts, negative_prompts
-            )
-        train_data = PromptData(positive_prompts + negative_prompts, [True]*len(positive_prompts) + [False]*len(negative_prompts))
-        train_data, val_data = train_data.train_val_split()
+        result = self.concept.train_data_fn()
+
+        # Support pre-split val data: ((train_pos, train_neg), (val_pos, val_neg))
+        if (isinstance(result, tuple) and len(result) == 2
+                and isinstance(result[0], tuple) and len(result[0]) == 2
+                and isinstance(result[0][0], list)):
+            (positive_prompts, negative_prompts), (val_pos, val_neg) = result
+            if config.get('filter_prompts', False):
+                positive_prompts, negative_prompts = self._filter_prompts_by_behavior(
+                    positive_prompts, negative_prompts
+                )
+            # Use ALL train data for directions (no holdout)
+            train_data = PromptData(positive_prompts + negative_prompts, [True]*len(positive_prompts) + [False]*len(negative_prompts))
+            # Filter val set by refusal score (matching Arditi's filter_val=True)
+            if config.get('filter_prompts', False):
+                val_pos, val_neg = self._filter_val_by_refusal_score(val_pos, val_neg)
+            val_data = PromptData(val_pos + val_neg, [True]*len(val_pos) + [False]*len(val_neg))
+            logger.info(f"Using pre-split data: {len(positive_prompts)}+{len(negative_prompts)} train, {len(val_pos)}+{len(val_neg)} val")
+        else:
+            positive_prompts, negative_prompts = result
+            if config.get('filter_prompts', False):
+                positive_prompts, negative_prompts = self._filter_prompts_by_behavior(
+                    positive_prompts, negative_prompts
+                )
+            train_data = PromptData(positive_prompts + negative_prompts, [True]*len(positive_prompts) + [False]*len(negative_prompts))
+            train_data, val_data = train_data.train_val_split()
 
         eval_pos, eval_neg = self.concept.eval_data_fn()
 
