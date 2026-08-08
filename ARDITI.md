@@ -4,7 +4,7 @@
 
 We successfully replicate Arditi & Obeso's "Refusal in Language Models Is Mediated by a Single Direction" on Llama-3-8B-Instruct. With corrected padding (right-padding + explicit `position_ids`), our pipeline selects **L12/pos-5** — exactly matching the paper — with bypass_score=-10.7 (paper: -9.7), strictly passing all criteria (induce > 0, KL < 0.1).
 
-The replication was blocked for months by a **left-padding bug** that corrupted all logit computations. See CLAUDE.md "Critical Bug Fix" for details.
+The replication was blocked for months by a **left-padding bug** that corrupted all logit computations. See RESULTS.md "Critical Bug Fix" for details.
 
 ## What Matches
 
@@ -35,6 +35,7 @@ The replication was blocked for months by a **left-padding bug** that corrupted 
 - `--concept refusal` — our dataset, our search config (default)
 - `--concept refusal_arditi` — Arditi's AdvBench-only data, our search config
 - `--concept refusal_arditi_exact` — Arditi's exact 128+128 sample (seed=42), separate HarmBench val, single refusal token, 0.80 layer cutoff. Use this for exact replication.
+  - Caveat: the HarmBench-derived val set (first 32) and the JailbreakBench eval set share 2 identical prompts (happenstance overlap between the source benchmarks), so val and eval are not fully disjoint. Data is intentionally left as-is for replication fidelity.
 
 ## Bugs Found During Replication
 

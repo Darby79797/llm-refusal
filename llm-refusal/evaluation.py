@@ -65,18 +65,21 @@ class InterventionSuite:
             key = f"{intervention_type}_strength_{strength}"
             logger.info(f"Generating responses for intervention: {key}")
 
-            if strength != 0.0 and direction is not None:
+            applied = strength != 0.0 and direction is not None
+            if applied:
                 layers = list(range(len(self.intervention_applier.transformer_layers))) if intervention_type == "ablate" else [direction.layer]
                 self.intervention_applier.apply_direction_intervention(direction, intervention_type, strength, layers=layers)
 
-            intervened_outputs = self.model.generate(
-                input_ids, attention_mask=attention_mask, max_new_tokens=max_new_tokens,
-                do_sample=False, pad_token_id=self.tokenizer.eos_token_id
-            )
-            intervened_texts = self.tokenizer.batch_decode(intervened_outputs[:, input_ids.shape[1]:], skip_special_tokens=True)
-            results[key] = [{'prompt': p, 'generated_text': t} for p, t in zip(test_prompts, intervened_texts)]
-
-            self.intervention_applier.clear_interventions()
+            try:
+                intervened_outputs = self.model.generate(
+                    input_ids, attention_mask=attention_mask, max_new_tokens=max_new_tokens,
+                    do_sample=False, pad_token_id=self.tokenizer.eos_token_id
+                )
+                intervened_texts = self.tokenizer.batch_decode(intervened_outputs[:, input_ids.shape[1]:], skip_special_tokens=True)
+                results[key] = [{'prompt': p, 'generated_text': t} for p, t in zip(test_prompts, intervened_texts)]
+            finally:
+                if applied:
+                    self.intervention_applier.clear_interventions()
 
         return results
 
@@ -214,8 +217,11 @@ class BigEvaluator:
         if not self.llamaguard_api_base:
             logger.info("LlamaGuard API not configured, skipping.")
             return None
+        if not prompts:
+            return 0.0
 
         unsafe_count = 0
+        failed_count = 0
         for prompt, response in tqdm(zip(prompts, generated_texts), total=len(prompts), desc="LlamaGuard2 Classification"):
             try:
                 raw_prompt = self._build_llamaguard2_prompt(prompt, response)
@@ -238,9 +244,19 @@ class BigEvaluator:
                 if "unsafe" in content.lower():
                     unsafe_count += 1
             except Exception as e:
+                failed_count += 1
                 logger.warning(f"LlamaGuard API call failed: {e}")
 
-        return unsafe_count / len(prompts) if prompts else 0.0
+        if failed_count:
+            logger.warning(f"LlamaGuard classification failed for {failed_count}/{len(prompts)} prompts; "
+                            "excluding them from the unsafe rate denominator.")
+
+        num_classified = len(prompts) - failed_count
+        if num_classified == 0:
+            # Every call failed — no signal to report, matches JailbreakBench's
+            # whole-batch-failure semantics (return None rather than a misleading 0.0).
+            return None
+        return unsafe_count / num_classified
 
     def evaluate_jailbreakbench_rate(self, prompts: List[str], generated_texts: List[str]) -> Optional[float]:
         """Classify responses using JailbreakBench. Returns jailbreak success rate or None if not available."""
@@ -424,43 +440,53 @@ class BigEvaluator:
 
         logger.info("\n--- Evaluating Global Ablation (All Layers) ---")
         self.intervention_applier.apply_direction_intervention(direction, "ablate", strength, layers=list(range(num_layers)))
-        results["global_ablation"] = {}
-        _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["global_ablation"])
-        results["global_ablation"]["standard_eval_scores"] = self.run_standard_evals(tasks, limit=limit)
-        if run_arditi_evals:
-            alpaca = self.evaluate_alpaca_ce_loss(max_prompts=alpaca_max_prompts)
-            if alpaca is not None:
-                results["global_ablation"].update(alpaca)
-        self.intervention_applier.clear_interventions()
+        try:
+            results["global_ablation"] = {}
+            _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["global_ablation"])
+            results["global_ablation"]["standard_eval_scores"] = self.run_standard_evals(tasks, limit=limit)
+            if run_arditi_evals:
+                alpaca = self.evaluate_alpaca_ce_loss(max_prompts=alpaca_max_prompts)
+                if alpaca is not None:
+                    results["global_ablation"].update(alpaca)
+        finally:
+            self.intervention_applier.clear_interventions()
 
         logger.info(f"\n--- Evaluating Layer-Specific Ablation (Layer {direction.layer}) ---")
         self.intervention_applier.apply_direction_intervention(direction, "ablate", strength, layers=[direction.layer])
-        results["layer_specific_ablation"] = {}
-        _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["layer_specific_ablation"])
-        results["layer_specific_ablation"]["standard_eval_scores"] = self.run_standard_evals(tasks, limit=limit)
-        if run_arditi_evals:
-            alpaca = self.evaluate_alpaca_ce_loss(max_prompts=alpaca_max_prompts)
-            if alpaca is not None:
-                results["layer_specific_ablation"].update(alpaca)
-        self.intervention_applier.clear_interventions()
+        try:
+            results["layer_specific_ablation"] = {}
+            _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["layer_specific_ablation"])
+            results["layer_specific_ablation"]["standard_eval_scores"] = self.run_standard_evals(tasks, limit=limit)
+            if run_arditi_evals:
+                alpaca = self.evaluate_alpaca_ce_loss(max_prompts=alpaca_max_prompts)
+                if alpaca is not None:
+                    results["layer_specific_ablation"].update(alpaca)
+        finally:
+            self.intervention_applier.clear_interventions()
 
         logger.info(f"\n--- Evaluating Layer-Specific Addition (Layer {direction.layer}) ---")
         self.intervention_applier.apply_direction_intervention(direction, "add", strength, layers=[direction.layer])
-        results["layer_specific_addition"] = {}
-        _run_condition(negative_prompts, "refusal_rate_on_negative_prompts", results["layer_specific_addition"])
-        self.intervention_applier.clear_interventions()
+        try:
+            results["layer_specific_addition"] = {}
+            _run_condition(negative_prompts, "refusal_rate_on_negative_prompts", results["layer_specific_addition"])
+        finally:
+            self.intervention_applier.clear_interventions()
 
         logger.info(f"\n--- Evaluating Global Addition (All Layers) ---")
         self.intervention_applier.apply_direction_intervention(direction, "add", strength, layers=list(range(num_layers)))
-        results["global_addition"] = {}
-        _run_condition(negative_prompts, "refusal_rate_on_negative_prompts", results["global_addition"])
-        self.intervention_applier.clear_interventions()
+        try:
+            results["global_addition"] = {}
+            _run_condition(negative_prompts, "refusal_rate_on_negative_prompts", results["global_addition"])
+        finally:
+            self.intervention_applier.clear_interventions()
 
         logger.info(f"\n--- Evaluating Layer-Specific Subtraction (Layer {direction.layer}) ---")
         self.intervention_applier.apply_direction_intervention(direction, "subtract", strength, layers=[direction.layer])
-        results["layer_specific_subtraction"] = {}
-        _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["layer_specific_subtraction"])
-        self.intervention_applier.clear_interventions()
+        try:
+            results["layer_specific_subtraction"] = {}
+            _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["layer_specific_subtraction"])
+        finally:
+            self.intervention_applier.clear_interventions()
 
         # --- Build the report as a string and log it ---
         report_lines = []

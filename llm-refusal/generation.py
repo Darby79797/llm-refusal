@@ -33,8 +33,12 @@ def generate_with_hooks(
         next_token_logits = outputs.logits[t.arange(batch_size), last_real_indices, :]
         next_token_ids = t.argmax(next_token_logits, dim=-1)
 
-        # Track next position for each sequence in the batch
-        next_position = position_ids.max(dim=-1).values + 1
+        # Track next position for each sequence in the batch.
+        # Note: position_ids.max()+1 is wrong here — right-padded slots carry a
+        # sentinel position_id of 1 (see formatting.py's masked_fill), which for
+        # a true_len==1 sequence exceeds the real max position (0). The true next
+        # position is always the true sequence length (real tokens occupy 0..true_len-1).
+        next_position = attention_mask.sum(dim=1).to(position_ids.dtype)
 
         for _ in range(max_new_tokens):
             if all(finished_sequences): break

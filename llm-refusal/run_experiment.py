@@ -14,7 +14,7 @@ from framework import main
 logger = logging.getLogger(__name__)
 
 
-def parse_args(argv=None):
+def _build_parser():
     parser = argparse.ArgumentParser(
         description="Run a direction-finding experiment.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -63,7 +63,72 @@ examples:
         metavar="JSON",
         help="JSON config string or path to a JSON file (overrides all other flags)",
     )
+    return parser
 
+
+def _namespace_to_config(args):
+    """Turn a parsed argparse.Namespace into the final config dict shape.
+
+    Used both for real CLI invocations and (via an empty/synthetic argv) to
+    derive the canonical set of config defaults, so the two never drift apart.
+    """
+    return {
+        "model_name": args.model_name,
+        "mode": args.mode,
+        "concept": args.concept,
+        "concepts": [s.strip() for s in args.concepts.split(",")] if args.concepts else [],
+        "layer": args.layer,
+        "pos": args.pos,
+        "torch_dtype": args.torch_dtype,
+        "force_cpu": args.force_cpu,
+        "eval_tasks": args.eval_tasks,
+        "limit": args.limit,
+        "judge_api_base": args.judge_api_base or os.environ.get("JUDGE_API_BASE"),
+        "judge_api_key": args.judge_api_key or os.environ.get("JUDGE_API_KEY"),
+        "judge_model": args.judge_model or os.environ.get("JUDGE_MODEL"),
+        "arditi_evals": args.arditi_evals,
+        "llamaguard_api_base": args.llamaguard_api_base or os.environ.get("LLAMAGUARD_API_BASE"),
+        "llamaguard_api_key": args.llamaguard_api_key or os.environ.get("LLAMAGUARD_API_KEY"),
+        "llamaguard_model": args.llamaguard_model or os.environ.get("LLAMAGUARD_MODEL"),
+        "jbb_api_key": args.jbb_api_key or os.environ.get("JBB_API_KEY"),
+        "alpaca_max_prompts": args.alpaca_max_prompts,
+        "filter_prompts": args.filter_prompts,
+        "induce_mode": args.induce_mode,
+        "strength": args.strength,
+    }
+
+
+def build_default_config(parser=None):
+    """Full config dict of argparse defaults, keyed exactly like the final config.
+
+    This is the single source of truth for config defaults: derived by parsing
+    an empty argv against the real parser, so adding/changing a CLI flag keeps
+    this in sync automatically (no hand-duplicated defaults dict to maintain).
+    """
+    if parser is None:
+        parser = _build_parser()
+    return _namespace_to_config(parser.parse_args([]))
+
+
+def apply_config_defaults(json_dict, parser=None):
+    """Overlay a user-supplied (e.g. --json) config dict on top of the argparse defaults.
+
+    Raises ValueError if `json_dict` contains any key that isn't a recognized
+    config key (catches typos that would otherwise be silently ignored).
+    """
+    defaults = build_default_config(parser)
+    unknown = sorted(set(json_dict) - set(defaults))
+    if unknown:
+        raise ValueError(
+            f"Unknown config key(s): {unknown}. Valid keys: {sorted(defaults)}"
+        )
+    merged = dict(defaults)
+    merged.update(json_dict)
+    return merged
+
+
+def parse_args(argv=None):
+    parser = _build_parser()
     args = parser.parse_args(argv)
 
     # Build config from --json or from individual flags
@@ -71,36 +136,19 @@ examples:
         text = args.json_config
         if os.path.isfile(text):
             with open(text) as f:
-                config = json.load(f)
+                json_dict = json.load(f)
         else:
-            config = json.loads(text)
+            json_dict = json.loads(text)
+        try:
+            config = apply_config_defaults(json_dict, parser)
+        except ValueError as e:
+            parser.error(str(e))
+        if config["model_name"] is None or config["mode"] is None:
+            parser.error("'model_name' and 'mode' are required (via --model/--mode flags or in the --json config)")
     else:
         if args.model_name is None or args.mode is None:
             parser.error("--model and --mode are required unless --json is provided")
-        config = {
-            "model_name": args.model_name,
-            "mode": args.mode,
-            "concept": args.concept,
-            "concepts": [s.strip() for s in args.concepts.split(",")] if args.concepts else [],
-            "layer": args.layer,
-            "pos": args.pos,
-            "torch_dtype": args.torch_dtype,
-            "force_cpu": args.force_cpu,
-            "eval_tasks": args.eval_tasks,
-            "limit": args.limit,
-            "judge_api_base": args.judge_api_base or os.environ.get("JUDGE_API_BASE"),
-            "judge_api_key": args.judge_api_key or os.environ.get("JUDGE_API_KEY"),
-            "judge_model": args.judge_model or os.environ.get("JUDGE_MODEL"),
-            "arditi_evals": args.arditi_evals,
-            "llamaguard_api_base": args.llamaguard_api_base or os.environ.get("LLAMAGUARD_API_BASE"),
-            "llamaguard_api_key": args.llamaguard_api_key or os.environ.get("LLAMAGUARD_API_KEY"),
-            "llamaguard_model": args.llamaguard_model or os.environ.get("LLAMAGUARD_MODEL"),
-            "jbb_api_key": args.jbb_api_key or os.environ.get("JBB_API_KEY"),
-            "alpaca_max_prompts": args.alpaca_max_prompts,
-            "filter_prompts": args.filter_prompts,
-            "induce_mode": args.induce_mode,
-            "strength": args.strength,
-        }
+        config = _namespace_to_config(args)
 
     return config
 

@@ -18,6 +18,51 @@ from evaluation import InterventionSuite, BigEvaluator
 logger = logging.getLogger(__name__)
 
 
+def _is_str_sequence(x):
+    """True iff x is a list or tuple of strings (the shape prompts.py returns)."""
+    return isinstance(x, (list, tuple)) and all(isinstance(s, str) for s in x)
+
+
+def _describe_shape(x, depth=2):
+    """Compact type-shape description of x for error messages, e.g. 'tuple[list[str], list[str]]'."""
+    if depth <= 0 or not isinstance(x, (list, tuple)):
+        return type(x).__name__
+    inner = ", ".join(_describe_shape(i, depth - 1) for i in x)
+    return f"{type(x).__name__}[{inner}]"
+
+
+def normalize_train_data_result(result, concept_name):
+    """Classify and normalize the return value of a concept's train_data_fn().
+
+    Two shapes are accepted:
+      - (positive, negative): each a list/tuple of strings.
+      - ((train_pos, train_neg), (val_pos, val_neg)): pre-split data, where the
+        outer value and both inner values are 2-tuples, and every innermost
+        element is a list/tuple of strings.
+
+    Returns (is_presplit, normalized) where normalized has tuples converted to
+    lists throughout. Raises ValueError (naming the concept and the shape
+    received) if the result matches neither shape.
+    """
+    if (isinstance(result, tuple) and len(result) == 2
+            and isinstance(result[0], tuple) and len(result[0]) == 2
+            and isinstance(result[1], tuple) and len(result[1]) == 2
+            and all(_is_str_sequence(x) for x in (*result[0], *result[1]))):
+        (train_pos, train_neg), (val_pos, val_neg) = result
+        return True, ((list(train_pos), list(train_neg)), (list(val_pos), list(val_neg)))
+
+    if (isinstance(result, tuple) and len(result) == 2
+            and _is_str_sequence(result[0]) and _is_str_sequence(result[1])):
+        positive, negative = result
+        return False, (list(positive), list(negative))
+
+    raise ValueError(
+        f"Concept '{concept_name}' train_data_fn() returned an unrecognized shape: "
+        f"{_describe_shape(result)}. Expected (positive, negative) as lists/tuples of "
+        f"strings, or pre-split ((train_pos, train_neg), (val_pos, val_neg))."
+    )
+
+
 class DirectionTestFramework:
     """
     Main orchestrator for finding, evaluating, and testing direction vectors.
@@ -168,26 +213,24 @@ class DirectionTestFramework:
         Main execution method based on the provided config.
         """
         result = self.concept.train_data_fn()
+        is_presplit, result = normalize_train_data_result(result, self.concept.name)
 
-        # Support pre-split val data: ((train_pos, train_neg), (val_pos, val_neg))
-        if (isinstance(result, tuple) and len(result) == 2
-                and isinstance(result[0], tuple) and len(result[0]) == 2
-                and isinstance(result[0][0], list)):
+        if is_presplit:
             (positive_prompts, negative_prompts), (val_pos, val_neg) = result
-            if config.get('filter_prompts', False):
+            if config['filter_prompts']:
                 positive_prompts, negative_prompts = self._filter_prompts_by_behavior(
                     positive_prompts, negative_prompts
                 )
             # Use ALL train data for directions (no holdout)
             train_data = PromptData(positive_prompts + negative_prompts, [True]*len(positive_prompts) + [False]*len(negative_prompts))
             # Filter val set by refusal score (matching Arditi's filter_val=True)
-            if config.get('filter_prompts', False):
+            if config['filter_prompts']:
                 val_pos, val_neg = self._filter_val_by_refusal_score(val_pos, val_neg)
             val_data = PromptData(val_pos + val_neg, [True]*len(val_pos) + [False]*len(val_neg))
             logger.info(f"Using pre-split data: {len(positive_prompts)}+{len(negative_prompts)} train, {len(val_pos)}+{len(val_neg)} val")
         else:
             positive_prompts, negative_prompts = result
-            if config.get('filter_prompts', False):
+            if config['filter_prompts']:
                 positive_prompts, negative_prompts = self._filter_prompts_by_behavior(
                     positive_prompts, negative_prompts
                 )
@@ -200,8 +243,7 @@ class DirectionTestFramework:
 
         if config['mode'] == "search":
             logger.info("Running in SEARCH mode...")
-            if config.get('induce_mode'):
-                self.search_config["induce_mode"] = config['induce_mode']
+            self.search_config["induce_mode"] = config['induce_mode']
             direction_to_test = self.finder.find_best_direction(train_data, val_data)
             if direction_to_test is None:
                 logger.error("Search concluded without finding a suitable direction vector.")
@@ -214,7 +256,7 @@ class DirectionTestFramework:
             logger.info(f"Direction vector saved to {save_path}.pt/.json")
 
         elif config['mode'] in ["eyeball", "evaluate"]:
-            layer, pos = config.get('layer'), config.get('pos')
+            layer, pos = config['layer'], config['pos']
             if layer is None or pos is None:
                 logger.error(f"Mode '{config['mode']}' requires 'layer' and 'pos' to be specified.")
                 return
@@ -246,11 +288,11 @@ class DirectionTestFramework:
             logger.info("\n--- Running Full Evaluation Suite ---")
             self.evaluator.run_all_evaluations(
                 direction_to_test, eval_pos, eval_neg,
-                tasks=config.get('eval_tasks', []),
-                limit=config.get('limit', 100),
-                run_arditi_evals=config.get('arditi_evals', False),
-                alpaca_max_prompts=config.get('alpaca_max_prompts', 500),
-                strength=config.get('strength', 1.0),
+                tasks=config['eval_tasks'],
+                limit=config['limit'],
+                run_arditi_evals=config['arditi_evals'],
+                alpaca_max_prompts=config['alpaca_max_prompts'],
+                strength=config['strength'],
             )
 
         logger.info("Framework execution finished.")
@@ -259,7 +301,7 @@ class DirectionTestFramework:
         """Load saved direction vectors for multiple concepts and run cross-concept analysis."""
         from cross_concept import run_cross_concept_analysis
 
-        concept_names = config.get('concepts', [])
+        concept_names = config['concepts']
         if len(concept_names) < 2:
             logger.error("cross_concept mode requires at least 2 concepts (--concepts a,b).")
             return
@@ -303,14 +345,14 @@ def main(
         model_name=config['model_name'],
         torch_dtype=config['torch_dtype'],
         force_cpu=config['force_cpu'],
-        concept=config.get('concept', 'refusal'),
-        judge_api_base=config.get('judge_api_base'),
-        judge_api_key=config.get('judge_api_key'),
-        judge_model=config.get('judge_model'),
-        llamaguard_api_base=config.get('llamaguard_api_base'),
-        llamaguard_api_key=config.get('llamaguard_api_key'),
-        llamaguard_model=config.get('llamaguard_model'),
-        jbb_api_key=config.get('jbb_api_key'),
+        concept=config['concept'],
+        judge_api_base=config['judge_api_base'],
+        judge_api_key=config['judge_api_key'],
+        judge_model=config['judge_model'],
+        llamaguard_api_base=config['llamaguard_api_base'],
+        llamaguard_api_key=config['llamaguard_api_key'],
+        llamaguard_model=config['llamaguard_model'],
+        jbb_api_key=config['jbb_api_key'],
     )
     if config['mode'] == 'cross_concept':
         framework.run_cross_concept(config)

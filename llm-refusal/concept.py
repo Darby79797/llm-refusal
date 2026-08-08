@@ -32,11 +32,7 @@ class ConceptDefinition:
     eval_data_fn: Callable[..., Tuple[List[str], List[str]]]    # () -> (positive, negative)
     target_tokens: List[str]                                     # for LogOddsMetric during search
     detection_phrases: List[str]                                 # for string-match eval
-    search_config: dict = field(default_factory=lambda: {        # search hyperparams
-        "layer_cutoff_frac": 0.8,
-        "induce_threshold": 0,
-        "kl_threshold": 0.1,
-    })
+    search_config: dict = field(default_factory=lambda: dict(DEFAULT_SEARCH_CONFIG))  # search hyperparams
     detection_fn: Optional[Callable[[str], bool]] = None         # fast heuristic (overrides phrases)
     judge_prompt: Optional[str] = None                           # LLM-as-judge template (overrides all)
     neutral_data_fn: Optional[Callable[..., Tuple[List[str], List[str]]]] = None  # ternary: () -> (train_neutral, eval_neutral)

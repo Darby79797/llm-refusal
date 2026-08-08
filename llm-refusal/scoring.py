@@ -68,11 +68,11 @@ class Three_Score_Evaluator:
         self.device = model.device
 
     def _get_logits(self, prompts: List[str], intervention: Optional[Tuple] = None) -> List[t.Tensor]:
-        if intervention:
-            direction, int_type, layers = intervention
-            self.intervention_applier.apply_direction_intervention(direction, int_type, strength=1.0, layers=layers)
         all_logits = []
         try:
+            if intervention:
+                direction, int_type, layers = intervention
+                self.intervention_applier.apply_direction_intervention(direction, int_type, strength=1.0, layers=layers)
             with t.no_grad():
                 batch = self.prompt_formatter.format_batch(prompts)
                 input_ids, attention_mask = batch['input_ids'].to(self.device), batch['attention_mask'].to(self.device)

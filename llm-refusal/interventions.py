@@ -86,18 +86,25 @@ class ModelInterventionApplier:
             return hook
 
         block_hook_fn = make_block_pre_hook(intervention_type, strength, unit_dir, raw_dir)
-        for layer_idx in layers:
-            if 0 <= layer_idx < len(self.transformer_layers):
-                block = self.transformer_layers[layer_idx]
-                hook = block.register_forward_pre_hook(block_hook_fn)
-                self.intervention_hooks.append(hook)
+        try:
+            for layer_idx in layers:
+                if 0 <= layer_idx < len(self.transformer_layers):
+                    block = self.transformer_layers[layer_idx]
+                    hook = block.register_forward_pre_hook(block_hook_fn)
+                    self.intervention_hooks.append(hook)
 
-                # For ablation: also hook sublayer outputs to prevent re-injection
-                if intervention_type == "ablate":
-                    attn, mlp = self._get_sublayers(block)
-                    sublayer_hook_fn = make_sublayer_post_hook(unit_dir)
-                    self.intervention_hooks.append(attn.register_forward_hook(sublayer_hook_fn))
-                    self.intervention_hooks.append(mlp.register_forward_hook(sublayer_hook_fn))
+                    # For ablation: also hook sublayer outputs to prevent re-injection
+                    if intervention_type == "ablate":
+                        attn, mlp = self._get_sublayers(block)
+                        sublayer_hook_fn = make_sublayer_post_hook(unit_dir)
+                        self.intervention_hooks.append(attn.register_forward_hook(sublayer_hook_fn))
+                        self.intervention_hooks.append(mlp.register_forward_hook(sublayer_hook_fn))
+        except Exception:
+            # Registration failed partway through the loop — make it atomic by
+            # removing everything registered so far (including from this call)
+            # and re-raising so callers see the failure.
+            self.clear_interventions()
+            raise
 
     def clear_interventions(self):
         """Removes all active intervention hooks."""

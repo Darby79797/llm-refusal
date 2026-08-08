@@ -45,9 +45,10 @@ class ActivationExtractor:
 
             hooks = [layer.register_forward_pre_hook(make_hook(i)) for i, layer in enumerate(self.transformer_layers)]
 
-            self.model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
-
-            for hook in hooks: hook.remove()
+            try:
+                self.model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
+            finally:
+                for hook in hooks: hook.remove()
 
             for layer_idx, layer_acts_batch in activations_by_layer.items():
                 for i in range(batch_size):

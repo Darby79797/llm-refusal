@@ -182,11 +182,15 @@ class ChatPromptFormatter:
                 input_ids = input_ids[:, -self.tokenizer.model_max_length:]
                 attention_mask = attention_mask[:, -self.tokenizer.model_max_length:]
 
-        # --- Compute position_ids for left-padding correctness ---
-        # Without explicit position_ids, models with RoPE (Llama, etc.) assign
-        # wrong rotary positions to padded tokens, corrupting attention even
-        # though the attention_mask zeros them out. This matches HuggingFace's
-        # internal logic in prepare_inputs_for_generation().
+        # --- Compute position_ids explicitly (we right-pad, not left-pad) ---
+        # HuggingFace does not derive correct RoPE position_ids from
+        # attention_mask on its own for a batched forward pass — without
+        # explicit position_ids, every row is assumed to start at position 0,
+        # which silently corrupts the model's RoPE encodings for any batch
+        # containing padding. We right-pad (real tokens always start at
+        # position 0) and derive positions as cumsum(attention_mask) - 1;
+        # padded slots get an inert sentinel position (1) since they're
+        # masked out of attention and their outputs are discarded anyway.
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
 

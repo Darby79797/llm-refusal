@@ -9,7 +9,6 @@ import torch as t
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 
 from datatypes import DirectionVector
 from concept import ConceptDefinition, get_concept
@@ -52,12 +51,112 @@ def compute_pairwise_cosine_similarity(directions: List[DirectionVector]) -> np.
 
 
 def analyze_direction_subspace(directions: List[DirectionVector]) -> np.ndarray:
-    """PCA on stacked unit vectors — returns explained variance ratios."""
+    """Uncentered SVD on stacked unit vectors — returns explained variance ratios.
+
+    Direction vectors are meaningful relative to the origin (they're rays in activation
+    space, not a point cloud), so mean-centering — which sklearn's PCA does — measures
+    variance around the centroid instead of the subspace actually spanned by the vectors.
+    Centering also produces NaN explained_variance_ratio for near-identical inputs (two
+    identical unit vectors center to all-zero rows, giving 0/0). Uncentered SVD avoids both:
+    singular values of the stacked (unit-vector) matrix directly give the spanned subspace's
+    variance decomposition, and duplicate/near-duplicate vectors just collapse rank cleanly.
+    """
     units = np.stack([d.unit.float().numpy() for d in directions])
     n_components = min(len(directions), units.shape[1])
-    pca = PCA(n_components=n_components)
-    pca.fit(units)
-    return pca.explained_variance_ratio_
+    _, s, _ = np.linalg.svd(units, full_matrices=False)
+    s = s[:n_components]
+    total = float(np.sum(s ** 2))
+    if total <= 0.0:
+        return np.zeros(n_components)
+    return (s ** 2) / total
+
+
+# ── Joint (order-independent) multi-direction ablation ──────────
+
+def _joint_ablation_basis(directions: List[DirectionVector], rtol: float = 1e-5) -> t.Tensor:
+    """Orthonormal basis (d, r) spanning the union of `directions`' unit vectors.
+
+    Order-independent by construction: depends only on the subspace spanned by the
+    vectors (via SVD of the stacked unit vectors), not on the order they're passed in.
+    Rank-deficient input (e.g. duplicate or parallel directions) collapses to a lower-
+    rank basis via singular-value thresholding, so ablating [A, A] reduces to ablating
+    [A] alone rather than double-counting the same direction.
+    """
+    stacked = t.stack([d.unit.to(dtype=t.float64) for d in directions], dim=0)  # (k, d)
+    _, s, vh = t.linalg.svd(stacked, full_matrices=False)  # vh: (min(k,d), d)
+    threshold = s.max().item() * rtol if s.numel() > 0 else 0.0
+    keep = s > threshold
+    basis = vh[keep]  # (r, d) orthonormal rows spanning the subspace
+    return basis.T.contiguous()  # (d, r)
+
+
+def apply_joint_ablation(
+    intervention_applier: ModelInterventionApplier,
+    directions: List[DirectionVector],
+    layers: Optional[List[int]] = None,
+) -> list:
+    """Registers hooks that jointly ablate the subspace spanned by `directions`.
+
+    `ModelInterventionApplier.apply_direction_intervention` only ablates one direction at
+    a time; stacking calls for multiple directions applies sequential projection removal,
+    which is order-dependent whenever the directions are non-orthogonal (removing A then B
+    is not the same operation as removing B then A). This instead computes an orthonormal
+    basis Q for span(directions) once and removes the whole subspace in a single joint
+    projection: x - (x @ Q) @ Q.T. That is order-independent and correctly handles
+    linearly-dependent directions (see `_joint_ablation_basis`).
+
+    Mirrors the 3-hooks-per-layer pattern used by `apply_direction_intervention` for
+    single-direction ablation (block pre-hook + self_attn post-hook + mlp post-hook),
+    since the base API has no way to express a multi-direction joint ablation.
+
+    Returns the list of hook handles; the caller is responsible for removing them
+    (e.g. via `clear_joint_ablation_hooks` in a `finally` block).
+    """
+    if layers is None:
+        layers = list(range(len(intervention_applier.transformer_layers)))
+    model_dtype = intervention_applier.model.dtype
+    basis = _joint_ablation_basis(directions).to(dtype=model_dtype)  # (d, r)
+
+    def remove_span(hidden_states, basis):
+        q = basis.to(device=hidden_states.device, dtype=hidden_states.dtype)
+        return hidden_states - t.matmul(t.matmul(hidden_states, q), q.T)
+
+    def make_block_pre_hook(basis):
+        def hook(module, args):
+            hidden_states = args[0]
+            modified_states = remove_span(hidden_states, basis)
+            return (modified_states,) + args[1:]
+        return hook
+
+    def make_sublayer_post_hook(basis):
+        def hook(module, input, output):
+            is_tuple_output = isinstance(output, tuple)
+            hidden_states = output[0] if is_tuple_output else output
+            modified_states = remove_span(hidden_states, basis)
+            if is_tuple_output:
+                return (modified_states,) + output[1:]
+            else:
+                return modified_states
+        return hook
+
+    block_hook_fn = make_block_pre_hook(basis)
+    sublayer_hook_fn = make_sublayer_post_hook(basis)
+
+    hooks = []
+    for layer_idx in layers:
+        if 0 <= layer_idx < len(intervention_applier.transformer_layers):
+            block = intervention_applier.transformer_layers[layer_idx]
+            hooks.append(block.register_forward_pre_hook(block_hook_fn))
+            attn, mlp = intervention_applier._get_sublayers(block)
+            hooks.append(attn.register_forward_hook(sublayer_hook_fn))
+            hooks.append(mlp.register_forward_hook(sublayer_hook_fn))
+    return hooks
+
+
+def clear_joint_ablation_hooks(hooks: list) -> None:
+    """Removes hooks returned by `apply_joint_ablation`."""
+    for hook in hooks:
+        hook.remove()
 
 
 # ── Behavioral analysis ─────────────────────────────────────────
@@ -98,15 +197,19 @@ def measure_interference(
         intervention_applier.apply_direction_intervention(
             directions[i], "ablate", 1.0, layers=list(range(num_layers))
         )
-        for j in range(n):
-            evaluator_j, prompts_j, baseline_j = baselines[j]
-            rate_with_ablation = evaluator_j.evaluate_detection_rate(prompts_j)
-            interference[i, j] = rate_with_ablation - baseline_j
-            logger.info(
-                f"  Ablate {concepts[i].name} → {concepts[j].name} detection: "
-                f"{baseline_j:.3f} → {rate_with_ablation:.3f} (delta={interference[i, j]:+.3f})"
-            )
-        intervention_applier.clear_interventions()
+        try:
+            for j in range(n):
+                evaluator_j, prompts_j, baseline_j = baselines[j]
+                rate_with_ablation = evaluator_j.evaluate_detection_rate(prompts_j)
+                interference[i, j] = rate_with_ablation - baseline_j
+                logger.info(
+                    f"  Ablate {concepts[i].name} → {concepts[j].name} detection: "
+                    f"{baseline_j:.3f} → {rate_with_ablation:.3f} (delta={interference[i, j]:+.3f})"
+                )
+        finally:
+            # Ensure hooks are removed even if evaluation raises, so a failure on one
+            # direction doesn't leak hooks into subsequent iterations or callers.
+            intervention_applier.clear_interventions()
 
     return interference
 
@@ -150,23 +253,28 @@ def test_multi_ablation(
         intervention_applier.apply_direction_intervention(
             directions[idx], "ablate", 1.0, layers=list(range(num_layers))
         )
-        rate = evaluator.evaluate_detection_rate(pos_prompts)
-        individual_deltas[name] = rate - baseline_rate
-        results[f"individual_{name}"] = rate
-        intervention_applier.clear_interventions()
+        try:
+            rate = evaluator.evaluate_detection_rate(pos_prompts)
+            individual_deltas[name] = rate - baseline_rate
+            results[f"individual_{name}"] = rate
+        finally:
+            intervention_applier.clear_interventions()
 
     results["individual_sum"] = sum(individual_deltas.values())
 
-    # Simultaneous ablation
-    for name in ablate_names:
-        idx = next(i for i, c in enumerate(concepts) if c.name == name)
-        intervention_applier.apply_direction_intervention(
-            directions[idx], "ablate", 1.0, layers=list(range(num_layers))
-        )
-    simultaneous_rate = evaluator.evaluate_detection_rate(pos_prompts)
+    # Simultaneous ablation — jointly ablate the span of all named directions in one
+    # order-independent projection (see apply_joint_ablation), rather than stacking
+    # single-direction ablations, which would apply sequential (order-dependent)
+    # projection removal for non-orthogonal directions.
+    idxs = [next(i for i, c in enumerate(concepts) if c.name == name) for name in ablate_names]
+    joint_directions = [directions[idx] for idx in idxs]
+    hooks = apply_joint_ablation(intervention_applier, joint_directions, layers=list(range(num_layers)))
+    try:
+        simultaneous_rate = evaluator.evaluate_detection_rate(pos_prompts)
+    finally:
+        clear_joint_ablation_hooks(hooks)
     results["simultaneous"] = simultaneous_rate
     results["simultaneous_delta"] = simultaneous_rate - baseline_rate
-    intervention_applier.clear_interventions()
 
     logger.info(f"Multi-ablation on {measure_name}: {results}")
     return results
