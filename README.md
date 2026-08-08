@@ -1,5 +1,7 @@
 A project to reproduce and extend Arditi and Obeso's mechanistic interpretability paper "Refusal in Language Models is Mediated by a Single Direction"
 
+Docs: [ARCHITECTURE.md](ARCHITECTURE.md) (module map, extension guides) · [RESULTS.md](RESULTS.md) (current numbers and findings) · [ARDITI.md](ARDITI.md) (replication status) · [DECISION_COMPLEXITY.md](DECISION_COMPLEXITY.md) (design tradeoffs) · [future_plans.md](future_plans.md) (roadmap)
+
 # Part 1:
 - mostly completed 
 
