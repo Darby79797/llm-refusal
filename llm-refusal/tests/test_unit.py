@@ -361,6 +361,44 @@ def test_pca_subspace_1d():
 # BigEvaluator generation & evaluation methods
 # ============================================================
 
+# ============================================================
+# Padding invariant
+# ============================================================
+
+def test_last_real_token_indices_right_padded():
+    """Correct boundary for padded and unpadded rows alike."""
+    from formatting import last_real_token_indices
+    mask = t.tensor([[1, 1, 1, 0, 0], [1, 1, 1, 1, 1], [1, 0, 0, 0, 0]])
+    assert last_real_token_indices(mask).tolist() == [2, 4, 0]
+
+
+def test_last_real_token_indices_rejects_left_padding():
+    """The April 2026 bug: left-padded batch indexed as if right-padded. It read
+    a mid-prompt token and silently returned plausible logits. Must raise now."""
+    from formatting import last_real_token_indices
+    with pytest.raises(ValueError, match="not right-padded"):
+        last_real_token_indices(t.tensor([[0, 0, 1, 1, 1]]))
+
+
+def test_assert_right_padded_rejects_interior_mask():
+    """A 0 anywhere before a 1 breaks the invariant, not just leading pads."""
+    from formatting import assert_right_padded
+    with pytest.raises(ValueError, match="not right-padded"):
+        assert_right_padded(t.tensor([[1, 1, 0, 1, 0]]))
+
+
+def test_assert_right_padded_rejects_empty_row():
+    from formatting import assert_right_padded
+    with pytest.raises(ValueError, match="no real tokens"):
+        assert_right_padded(t.tensor([[1, 1, 0], [0, 0, 0]]))
+
+
+def test_assert_right_padded_rejects_non_2d():
+    from formatting import assert_right_padded
+    with pytest.raises(ValueError, match="must be 2D"):
+        assert_right_padded(t.tensor([1, 1, 0]))
+
+
 def test_generate_responses():
     """generate_responses returns decoded texts from model.generate."""
     evaluator = _make_evaluator()

@@ -5,6 +5,51 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# ── Padding invariant ────────────────────────────────────────────────────────
+# The whole pipeline RIGHT-pads: real tokens occupy indices 0..true_len-1 and
+# pads follow. Every consumer therefore locates the generation boundary as
+# `attention_mask.sum(-1) - 1`, and activations at index `true_len + pos_idx`.
+#
+# That arithmetic is silently WRONG under left padding — it reads a token from
+# the middle of the prompt — and this repo has shipped both failure modes:
+#   - left-padded batches indexed as if right-padded (the April 2026 scoring bug)
+#   - right-padded batches fed to model.generate(), which reads the LAST column
+#     and so decodes from a pad slot (the August 2026 evaluation bug)
+# Neither raised; both silently produced plausible numbers. So the invariant is
+# asserted here rather than assumed, and every consumer goes through these
+# helpers. See RESULTS.md "Two Padding Bugs".
+
+
+def assert_right_padded(attention_mask: t.Tensor) -> None:
+    """Raise unless every row is a contiguous run of 1s followed by 0s.
+
+    A left-padded (or interior-masked) batch fails here instead of silently
+    producing off-by-true_len indexing downstream.
+    """
+    if attention_mask.dim() != 2:
+        raise ValueError(f"attention_mask must be 2D (batch, seq), got shape {tuple(attention_mask.shape)}")
+    # Right-padded <=> mask is non-increasing along the sequence dimension.
+    if attention_mask.shape[1] > 1 and not bool((attention_mask[:, :-1] >= attention_mask[:, 1:]).all()):
+        bad = (~(attention_mask[:, :-1] >= attention_mask[:, 1:]).all(dim=1)).nonzero().flatten().tolist()
+        raise ValueError(
+            f"attention_mask is not right-padded (rows {bad[:5]} have a 0 before a 1). "
+            "This pipeline right-pads; left-padded batches break last-real-token indexing "
+            "in scoring, activations and generation. See RESULTS.md 'Two Padding Bugs'."
+        )
+    if not bool((attention_mask.sum(dim=1) > 0).all()):
+        raise ValueError("attention_mask has a row with no real tokens.")
+
+
+def last_real_token_indices(attention_mask: t.Tensor) -> t.Tensor:
+    """Index of the final non-pad token in each row, validating right-padding.
+
+    Use this everywhere the generation boundary is read. Never hand-roll
+    `attention_mask.sum(-1) - 1`: that expression is correct only under the
+    invariant this function checks.
+    """
+    assert_right_padded(attention_mask)
+    return attention_mask.sum(dim=1) - 1
+
 
 class ChatPromptFormatter:
     """
@@ -142,6 +187,16 @@ class ChatPromptFormatter:
         """
         Formats a batch of prompts, applying the chat template then tokenizing.
         """
+        # Re-assert on every call, not just in __init__: the tokenizer is a shared
+        # mutable object, and other consumers flip this (lm_eval's HFLM sets its
+        # own padding side for generation tasks). If it were flipped between
+        # __init__ and here, every downstream last-real-token index would be wrong
+        # while everything still ran.
+        if self.tokenizer.padding_side != 'right':
+            logger.warning(f"tokenizer.padding_side was changed to "
+                           f"{self.tokenizer.padding_side!r}; restoring 'right'.")
+            self.tokenizer.padding_side = 'right'
+
         # --- Apply chat template ---
         if self.template is not None:
             # Manual template (instruction-tuned) or pass-through ("{x}" for base models)

@@ -110,10 +110,14 @@ def model_and_tokenizer(request):
         pytest.fail(f"Failed to load model or tokenizer for {model_name}: {e}")
 
     # --- Critical for Batching ---
-    # Ensure a pad token is set, and padding side is left for decoder-only models.
+    # Ensure a pad token is set. Padding side must be RIGHT: the pipeline reads
+    # the generation boundary as attention_mask.sum(-1)-1 and activations at
+    # true_len+pos_idx, both of which are wrong under left padding. This fixture
+    # previously set 'left', which is the configuration that produced the April
+    # 2026 scoring bug. ChatPromptFormatter also re-asserts this per call.
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = 'left'
+    tokenizer.padding_side = 'right'
     
     return model, tokenizer
 

@@ -2,7 +2,7 @@ import torch as t
 from typing import List, Dict, Tuple
 import logging
 
-from formatting import ChatPromptFormatter
+from formatting import ChatPromptFormatter, assert_right_padded
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,8 @@ class ActivationExtractor:
         position_ids = batch['position_ids'].to(self.device)
 
         batch_size, seq_len = input_ids.shape
+        # activations are read at `true_len + pos_idx`, valid only under right padding
+        assert_right_padded(attention_mask)
         true_lengths = attention_mask.sum(dim=1)
 
         with t.no_grad():

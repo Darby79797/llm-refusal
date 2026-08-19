@@ -7,7 +7,7 @@ import logging
 
 from datatypes import DirectionVector, DirectionScores, PromptData
 from interventions import ModelInterventionApplier
-from formatting import ChatPromptFormatter
+from formatting import ChatPromptFormatter, last_real_token_indices
 from concept import DEFAULT_REFUSAL_TOKENS
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,7 @@ class Three_Score_Evaluator:
                 input_ids, attention_mask = batch['input_ids'].to(self.device), batch['attention_mask'].to(self.device)
                 position_ids = batch['position_ids'].to(self.device)
                 outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
-                last_token_indices = attention_mask.sum(dim=1) - 1
+                last_token_indices = last_real_token_indices(attention_mask)
                 batch_logits = outputs.logits[t.arange(outputs.logits.size(0)), last_token_indices, :]
                 if t.isinf(batch_logits).any() or t.isnan(batch_logits).any():
                     problem_indices = t.nonzero(t.isinf(batch_logits).any(dim=1) | t.isnan(batch_logits).any(dim=1)).squeeze().tolist()

@@ -19,7 +19,7 @@ from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, field
 import logging
 
-from formatting import ChatPromptFormatter
+from formatting import ChatPromptFormatter, last_real_token_indices, assert_right_padded
 from datatypes import DirectionVector
 
 logger = logging.getLogger(__name__)
@@ -130,6 +130,7 @@ class AttributionAnalyzer:
         input_ids = batch['input_ids'].to(self.device)
         attention_mask = batch['attention_mask'].to(self.device)
         position_ids = batch['position_ids'].to(self.device)
+        assert_right_padded(attention_mask)
         true_lengths = attention_mask.sum(dim=1)
 
         attn_outputs = {}
@@ -231,6 +232,7 @@ class AttributionAnalyzer:
         input_ids = batch['input_ids'].to(self.device)
         attention_mask = batch['attention_mask'].to(self.device)
         position_ids = batch['position_ids'].to(self.device)
+        assert_right_padded(attention_mask)
         true_lengths = attention_mask.sum(dim=1)
 
         o_proj_inputs = {}
@@ -352,7 +354,7 @@ class AttributionAnalyzer:
         input_ids = batch['input_ids'].to(self.device)
         attention_mask = batch['attention_mask'].to(self.device)
         position_ids = batch['position_ids'].to(self.device)
-        last_indices = attention_mask.sum(dim=1) - 1
+        last_indices = last_real_token_indices(attention_mask)
 
         # Baseline refusal log-odds
         with t.no_grad():
