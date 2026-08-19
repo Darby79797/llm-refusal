@@ -5,33 +5,37 @@
 Serial evaluate sweeps are generation-bound, not load-bound (model load is ~2 min of a 1.5-2h run on 7-8B MPS). Two cheap structural wins, in order:
 
 1. **Cache the prompt-filtering pass per (model, concept).** Every evaluate run regenerates ~160 baseline responses just to filter prompts (~15-20% of run time), and the result is identical across runs on the same model+concept. Persist the filtered prompt list (or the baseline generations) keyed by model+concept+prompt-set hash, and reuse.
-2. **Better batch size selection.** `batch_size=2` is hardcoded and very conservative; with right-padding + explicit position_ids verified correct on all 7 models, larger batches (e.g. 8, or memory-adaptive per model size) should give 2-3× generation throughput on 48GB. Results should be batch-invariant now — verify once against a known run (greedy decoding makes this an exact comparison), then raise the default.
+2. **Better batch size selection.** ~~`batch_size=2` is hardcoded~~ — now `--gen-batch-size` (default 2). Measured on Qwen2.5-0.5B (40 prompts, 64 new tokens, MPS): 1.29× at bs=2, 1.73× at 4–8, **2.64× at 16**, plateauing by 32 (+~2GB); refusal rate identical (97.5%) at every bs ≥ 2.
+
+   **Correction to the original premise: results are _not_ batch-invariant, so "verify once against a known run as an exact comparison" does not work.** bf16 reduction order depends on batch shape and greedy argmax amplifies it — one flipped token forks the trajectory. On Qwen2.5-0.5B the divergence is small and flat (95% of texts identical to bs=1 at every bs from 2 to 32, rate unchanged), but on Qwen2.5-3B it is not: text identity falls 57.5% → 52.5% and the refusal rate moves 97.5% → 90% going from bs=2 to bs=8. Practical rule: raise it freely for ≤1.5B models, keep it fixed within any set of runs being compared, and re-run a whole comparison (baseline + all intervention conditions) if you change it.
+
+   Further win, not yet done: sort prompts by length before batching. `generate_with_hooks` runs until every row in a batch finishes, so a batch costs as much as its longest generation.
 
 Related, larger refactor: a **per-model experiment queue** — load a model once, then run all pending concepts/modes against it, sharing baseline generations and filtering across concepts before unloading.
 
-## Current State (Post Padding Fix)
+## Current State (Post Generation-Path Fix, 2026-08-11)
 
-The right-padding fix (April 2025) resolved the Arditi replication and dramatically improved all results. Refusal direction finding now works universally across 7 models with 73-100% induction and 66-100pp ablation. The "single direction" hypothesis is confirmed.
+Two padding bugs have now been fixed: the April 2026 indexing bug in the scoring path, and the August 2026 generation bug where evaluation decoded from a pad slot. All 7 refusal `evaluate` runs were regenerated (`results/rerun3-MANIFEST.md`). Refusal direction finding works universally: **83.8-100% induction and 87.9-100pp global ablation**. The "single direction" hypothesis is confirmed, and more strongly than pre-fix numbers showed — the artifact was suppressing the effect.
 
 **What's solid:**
-- Refusal: works on all 7 models (Qwen 0.5B-7B, Llama-2/3/3.1)
-- Arditi replication: L12/pos-5 on Llama-3, bypass=-10.7 (paper: -9.7)
+- Refusal `evaluate`: re-run post-fix on all 7 models (Qwen 0.5B-7B, Llama-2/3/3.1), with the continuous log-odds metric alongside every rate
+- Arditi replication of *direction selection*: L12/pos-5 on Llama-3, bypass=-10.7 (paper: -9.7)
 - Multi-position search: auto-derived from assistant_prefix_tokens
-- Per-model tests: padding, template, position_ids, activation consistency
+- Padding invariant is now asserted, not assumed (`formatting.last_real_token_indices`), with unit + per-model tests
 
-**What needs re-running** (prior results used corrupted scoring):
-- Sycophancy search + evaluation on all models
-- Hedging search + evaluation on all models
-- Empathy search + evaluation on all models
-- Cross-concept analysis (refusal × sycophancy × hedging)
+**What needs re-running** (all used at least one of the two broken paths):
+- Refusal **search** on all models — the coordinates in RESULTS.md are the pre-fix search's picks. Prompt filtering ran through the broken generation path and discarded up to 42% of harmful training prompts on the affected Qwens.
+- Sycophancy, hedging, empathy: search + evaluation on all models
+- Cross-concept analysis (refusal × sycophancy × hedging) — its Qwen2.5-3B refusal baseline is 29pp off
+- Not yet attempted at all: the paper's **safety score** (Llama Guard 2 over JailbreakBench, 512-token generations). Only the refusal-phrase half of §3 is replicated.
 
 ## Priority 1: Re-run Non-Refusal Concepts
 
-All sycophancy, hedging, and empathy experiments were conducted with left-padding (corrupted scoring). The directions found may be wrong, and all evaluations are unreliable.
+All sycophancy, hedging, and empathy results were produced through the broken generation path on Qwen2.5 models — the family that bug hit hardest. The directions may be wrong and every evaluation is unreliable. Note in particular that the hedging "0% detection" negative result is exactly what a corrupted generation path also produces, so it is currently uninterpretable in either direction.
 
 **Action**: Re-run `--mode search` then `--mode evaluate` for each concept on each model. Start with sycophancy (most developed) on Qwen2.5-3B (best prior results).
 
-The sycophancy "low induction rates (2-12%)" finding may be an artifact of corrupted scoring. With correct padding, we might find a much stronger sycophancy direction.
+The sycophancy "low induction rates (2-12%)" finding may be an artifact of the broken generation path (detection rates measured from text decoded off a pad slot). With both padding bugs fixed, we might find a much stronger sycophancy direction — the refusal numbers all moved in that direction.
 
 ## Priority 2: Cross-Concept Re-analysis
 
