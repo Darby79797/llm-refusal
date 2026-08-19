@@ -2,7 +2,7 @@ import torch as t
 from typing import List
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from formatting import ChatPromptFormatter
+from formatting import ChatPromptFormatter, last_real_token_indices, assert_right_padded
 
 
 def generate_with_hooks(
@@ -21,6 +21,18 @@ def generate_with_hooks(
     attention_mask = batch['attention_mask'].to(model.device)
     position_ids = batch['position_ids'].to(model.device)
 
+    # Stop on any of the model's end-of-turn tokens, not just tokenizer.eos_token_id.
+    # Qwen2.5 ends turns with <|im_end|> but also lists <|endoftext|> in
+    # generation_config.eos_token_id; stopping on only the former lets generation
+    # run past the end of the turn and emit junk into the evaluated text.
+    stop_ids = {tokenizer.eos_token_id}
+    cfg_eos = getattr(getattr(model, 'generation_config', None), 'eos_token_id', None)
+    if isinstance(cfg_eos, int):
+        stop_ids.add(cfg_eos)
+    elif cfg_eos is not None:
+        stop_ids.update(cfg_eos)
+    stop_ids.discard(None)
+
     batch_size = input_ids.shape[0]
     generated_ids_list = [[] for _ in range(batch_size)]
     finished_sequences = [False] * batch_size
@@ -29,7 +41,7 @@ def generate_with_hooks(
         outputs = model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids, use_cache=True)
         past_key_values = outputs.past_key_values
         # Get logits at last REAL token (not last padded position)
-        last_real_indices = attention_mask.sum(dim=1) - 1
+        last_real_indices = last_real_token_indices(attention_mask)
         next_token_logits = outputs.logits[t.arange(batch_size), last_real_indices, :]
         next_token_ids = t.argmax(next_token_logits, dim=-1)
 
@@ -46,13 +58,15 @@ def generate_with_hooks(
             for i in range(batch_size):
                 if not finished_sequences[i]:
                     token_id = next_token_ids[i].item()
-                    if token_id == tokenizer.eos_token_id: finished_sequences[i] = True
+                    if token_id in stop_ids: finished_sequences[i] = True
                     else: generated_ids_list[i].append(token_id)
 
             if all(finished_sequences): break
 
             current_input_ids = next_token_ids.unsqueeze(-1)
-            attention_mask = t.cat([attention_mask, t.ones(batch_size, 1, device=model.device)], dim=1)
+            attention_mask = t.cat(
+                [attention_mask, t.ones(batch_size, 1, dtype=attention_mask.dtype, device=model.device)], dim=1
+            )
             step_position_ids = next_position.unsqueeze(-1)
             next_position = next_position + 1
 

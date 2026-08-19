@@ -40,25 +40,25 @@ def test_chat_prompt_formatter_padding(model_and_tokenizer):
     # Check for correct batch size and tensor type
     assert input_ids.shape[0] == 2
     assert isinstance(input_ids, t.Tensor)
-    
-    # Check that padding was applied correctly (left padding)
+
+    # Check that padding was applied correctly (RIGHT padding — real tokens start
+    # at index 0 in every row, so true_len-based indexing is valid everywhere)
     assert input_ids.shape[1] > tokenizer(prompts[0], return_tensors='pt')['input_ids'].shape[1]
 
+    assert attention_mask[0, 0].item() == 1, "First token of shorter prompt should be attended to."
+    assert attention_mask[1, 0].item() == 1, "First token of longer prompt should be attended to."
     if formatter.prepend_bos:
-        # Base models: position 0 is BOS (attended) for ALL rows, padding starts at position 1
         assert input_ids[0, 0].item() == tokenizer.bos_token_id, "First token of shorter prompt should be BOS."
         assert input_ids[1, 0].item() == tokenizer.bos_token_id, "First token of longer prompt should be BOS."
-        assert attention_mask[0, 0].item() == 1, "BOS token should be attended to."
-        assert attention_mask[0, 1].item() == 0, "After BOS, shorter prompt should have padding."
-        assert attention_mask[1, 0].item() == 1, "BOS token of longer prompt should be attended to."
-    else:
-        # Instruction-tuned models: no BOS prepended, padding is at the start
-        assert attention_mask[0, 0].item() == 0, "The first token of the shorter prompt should be masked."
-        assert attention_mask[1, 0].item() == 1, "The first token of the longer prompt should not be masked."
 
-    # Check that the last token is never a pad token
-    assert input_ids[0, -1].item() != tokenizer.pad_token_id
-    assert input_ids[1, -1].item() != tokenizer.pad_token_id
+    # The shorter row is padded at the END; the longer row is not padded at all
+    assert attention_mask[0, -1].item() == 0, "The last token of the shorter prompt should be masked."
+    assert attention_mask[1, -1].item() == 1, "The last token of the longer prompt should not be masked."
+
+    # Positions must be derived from the mask, not from the padded width
+    assert batch['position_ids'][1].tolist() == list(range(input_ids.shape[1]))
+    true_len_0 = int(attention_mask[0].sum())
+    assert batch['position_ids'][0, :true_len_0].tolist() == list(range(true_len_0))
 
 @pytest.mark.parametrize("prompts", TEST_PROMPTS.values(), ids=TEST_PROMPTS.keys())
 def test_generate_with_hooks_logic(model_and_tokenizer, prompts):
@@ -92,6 +92,64 @@ def test_generate_with_hooks_logic(model_and_tokenizer, prompts):
     # 3. Assert that the outputs are identical
     assert baseline_output == hooked_output, \
         "Generation output changed when non-interfering hooks were added."
+
+def test_batched_generation_matches_individual(model_and_tokenizer):
+    """Generation must be batch-invariant.
+
+    We right-pad, so model.generate() would read the next token from a pad
+    position for every row shorter than the longest in the batch — those rows
+    generate from a pad token and drift off-task. Measured on Qwen2.5-3B, this
+    moved the baseline refusal rate from 95% to 70%. Evaluation therefore routes
+    through generate_with_hooks(), and this test pins that property down.
+    """
+    model, tokenizer = model_and_tokenizer
+    formatter = ChatPromptFormatter(tokenizer)
+
+    prompts = [
+        "Name a color.",
+        "Explain, in a couple of sentences, why the sky appears blue during the day.",
+    ]
+
+    individual = [
+        generate_with_hooks(model, tokenizer, formatter, [p], max_new_tokens=20)[0]
+        for p in prompts
+    ]
+    batched = generate_with_hooks(model, tokenizer, formatter, prompts, max_new_tokens=20)
+
+    assert batched == individual, (
+        "Batched generation diverged from individual generation — the padded row "
+        "is being decoded from a pad position."
+    )
+
+
+def test_generation_ignores_shipped_sampling_config(model_and_tokenizer):
+    """Decoding must be plain greedy, as the paper specifies.
+
+    model.generate() applies the model's shipped generation_config, and Qwen2.5
+    ships repetition_penalty 1.05-1.1 — a logits processor, so it applies even
+    with do_sample=False. generate_with_hooks() does pure argmax, which must
+    equal model.generate() only once that penalty is explicitly disabled.
+    """
+    model, tokenizer = model_and_tokenizer
+    formatter = ChatPromptFormatter(tokenizer)
+    prompt = "Explain what photosynthesis is."
+
+    batch = formatter.format_batch([prompt])
+    ids = batch['input_ids'].to(model.device)
+    mask = batch['attention_mask'].to(model.device)
+    with t.no_grad():
+        out = model.generate(
+            ids, attention_mask=mask, max_new_tokens=16, do_sample=False,
+            repetition_penalty=1.0, pad_token_id=tokenizer.eos_token_id,
+        )
+    hf_text = tokenizer.decode(out[0, ids.shape[1]:], skip_special_tokens=True)
+    hook_text = generate_with_hooks(model, tokenizer, formatter, [prompt], max_new_tokens=16)[0]
+
+    assert hook_text == hf_text or hf_text.startswith(hook_text), (
+        f"pure-greedy decode diverged from model.generate(repetition_penalty=1.0):\n"
+        f"  hf   : {hf_text!r}\n  hook : {hook_text!r}"
+    )
+
 
 @pytest.mark.parametrize("prompts", TEST_PROMPTS.values(), ids=TEST_PROMPTS.keys())
 def test_intervention_suite_generation_logic(model_and_tokenizer, prompts):

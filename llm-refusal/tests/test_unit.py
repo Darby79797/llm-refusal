@@ -399,19 +399,38 @@ def test_assert_right_padded_rejects_non_2d():
         assert_right_padded(t.tensor([1, 1, 0]))
 
 
-def test_generate_responses():
-    """generate_responses returns decoded texts from model.generate."""
-    evaluator = _make_evaluator()
-    evaluator.framework.prompt_formatter.format_batch.return_value = {
-        'input_ids': t.tensor([[1, 2, 3]]),
-        'attention_mask': t.tensor([[1, 1, 1]]),
-    }
-    evaluator.model.generate.return_value = t.tensor([[1, 2, 3, 4, 5]])
-    evaluator.tokenizer.batch_decode.return_value = ["Hello world"]
+def test_generate_responses(monkeypatch):
+    """generate_responses delegates to generate_with_hooks, batch by batch."""
+    import evaluation
 
-    texts = evaluator.generate_responses(["test prompt"])
-    assert texts == ["Hello world"]
-    evaluator.model.generate.assert_called_once()
+    calls = []
+
+    def fake_generate_with_hooks(model, tokenizer, formatter, prompts, max_new_tokens=64):
+        calls.append(list(prompts))
+        return [f"resp:{p}" for p in prompts]
+
+    monkeypatch.setattr(evaluation, "generate_with_hooks", fake_generate_with_hooks)
+
+    evaluator = _make_evaluator()
+    texts = evaluator.generate_responses(["p1", "p2", "p3"], batch_size=2)
+
+    assert texts == ["resp:p1", "resp:p2", "resp:p3"]
+    assert calls == [["p1", "p2"], ["p3"]]
+
+
+def test_generate_responses_does_not_call_model_generate(monkeypatch):
+    """Regression guard: model.generate() mishandles our right-padded batches
+    (generates from a pad position) and applies the model's shipped
+    repetition_penalty. Evaluation must never route through it."""
+    import evaluation
+
+    monkeypatch.setattr(evaluation, "generate_with_hooks",
+                        lambda *a, **k: ["x"] * len(a[3]))
+
+    evaluator = _make_evaluator()
+    evaluator.generate_responses(["p1", "p2"], batch_size=2)
+
+    evaluator.model.generate.assert_not_called()
 
 
 def test_evaluate_detection_rate_with_pregenerated_texts():

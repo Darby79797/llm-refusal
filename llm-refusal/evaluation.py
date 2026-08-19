@@ -17,7 +17,9 @@ warnings.filterwarnings("ignore", message="Using legacy validation features of t
 
 from datatypes import DirectionVector
 from interventions import ModelInterventionApplier
-from formatting import ChatPromptFormatter
+from formatting import ChatPromptFormatter, last_real_token_indices
+from generation import generate_with_hooks
+from scoring import LogOddsMetric
 from concept import DEFAULT_REFUSAL_PHRASES
 
 logger = logging.getLogger(__name__)
@@ -25,11 +27,26 @@ logger = logging.getLogger(__name__)
 
 class InterventionSuite:
     """Runs qualitative tests on a given DirectionVector."""
-    def __init__(self, model, tokenizer, intervention_applier, prompt_formatter):
+    def __init__(self, model, tokenizer, intervention_applier, prompt_formatter, gen_batch_size: int = 2):
         self.model = model
         self.tokenizer = tokenizer
         self.intervention_applier = intervention_applier
         self.prompt_formatter = prompt_formatter
+        self.gen_batch_size = gen_batch_size
+
+    def _generate(self, test_prompts: List[str], max_new_tokens: int) -> List[str]:
+        """Generate in fixed-size chunks, so every condition sees identical batch
+        shapes. Batch shape changes bf16 reduction order, and greedy argmax turns
+        that into whole-trajectory divergence on near-tied logits — so comparing a
+        baseline generated at one batch size against an intervention generated at
+        another compares two different decoders."""
+        texts = []
+        for i in range(0, len(test_prompts), self.gen_batch_size):
+            texts += generate_with_hooks(
+                self.model, self.tokenizer, self.prompt_formatter,
+                test_prompts[i:i + self.gen_batch_size], max_new_tokens=max_new_tokens,
+            )
+        return texts
 
     def test_generation(
         self,
@@ -47,17 +64,10 @@ class InterventionSuite:
             "do_sample": False # Makes output deterministic, using greedy sampling.
         }
         results = {}
-        batch_formatted = self.prompt_formatter.format_batch(test_prompts)
-        input_ids = batch_formatted['input_ids'].to(self.model.device)
-        attention_mask = batch_formatted['attention_mask'].to(self.model.device)
 
         # --- Baseline Generation ---
         logger.info(f"Generating baseline responses...")
-        baseline_outputs = self.model.generate(
-            input_ids, attention_mask=attention_mask, max_new_tokens=max_new_tokens,
-            do_sample=False, pad_token_id=self.tokenizer.eos_token_id
-        )
-        baseline_texts = self.tokenizer.batch_decode(baseline_outputs[:, input_ids.shape[1]:], skip_special_tokens=True)
+        baseline_texts = self._generate(test_prompts, max_new_tokens)
         results["baseline_no_intervention"] = [{'prompt': p, 'generated_text': t} for p, t in zip(test_prompts, baseline_texts)]
 
         # --- Intervened Generation ---
@@ -71,11 +81,7 @@ class InterventionSuite:
                 self.intervention_applier.apply_direction_intervention(direction, intervention_type, strength, layers=layers)
 
             try:
-                intervened_outputs = self.model.generate(
-                    input_ids, attention_mask=attention_mask, max_new_tokens=max_new_tokens,
-                    do_sample=False, pad_token_id=self.tokenizer.eos_token_id
-                )
-                intervened_texts = self.tokenizer.batch_decode(intervened_outputs[:, input_ids.shape[1]:], skip_special_tokens=True)
+                intervened_texts = self._generate(test_prompts, max_new_tokens)
                 results[key] = [{'prompt': p, 'generated_text': t} for p, t in zip(test_prompts, intervened_texts)]
             finally:
                 if applied:
@@ -93,8 +99,17 @@ class BigEvaluator:
                  llamaguard_api_base: Optional[str] = None,
                  llamaguard_api_key: Optional[str] = None,
                  llamaguard_model: Optional[str] = None,
-                 jbb_api_key: Optional[str] = None):
+                 jbb_api_key: Optional[str] = None,
+                 gen_batch_size: int = 2,
+                 target_tokens: Optional[List[str]] = None):
         self.framework = framework
+        # Generation batch size. NOT a free parameter: bf16 reduction order depends
+        # on batch shape, so greedy decoding is only bit-reproducible at a fixed
+        # batch size. Measured on Qwen2.5-3B, moving 2->8 shifts the refusal rate
+        # by a few points. Keep it fixed within a comparison; raise it (memory
+        # permitting) for small models when throughput matters more than
+        # comparability with previously logged runs.
+        self.gen_batch_size = gen_batch_size
         self.model = framework.model
         self.tokenizer = framework.tokenizer
         self.intervention_applier = framework.intervention_applier
@@ -108,6 +123,51 @@ class BigEvaluator:
         self.llamaguard_api_key = llamaguard_api_key
         self.llamaguard_model = llamaguard_model
         self.jbb_api_key = jbb_api_key
+
+        # Continuous companion to the detection rate (see _log_odds_metric).
+        self.metric = None
+        if target_tokens:
+            try:
+                self.metric = LogOddsMetric(self.tokenizer, target_tokens)
+            except ValueError as e:
+                logger.warning(f"Could not build log-odds metric: {e}")
+
+    def _log_odds_metric(self, prompts: List[str], batch_size: Optional[int] = None) -> Optional[float]:
+        """Mean log-odds of the concept's target tokens at the generation boundary.
+
+        This is the continuous analogue of the detection rate, and it is Arditi's
+        refusal metric — the same quantity their direction-selection algorithm
+        optimises. Reported alongside the phrase-match rate because the two fail
+        differently:
+
+          - detection rate: greedy-decodes 64 tokens, then string-matches. Greedy
+            argmax is discontinuous, so on a near-tied next-token distribution an
+            arbitrarily small numerical difference forks the whole trajectory and
+            flips the label. Sensitive to batch shape; ~1-2 labels per 40 prompts.
+          - log-odds metric: one forward pass, no decoding, no argmax. Moves
+            smoothly with the underlying change.
+
+        A real effect moves both. A change that moves only the rate is decoding
+        noise, not behaviour.
+        """
+        if self.metric is None or not prompts:
+            return None
+        bs = batch_size or self.gen_batch_size
+        device = self.model.device
+        scores = []
+        for i in range(0, len(prompts), bs):
+            batch = self.framework.prompt_formatter.format_batch(prompts[i:i + bs])
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            position_ids = batch['position_ids'].to(device)
+            with t.no_grad():
+                logits = self.model(input_ids=input_ids, attention_mask=attention_mask,
+                                    position_ids=position_ids).logits
+            last = last_real_token_indices(attention_mask)
+            for j in range(input_ids.shape[0]):
+                scores.append(self.metric.compute_log_odds(logits[j, last[j], :]))
+        finite = [s for s in scores if not math.isnan(s)]
+        return sum(finite) / len(finite) if finite else float('nan')
 
     def _check_for_detection(self, text: str) -> bool:
         if self.judge_prompt is not None and self.judge_api_base is not None:
@@ -142,32 +202,40 @@ class BigEvaluator:
     # Backward-compatible alias
     _check_for_refusal = _check_for_detection
 
-    def generate_responses(self, prompts: List[str], batch_size: int = 2) -> List[str]:
-        """Generate responses for prompts. Returns list of generated texts."""
+    def generate_responses(self, prompts: List[str], batch_size: Optional[int] = None) -> List[str]:
+        """Generate responses for prompts. Returns list of generated texts.
+
+        Uses generate_with_hooks() rather than model.generate(). Two reasons, both
+        of which silently corrupted results before:
+          1. Padding. We right-pad (required for correct activation/logit
+             indexing), but model.generate() reads the next token from the last
+             column of the batch — a pad token for every row shorter than the
+             longest. Those rows generate from a pad position and drift off-task.
+          2. Decoding. model.generate() applies the model's shipped
+             generation_config, and Qwen2.5 ships repetition_penalty 1.05-1.1,
+             which is a logits processor and so applies even with do_sample=False.
+             The paper specifies plain greedy decoding.
+        generate_with_hooks() reads logits at the last *real* token, tracks
+        per-sequence positions, and does pure greedy argmax.
+        """
+        if batch_size is None:
+            batch_size = self.gen_batch_size
         all_texts = []
         num_batches = (len(prompts) + batch_size - 1) // batch_size
 
         for i in tqdm(range(num_batches), desc="Generating Responses"):
             batch_prompts = prompts[i*batch_size : (i+1)*batch_size]
-            batch_formatted = self.framework.prompt_formatter.format_batch(batch_prompts)
-            input_ids = batch_formatted['input_ids'].to(self.model.device)
-            attention_mask = batch_formatted['attention_mask'].to(self.model.device)
-
-            generated_ids = self.model.generate(
-                input_ids,
-                attention_mask=attention_mask,
+            all_texts.extend(generate_with_hooks(
+                self.model,
+                self.tokenizer,
+                self.framework.prompt_formatter,
+                batch_prompts,
                 max_new_tokens=64,
-                do_sample=False,
-                pad_token_id=self.tokenizer.eos_token_id
-            )
-
-            # Slice off prompt tokens before decoding
-            generated_texts = self.tokenizer.batch_decode(generated_ids[:, input_ids.shape[1]:], skip_special_tokens=True)
-            all_texts.extend(generated_texts)
+            ))
 
         return all_texts
 
-    def evaluate_detection_rate(self, prompts: List[str], batch_size: int = 2,
+    def evaluate_detection_rate(self, prompts: List[str], batch_size: Optional[int] = None,
                                 generated_texts: Optional[List[str]] = None) -> float:
         """
         Evaluates detection rate. If generated_texts is provided, skips generation
@@ -416,11 +484,23 @@ class BigEvaluator:
         """
         results = {}
         num_layers = len(self.intervention_applier.transformer_layers)
+        # Recorded because results are only comparable across runs that share it.
+        logger.info(f"Evaluation config: gen_batch_size={self.gen_batch_size}, "
+                    f"log_odds_metric={'on' if self.metric is not None else 'off'}, "
+                    f"dtype={self.model.dtype}")
 
         def _run_condition(prompts, rate_key, condition_results):
-            """Generate once, classify with all configured classifiers."""
+            """Generate once, classify with all configured classifiers.
+
+            Also records the continuous log-odds metric under the same
+            intervention, so every rate in the report has a decoding-free
+            companion measurement.
+            """
             generated_texts = self.generate_responses(prompts)
             condition_results[rate_key] = self.evaluate_detection_rate(prompts, generated_texts=generated_texts)
+            log_odds = self._log_odds_metric(prompts)
+            if log_odds is not None:
+                condition_results["log_odds_metric"] = log_odds
             if run_arditi_evals:
                 lg_rate = self.evaluate_llamaguard_rate(prompts, generated_texts)
                 if lg_rate is not None:
