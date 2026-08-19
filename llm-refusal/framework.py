@@ -7,7 +7,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from datatypes import PromptData, DirectionVector
 from concept import get_concept
-from formatting import ChatPromptFormatter
+from formatting import ChatPromptFormatter, last_real_token_indices
 from activations import ActivationExtractor
 from interventions import ModelInterventionApplier
 from direction_methods import DifferenceInMeans
@@ -70,7 +70,8 @@ class DirectionTestFramework:
     def __init__(self, model_name: str, torch_dtype: Union[str, t.dtype] = "auto", force_cpu: bool = False, concept: str = "refusal",
                  judge_api_base: Optional[str] = None, judge_api_key: Optional[str] = None, judge_model: Optional[str] = None,
                  llamaguard_api_base: Optional[str] = None, llamaguard_api_key: Optional[str] = None,
-                 llamaguard_model: Optional[str] = None, jbb_api_key: Optional[str] = None):
+                 llamaguard_model: Optional[str] = None, jbb_api_key: Optional[str] = None,
+                 gen_batch_size: int = 2):
         self.model_name = model_name
         self.concept = get_concept(concept)
 
@@ -116,7 +117,8 @@ class DirectionTestFramework:
             evaluator=evaluator,
             search_config=self.search_config,
         )
-        self.suite = InterventionSuite(self.model, self.tokenizer, self.intervention_applier, self.prompt_formatter)
+        self.suite = InterventionSuite(self.model, self.tokenizer, self.intervention_applier,
+                                       self.prompt_formatter, gen_batch_size=gen_batch_size)
         self.evaluator = BigEvaluator(self, detection_phrases=self.concept.detection_phrases,
                                       detection_fn=self.concept.detection_fn,
                                       judge_prompt=self.concept.judge_prompt,
@@ -126,7 +128,9 @@ class DirectionTestFramework:
                                       llamaguard_api_base=llamaguard_api_base,
                                       llamaguard_api_key=llamaguard_api_key,
                                       llamaguard_model=llamaguard_model,
-                                      jbb_api_key=jbb_api_key)
+                                      jbb_api_key=jbb_api_key,
+                                      gen_batch_size=gen_batch_size,
+                                      target_tokens=self.concept.target_tokens)
 
         logger.info(f"Framework initialized on device: {self.device}")
 
@@ -179,7 +183,7 @@ class DirectionTestFramework:
             position_ids = batch['position_ids'].to(self.device)
             with t.no_grad():
                 outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
-            last_indices = attention_mask.sum(dim=1) - 1
+            last_indices = last_real_token_indices(attention_mask)
             scores = []
             for i in range(len(prompts)):
                 logits = outputs.logits[i, last_indices[i], :]
@@ -353,6 +357,7 @@ def main(
         llamaguard_api_key=config['llamaguard_api_key'],
         llamaguard_model=config['llamaguard_model'],
         jbb_api_key=config['jbb_api_key'],
+        gen_batch_size=config['gen_batch_size'],
     )
     if config['mode'] == 'cross_concept':
         framework.run_cross_concept(config)

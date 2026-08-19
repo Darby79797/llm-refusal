@@ -57,6 +57,10 @@ examples:
                         help="Intervention strength for evaluate mode (default: 1.0)")
     parser.add_argument("--induce-mode", choices=["single_layer", "all_layers"], default="single_layer",
                         help="Induce score mode for search selection: single_layer (default) or all_layers (Arditi-style)")
+    parser.add_argument("--gen-batch-size", type=int, default=2,
+                        help="Batch size for response generation (default: 2). Greedy decoding is only "
+                             "bit-reproducible at a fixed batch size, so keep this constant across the runs "
+                             "you intend to compare. ~2.6x faster at 16 on models <=1.5B.")
     parser.add_argument(
         "--json",
         dest="json_config",
@@ -95,6 +99,7 @@ def _namespace_to_config(args):
         "filter_prompts": args.filter_prompts,
         "induce_mode": args.induce_mode,
         "strength": args.strength,
+        "gen_batch_size": args.gen_batch_size,
     }
 
 
