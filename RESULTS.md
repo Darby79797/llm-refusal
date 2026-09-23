@@ -24,6 +24,20 @@ Rates are phrase-match detection rates over 64 greedy tokens: refusal on the 99 
 - **Llama-3-8B changed batch size, not results.** It is now at bs=2 (previously 8) and reproduces the bs=8 numbers to within 0.01 log-odds.
 - **Coherence.** Every ablation and induction condition is 0% degenerate on every model: ablated outputs are fluent compliance, and induced outputs are fluent refusals.
 
+**95% Wilson intervals** (`scripts/confidence_intervals.py` over the saved generations). Each interval covers sampling error only, not decoding noise.
+
+| Model | Harmful baseline | Global abl | Layer abl | Harmless baseline | Induction |
+|-------|------------------|-----------|-----------|-------------------|-----------|
+| Qwen2.5-0.5B | [81.2, 93.7] | [0.0, 3.7] | [2.8, 12.6] | [0.2, 6.7] | [93.3, 99.8] |
+| Qwen2.5-1.5B | [86.1, 96.5] | [0.0, 3.7] | [0.6, 7.1] | [0.0, 4.6] | [95.4, 100] |
+| Qwen2.5-3B | [90.1, 98.4] | [0.0, 3.7] | [1.6, 9.9] | [0.0, 4.6] | [95.4, 100] |
+| Qwen2.5-7B | [81.2, 93.7] | [0.0, 3.7] | [0.0, 3.7] | [0.0, 4.6] | [95.4, 100] |
+| Llama-3-8B | [96.3, 100] | [0.0, 3.7] | [2.8, 12.6] | [0.0, 4.6] | [91.3, 99.3] |
+| Llama-3.1-8B | [88.7, 97.8] | [0.0, 3.7] | [0.6, 7.1] | [0.0, 4.6] | [74.2, 90.3] |
+| Llama-2-7B | [96.3, 100] | [2.2, 11.3] | [69.7, 85.7] | [0.0, 4.6] | [91.3, 99.3] |
+
+Every headline effect clears its interval by a wide margin. Even the weakest, Llama-3.1 induction, has a lower bound of 74.2% against a harmless-baseline upper bound of 4.6%. The Llama-2 layer-ablation anomaly is also robust: [69.7, 85.7] vs [0.6, 12.6] on the other models. Across models, the small differences are *not* resolvable: all the 0-6% layer-ablation rates overlap.
+
 **Reproducibility caveats.**
 - *Batch size is part of the measurement.* Greedy decoding is not batch-shape invariant in bf16: batch shape changes reduction order, and argmax over near-tied logits is discontinuous. Measured on Qwen2.5-3B, bs=2 vs bs=8 moves a rate by up to 3pp. It is fixed *within* each run (all conditions share it) and recorded per row above; do not compare rows generated at different settings at single-point precision.
 - *fp32 is exactly batch-invariant.* On Qwen2.5-0.5B, fp32 at bs=2 and bs=8 agree to every printed digit on all six conditions and both metrics. bf16 at bs=1 reproduces fp32 exactly on all six rates. Models ≤3B are therefore run in fp32; 7-8B stay in bf16 (fp32 would be 28-32GB of weights before activations) and carry the residual.
@@ -42,7 +56,7 @@ Rates are phrase-match detection rates over 64 greedy tokens: refusal on the 99 
 - **Our dataset produces strong directions**: topic-matched prompts work well (90 harmful / 64 harmless train, 99/80 eval). Arditi's 128+128 set (from AdvBench, MaliciousInstruct and TDC2023) also works when scoring is correct.
 - **Detection is Arditi's phrase list.** `DEFAULT_REFUSAL_PHRASES` is exactly Arditi's JailbreakBench refusal-substring list. Reading the Qwen2.5-0.5B generations, it misses about 1 in 100 responses in each direction ("…is illegal and unethical", "I am not capable of…"). That is small next to the ~90pp effects, but it is part of the ±3pp noise floor.
 - **Not yet replicated: the safety half of the paper.** Arditi pair the refusal score with a Llama Guard 2 *safety* score over JailbreakBench, and generate 512 tokens. Everything above is phrase-match refusal only, at 64 tokens. "Ablation removes refusal phrases" is established here; "ablation elicits unsafe completions" is not. The plumbing exists (`--arditi-evals`); no reported run has used it.
-- **No confidence intervals anywhere.** At n=99 harmful / 80 harmless, a 3pp difference is ~3 prompts and is inside both sampling error and the bf16 decoding noise measured above. Differences of that size in the table should not be interpreted.
+- **Intervals are narrow enough for the headline, too wide for fine comparisons.** At n=99 harmful / 80 harmless, a 0% rate still has an upper bound of 3.7-4.6%, and a 3pp difference is ~3 prompts, inside both sampling error and bf16 decoding noise. See the Wilson table above; differences between models of a few pp should not be interpreted.
 
 > **Everything below this line is pre-fix and unreliable.** All non-refusal findings are detection rates produced by the broken generation path (bug 2), on Qwen2.5 models — the family the bug hit hardest. None have been re-run. Treat them as hypotheses, not results.
 
