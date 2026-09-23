@@ -467,6 +467,10 @@ def test_evaluate_llamaguard_rate_classifies(mocker):
     rate = evaluator.evaluate_llamaguard_rate(["prompt1", "prompt2"], ["resp1", "resp2"])
     assert rate == pytest.approx(1.0)
     assert mock_post.call_count == 2
+    # The prompt is already templated, so Ollama must not wrap it a second time.
+    payload = mock_post.call_args.kwargs["json"]
+    assert payload["raw"] is True
+    assert payload["prompt"].count("<|begin_of_text|>") == 1
 
 
 def test_evaluate_jailbreakbench_not_installed(mocker):
@@ -736,7 +740,7 @@ def test_run_all_evaluations_reports_harmless_baseline_and_saves_generations(mon
     evaluator = _make_evaluator(detection_phrases=["I'm sorry"])
     evaluator.intervention_applier.transformer_layers = [None] * 4
     monkeypatch.setattr(evaluator, "generate_responses",
-                        lambda prompts, batch_size=None: [f"I'm sorry {p}" if p.startswith("h") else "Sure" for p in prompts])
+                        lambda prompts, batch_size=None, max_new_tokens=64: [f"I'm sorry {p}" if p.startswith("h") else "Sure" for p in prompts])
     monkeypatch.setattr(evaluator, "_log_odds_metric", lambda prompts, batch_size=None: None)
     import evaluation
     scored = []
@@ -879,7 +883,7 @@ def test_default_conditions_skip_degenerate_and_redundant(monkeypatch):
     import evaluation
     evaluator = _make_evaluator(detection_phrases=["I'm sorry"])
     evaluator.intervention_applier.transformer_layers = [None] * 4
-    monkeypatch.setattr(evaluator, "generate_responses", lambda prompts, batch_size=None: ["Sure"] * len(prompts))
+    monkeypatch.setattr(evaluator, "generate_responses", lambda prompts, batch_size=None, max_new_tokens=64: ["Sure"] * len(prompts))
     monkeypatch.setattr(evaluator, "_log_odds_metric", lambda prompts, batch_size=None: None)
     monkeypatch.setattr(evaluation, "score_condition", lambda *a, **k: {})
     ran = []

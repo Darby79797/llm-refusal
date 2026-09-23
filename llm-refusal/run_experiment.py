@@ -67,6 +67,9 @@ examples:
                         help="Evaluate-mode intervention conditions (default: %s). 'all' adds "
                              "global_addition (always degenerate) and layer_specific_subtraction. "
                              "Each costs one generation pass." % ", ".join(DEFAULT_CONDITIONS))
+    parser.add_argument("--max-new-tokens", type=int, default=64,
+                        help="Tokens generated per response in evaluate mode (default: 64; Arditi's "
+                             "safety evaluation uses 512). The prompt-filtering pass always uses 64.")
     parser.add_argument("--no-filter-cache", dest="filter_cache", action="store_false",
                         help="Regenerate the prompt-filtering pass instead of reusing the cached "
                              "result for this model/concept/dtype/batch size/prompt set")
@@ -113,6 +116,7 @@ def _namespace_to_config(args):
         "conditions": (list(CONDITIONS) if args.conditions and "all" in args.conditions
                        else args.conditions),
         "filter_cache": args.filter_cache,
+        "max_new_tokens": args.max_new_tokens,
     }
 
 

@@ -31,7 +31,7 @@ The replication was blocked for months by an **indexing bug on padded batches**,
 | Refusal tokens | Model-specific single token | Multi-token set | `refusal_arditi_exact` uses single token |
 | Layer cutoff | Last 20% pruned | Last 35% pruned (default) | `refusal_arditi_exact` uses 0.80 |
 | Selection fallback | Hard-fail if no strict pass | Progressive relaxation | UX improvement |
-| Evaluation | LlamaGuard2 + JailbreakBench + CE loss | Phrase match + lm-eval | Different metrics |
+| Evaluation | LlamaGuard2 + JailbreakBench + CE loss | Phrase match + lm-eval; LlamaGuard2 via `--arditi-evals` | Safety score comparable. Our "Alpaca CE" scores instruction tokens, not completions (the data file has no outputs), so it is **not** the paper's CE metric |
 | Generation | `model.generate()` | Custom `generate_with_hooks()` | Ours reads the last *real* token under right padding, and does pure greedy argmax with no logits processors |
 
 ## Replication Concepts

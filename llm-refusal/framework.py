@@ -360,9 +360,11 @@ class DirectionTestFramework:
                 alpaca_max_prompts=config['alpaca_max_prompts'],
                 strength=config['strength'],
                 conditions=config.get('conditions'),
+                max_new_tokens=config.get('max_new_tokens', 64),
                 generations_path=(f"results/{self.model_name.split('/')[-1]}-{self.concept.name}"
                                   f"-evaluate-L{direction_to_test.layer}-P{direction_to_test.position_index}"
-                                  f"-generations.json"),
+                                  + (f"-T{config['max_new_tokens']}" if config.get('max_new_tokens', 64) != 64 else "")
+                                  + "-generations.json"),
             )
 
         logger.info("Framework execution finished.")
