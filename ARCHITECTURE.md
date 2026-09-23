@@ -14,6 +14,7 @@ All code under `llm-refusal/`. Flat imports (`from formatting import ...`), set 
 | `scoring.py` | `LogOddsMetric`, `Three_Score_Evaluator` (bypass/induce/induce_global/KL) |
 | `search.py` | `DirectionFinder` — multi-objective search with progressive fallback tiers, supports `induce_mode` |
 | `evaluation.py` | `BigEvaluator` (detection rates, LlamaGuard2, JailbreakBench, Alpaca CE, lm-eval), `InterventionSuite` (eyeball) |
+| `coherence.py` | Per-response coherence under the clean model: `degenerate` (repetition-loop flag, the breakage signal) and response NLL (divergence from clean behaviour, not fluency). Scored for every evaluate condition (~4% of runtime) |
 | `generation.py` | `generate_with_hooks()` — autoregressive gen with KV-cache and explicit `position_ids` (hooks fire per-step) |
 | `cross_concept.py` | Cosine similarity, PCA, interference matrix, multi-ablation composition |
 | `attribution.py` | Circuit analysis: per-head/MLP projection onto the direction, contrastive (harmful−benign) attribution. Used by `scripts/`, not the CLI |
@@ -34,6 +35,8 @@ Branch in `_get_transformer_layers()`/`_get_sublayers()` in `interventions.py`; 
 - **`generate_with_hooks()`** exists because `model.generate()` doesn't invoke forward hooks every step.
 - **NaN in scoring**: `LogOddsMetric` returns nan for inf/nan logits; downstream uses `nanmean`. Typically only layer-0 candidates (near-zero norms). Not an error.
 - **Search fallback**: Strict criteria rarely met on models <=1.8B. Progressive tiers: (Δinduce>+3, KL<5) → (Δinduce>+1.5, KL<10) → (Δinduce>+0, KL<20) → best induce. With `induce_mode=all_layers`, tiers use `induce_global`.
+- **Evaluate conditions**: `--conditions` picks from `evaluation.CONDITIONS`. Default is global ablation, layer ablation, layer addition, plus whichever baselines (harmful/harmless) they need. `global_addition` (always degenerate repetition loops) and `layer_specific_subtraction` (near-redundant with ablation) are opt-in; `--conditions all` runs everything. Every run writes `results/<model>-<concept>-evaluate-L<l>-P<p>-generations.json` with each response, its detection label and coherence fields.
+- **Filtering cache**: the prompt-filtering generation pass (~17% of an evaluate run) is cached in `results/filter-cache/`, keyed on model, dtype, gen batch size, detector and prompt set. `--no-filter-cache` regenerates; bump `framework.FILTER_CACHE_VERSION` when generation/detection logic changes.
 - **Prompt filtering on by default** but has zero measured effect (3-21% mislabeled prompts don't contaminate difference-in-means). `--no-filter-prompts` disables.
 - **Pre-split val data**: `train_data_fn` may return `((train_pos, train_neg), (val_pos, val_neg))`; the framework then skips `train_val_split()` and uses all train data for the direction. Used by `refusal_arditi_exact`.
 - **External API judge**: `JUDGE_API_BASE`, `JUDGE_API_KEY`, `JUDGE_MODEL` env vars (or `--judge-*` flags). `--arditi-evals` enables LlamaGuard2 + JailbreakBench + Alpaca CE; `--eval-tasks` runs lm-eval benchmarks.

@@ -4,7 +4,7 @@
 
 Serial evaluate sweeps are generation-bound, not load-bound (model load is ~2 min of a 1.5-2h run on 7-8B MPS). Two cheap structural wins, in order:
 
-1. **Cache the prompt-filtering pass per (model, concept).** Every evaluate run regenerates ~160 baseline responses just to filter prompts (~15-20% of run time), and the result is identical across runs on the same model+concept. Persist the filtered prompt list (or the baseline generations) keyed by model+concept+prompt-set hash, and reuse.
+1. ~~**Cache the prompt-filtering pass per (model, concept).**~~ Done (2026-09): `results/filter-cache/`, keyed on model/dtype/batch size/detector/prompt set. Default evaluate also dropped the two uninformative conditions (global addition, subtraction), for ~40% less evaluate time in total.
 2. **Better batch size selection.** ~~`batch_size=2` is hardcoded~~ — now `--gen-batch-size` (default 2). Measured on Qwen2.5-0.5B (40 prompts, 64 new tokens, MPS): 1.29× at bs=2, 1.73× at 4–8, **2.64× at 16**, plateauing by 32 (+~2GB); refusal rate identical (97.5%) at every bs ≥ 2.
 
    **Correction to the original premise: results are _not_ batch-invariant, so "verify once against a known run as an exact comparison" does not work.** bf16 reduction order depends on batch shape and greedy argmax amplifies it — one flipped token forks the trajectory. On Qwen2.5-0.5B the divergence is small and flat (95% of texts identical to bs=1 at every bs from 2 to 32, rate unchanged), but on Qwen2.5-3B it is not: text identity falls 57.5% → 52.5% and the refusal rate moves 97.5% → 90% going from bs=2 to bs=8. Practical rule: raise it freely for ≤1.5B models, keep it fixed within any set of runs being compared, and re-run a whole comparison (baseline + all intervention conditions) if you change it.
@@ -24,7 +24,7 @@ Two padding bugs have now been fixed: the April 2026 indexing bug in the scoring
 - Padding invariant is now asserted, not assumed (`formatting.last_real_token_indices`), with unit + per-model tests
 
 **What needs re-running** (all used at least one of the two broken paths):
-- Refusal **search** on all models — the coordinates in RESULTS.md are the pre-fix search's picks. Prompt filtering ran through the broken generation path and discarded up to 42% of harmful training prompts on the affected Qwens.
+- ~~Refusal **search** on all models~~ Done 2026-09-23: all 7 pass strictly; 6/7 re-select the old coordinates (Qwen2.5-0.5B: L13→L14). Evaluate re-run at the selected coordinates reproduces 2026-08 exactly. See RESULTS.md.
 - Sycophancy, hedging, empathy: search + evaluation on all models
 - Cross-concept analysis (refusal × sycophancy × hedging) — its Qwen2.5-3B refusal baseline is 29pp off
 - Not yet attempted at all: the paper's **safety score** (Llama Guard 2 over JailbreakBench, 512-token generations). Only the refusal-phrase half of §3 is replicated.

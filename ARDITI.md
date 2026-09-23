@@ -27,6 +27,7 @@ The replication was blocked for months by an **indexing bug on padded batches**,
 |---|---|---|---|
 | Dataset | 128 from AdvBench+MI+TDC2023 + 128 Alpaca | 90 harmful + 64 harmless, topic-matched (default) | Different tradeoff; both work. Note ours is unbalanced and unpaired, despite "topic-matched" |
 | Train/val split | Pre-split files (128+32) | 80/20 random (default) | `refusal_arditi_exact` concept uses pre-split |
+| Train filtering | By refusal score (harmful > 0, harmless < 0) | Default path: by generating 64 tokens and phrase-matching | `refusal_arditi_exact` filters train by score like the paper (since 2026-09; its earlier L12/pos-5 result used generation-based filtering) |
 | Refusal tokens | Model-specific single token | Multi-token set | `refusal_arditi_exact` uses single token |
 | Layer cutoff | Last 20% pruned | Last 35% pruned (default) | `refusal_arditi_exact` uses 0.80 |
 | Selection fallback | Hard-fail if no strict pass | Progressive relaxation | UX improvement |
