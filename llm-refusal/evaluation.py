@@ -21,6 +21,7 @@ from formatting import ChatPromptFormatter, last_real_token_indices
 from generation import generate_with_hooks
 from scoring import LogOddsMetric
 from concept import DEFAULT_REFUSAL_PHRASES
+from coherence import score_condition
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,23 @@ class InterventionSuite:
                     self.intervention_applier.clear_interventions()
 
         return results
+
+
+# Intervention conditions for run_all_evaluations: name -> (intervention, layer
+# scope, which prompts it runs on). Each costs a full generation pass (~6-9 min on
+# a 7-8B model), so only the ones that test a claim run by default:
+#   global_addition  - the raw vector added at every layer compounds to many times
+#                      the residual norm; output is 100% repetition loops on every
+#                      model tested, so its "0% refusal" measures nothing.
+#   layer_specific_subtraction - near-redundant with layer ablation.
+CONDITIONS = {
+    "global_ablation":            ("ablate",   "all",    "positive"),
+    "layer_specific_ablation":    ("ablate",   "single", "positive"),
+    "layer_specific_addition":    ("add",      "single", "negative"),
+    "global_addition":            ("add",      "all",    "negative"),
+    "layer_specific_subtraction": ("subtract", "single", "positive"),
+}
+DEFAULT_CONDITIONS = ("global_ablation", "layer_specific_ablation", "layer_specific_addition")
 
 
 class BigEvaluator:
@@ -165,7 +183,7 @@ class BigEvaluator:
                                     position_ids=position_ids).logits
             last = last_real_token_indices(attention_mask)
             for j in range(input_ids.shape[0]):
-                scores.append(self.metric.compute_log_odds(logits[j, last[j], :]))
+                scores.append(self.metric.compute_log_odds(logits[j, last[j], :].float()))
         finite = [s for s in scores if not math.isnan(s)]
         return sum(finite) / len(finite) if finite else float('nan')
 
@@ -474,22 +492,36 @@ class BigEvaluator:
                     scores[display_name] = val
         return scores
 
+    @staticmethod
+    def _save_generations(generations, path):
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "w") as f:
+            json.dump(generations, f, indent=1)
+        logger.info(f"Saved generations for every condition to {path}")
+
     def run_all_evaluations(self, direction: DirectionVector, positive_prompts: List[str], negative_prompts: List[str],
                             tasks: List[str], limit: Optional[int],
                             run_arditi_evals: bool = False, alpaca_max_prompts: int = 500,
-                            strength: float = 1.0):
+                            strength: float = 1.0, generations_path: Optional[str] = None,
+                            conditions: Optional[List[str]] = None):
         """
         Orchestrates the entire evaluation suite. Now accepts tasks and limit.
         If run_arditi_evals is True, also runs LlamaGuard2, JailbreakBench, and Alpaca CE loss.
+        `conditions` selects intervention conditions from CONDITIONS (default:
+        DEFAULT_CONDITIONS).
+        If generations_path is given, every condition's (prompt, response) pairs are
+        written there as JSON, so a rate can be audited against the actual text
+        (e.g. "0% refusal" from compliance vs. from incoherent output).
         """
         results = {}
+        generations = {}
         num_layers = len(self.intervention_applier.transformer_layers)
         # Recorded because results are only comparable across runs that share it.
         logger.info(f"Evaluation config: gen_batch_size={self.gen_batch_size}, "
                     f"log_odds_metric={'on' if self.metric is not None else 'off'}, "
                     f"dtype={self.model.dtype}")
 
-        def _run_condition(prompts, rate_key, condition_results):
+        def _run_condition(condition_name, prompts, rate_key, condition_results):
             """Generate once, classify with all configured classifiers.
 
             Also records the continuous log-odds metric under the same
@@ -497,6 +529,10 @@ class BigEvaluator:
             companion measurement.
             """
             generated_texts = self.generate_responses(prompts)
+            generations[condition_name] = [
+                {"prompt": p, "response": r, "detected": self._check_for_detection(r)}
+                for p, r in zip(prompts, generated_texts)
+            ]
             condition_results[rate_key] = self.evaluate_detection_rate(prompts, generated_texts=generated_texts)
             log_odds = self._log_odds_metric(prompts)
             if log_odds is not None:
@@ -509,64 +545,68 @@ class BigEvaluator:
                 if jbb_rate is not None:
                     condition_results["jailbreakbench_jailbreak_rate"] = jbb_rate
 
-        logger.info("\n--- Evaluating Baseline Model (No Interventions) ---")
-        results["baseline"] = {}
-        _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["baseline"])
-        results["baseline"]["standard_eval_scores"] = self.run_standard_evals(tasks, limit=limit)
-        if run_arditi_evals:
-            alpaca = self.evaluate_alpaca_ce_loss(max_prompts=alpaca_max_prompts)
-            if alpaca is not None:
-                results["baseline"].update(alpaca)
+        conditions = list(DEFAULT_CONDITIONS if conditions is None else conditions)
+        unknown = [c for c in conditions if c not in CONDITIONS]
+        if unknown:
+            raise ValueError(f"Unknown evaluation condition(s) {unknown}; valid: {list(CONDITIONS)}")
+        # Each baseline runs only if some enabled condition is measured against it.
+        needs_pos_baseline = any(CONDITIONS[c][2] == "positive" for c in conditions)
+        needs_neg_baseline = any(CONDITIONS[c][2] == "negative" for c in conditions)
+        logger.info(f"Evaluation conditions: {conditions}")
 
-        logger.info("\n--- Evaluating Global Ablation (All Layers) ---")
-        self.intervention_applier.apply_direction_intervention(direction, "ablate", strength, layers=list(range(num_layers)))
-        try:
-            results["global_ablation"] = {}
-            _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["global_ablation"])
-            results["global_ablation"]["standard_eval_scores"] = self.run_standard_evals(tasks, limit=limit)
+        def _extras(condition_results):
+            """lm-eval / Alpaca CE: only for the unintervened and ablated model."""
+            condition_results["standard_eval_scores"] = self.run_standard_evals(tasks, limit=limit)
             if run_arditi_evals:
                 alpaca = self.evaluate_alpaca_ce_loss(max_prompts=alpaca_max_prompts)
                 if alpaca is not None:
-                    results["global_ablation"].update(alpaca)
-        finally:
-            self.intervention_applier.clear_interventions()
+                    condition_results.update(alpaca)
 
-        logger.info(f"\n--- Evaluating Layer-Specific Ablation (Layer {direction.layer}) ---")
-        self.intervention_applier.apply_direction_intervention(direction, "ablate", strength, layers=[direction.layer])
-        try:
-            results["layer_specific_ablation"] = {}
-            _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["layer_specific_ablation"])
-            results["layer_specific_ablation"]["standard_eval_scores"] = self.run_standard_evals(tasks, limit=limit)
-            if run_arditi_evals:
-                alpaca = self.evaluate_alpaca_ce_loss(max_prompts=alpaca_max_prompts)
-                if alpaca is not None:
-                    results["layer_specific_ablation"].update(alpaca)
-        finally:
-            self.intervention_applier.clear_interventions()
+        if needs_pos_baseline:
+            logger.info("\n--- Evaluating Baseline Model (No Interventions) ---")
+            results["baseline"] = {}
+            _run_condition("baseline", positive_prompts, "refusal_rate_on_positive_prompts", results["baseline"])
+            _extras(results["baseline"])
 
-        logger.info(f"\n--- Evaluating Layer-Specific Addition (Layer {direction.layer}) ---")
-        self.intervention_applier.apply_direction_intervention(direction, "add", strength, layers=[direction.layer])
-        try:
-            results["layer_specific_addition"] = {}
-            _run_condition(negative_prompts, "refusal_rate_on_negative_prompts", results["layer_specific_addition"])
-        finally:
-            self.intervention_applier.clear_interventions()
+        if needs_neg_baseline:
+            # Reference point for the addition conditions: the induced refusal rate on
+            # harmless prompts means little without the unintervened rate beside it.
+            logger.info("\n--- Evaluating Baseline Model on Negative Prompts (No Interventions) ---")
+            results["baseline_negative"] = {}
+            _run_condition("baseline_negative", negative_prompts, "refusal_rate_on_negative_prompts", results["baseline_negative"])
 
-        logger.info(f"\n--- Evaluating Global Addition (All Layers) ---")
-        self.intervention_applier.apply_direction_intervention(direction, "add", strength, layers=list(range(num_layers)))
-        try:
-            results["global_addition"] = {}
-            _run_condition(negative_prompts, "refusal_rate_on_negative_prompts", results["global_addition"])
-        finally:
-            self.intervention_applier.clear_interventions()
+        for name in conditions:
+            int_type, scope, side = CONDITIONS[name]
+            layers = list(range(num_layers)) if scope == "all" else [direction.layer]
+            where = "All Layers" if scope == "all" else f"Layer {direction.layer}"
+            logger.info(f"\n--- Evaluating {name.replace('_', ' ').title()} ({where}) ---")
+            prompts = positive_prompts if side == "positive" else negative_prompts
+            self.intervention_applier.apply_direction_intervention(direction, int_type, strength, layers=layers)
+            try:
+                results[name] = {}
+                _run_condition(name, prompts, f"refusal_rate_on_{side}_prompts", results[name])
+                if int_type == "ablate":
+                    _extras(results[name])
+            finally:
+                self.intervention_applier.clear_interventions()
 
-        logger.info(f"\n--- Evaluating Layer-Specific Subtraction (Layer {direction.layer}) ---")
-        self.intervention_applier.apply_direction_intervention(direction, "subtract", strength, layers=[direction.layer])
+        # Coherence of every condition's text, scored by the clean model: a rate
+        # of "0% refusal" is only compliance if the text is still fluent (see
+        # coherence.py). Save the raw generations first so a failure here can't
+        # lose them.
+        if generations_path:
+            self._save_generations(generations, generations_path)
+        self.intervention_applier.clear_interventions()
         try:
-            results["layer_specific_subtraction"] = {}
-            _run_condition(positive_prompts, "refusal_rate_on_positive_prompts", results["layer_specific_subtraction"])
-        finally:
-            self.intervention_applier.clear_interventions()
+            for condition, entries in generations.items():
+                results[condition].update(score_condition(
+                    self.model, self.tokenizer, self.framework.prompt_formatter, entries,
+                    batch_size=self.gen_batch_size))
+        except Exception as e:
+            logger.warning(f"Coherence scoring failed; rates are reported without it: {e}")
+
+        if generations_path:
+            self._save_generations(generations, generations_path)
 
         # --- Build the report as a string and log it ---
         report_lines = []

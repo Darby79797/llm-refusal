@@ -1,4 +1,6 @@
 import os
+import json
+import hashlib
 import torch as t
 from typing import Dict, List, Union, Optional
 import logging
@@ -16,6 +18,10 @@ from search import DirectionFinder
 from evaluation import InterventionSuite, BigEvaluator
 
 logger = logging.getLogger(__name__)
+
+# Bump when generation or detection logic changes: invalidates every cached
+# prompt-filtering result (see DirectionTestFramework._filter_cache_path).
+FILTER_CACHE_VERSION = 1
 
 
 def _is_str_sequence(x):
@@ -134,13 +140,52 @@ class DirectionTestFramework:
 
         logger.info(f"Framework initialized on device: {self.device}")
 
-    def _filter_prompts_by_behavior(self, positive_prompts, negative_prompts):
+    def _filter_cache_path(self, positive_prompts, negative_prompts):
+        """Cache file for a filtering pass, keyed on everything that determines its outcome.
+
+        Greedy decoding makes the pass deterministic given: model, dtype, generation
+        batch size (bf16 results depend on it), max_new_tokens, the detector, and
+        the prompts themselves. Bump FILTER_CACHE_VERSION when generation or
+        detection logic changes, to invalidate every entry.
+        """
+        ev = self.evaluator
+        judge = (ev.judge_api_base, ev.judge_model) if (ev.judge_prompt and ev.judge_api_base) else None
+        detector = (getattr(ev.detection_fn, "__qualname__", None) if ev.detection_fn
+                    else sorted(ev.detection_phrases))
+        key = {
+            "version": FILTER_CACHE_VERSION,
+            "model": self.model_name,
+            "dtype": str(self.model.dtype),
+            "gen_batch_size": ev.gen_batch_size,
+            "max_new_tokens": 64,
+            "judge": judge,
+            "detector": detector,
+            "positive": positive_prompts,
+            "negative": negative_prompts,
+        }
+        digest = hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()[:16]
+        model_short = self.model_name.split('/')[-1]
+        return os.path.join("results", "filter-cache", f"{model_short}-{self.concept.name}-{digest}.json")
+
+    def _filter_prompts_by_behavior(self, positive_prompts, negative_prompts, use_cache: bool = True):
         """Filter prompts to only keep those where model behavior matches the label.
 
         Generates baseline responses and checks detection. Keeps:
         - Positive prompts where detection fires (model actually refuses)
         - Negative prompts where detection doesn't fire (model actually complies)
+
+        The pass is ~17% of an evaluate run and identical across runs with the same
+        inputs, so its result is cached (see _filter_cache_path).
         """
+        cache_path = self._filter_cache_path(positive_prompts, negative_prompts)
+        if use_cache and os.path.exists(cache_path):
+            with open(cache_path) as f:
+                cached = json.load(f)
+            logger.info(f"Filtering: reusing cached result {cache_path} "
+                        f"(positive {len(positive_prompts)}→{len(cached['positive'])}, "
+                        f"negative {len(negative_prompts)}→{len(cached['negative'])})")
+            return cached['positive'], cached['negative']
+
         logger.info(f"Filtering prompts by model behavior ({len(positive_prompts)} positive, {len(negative_prompts)} negative)...")
 
         pos_responses = self.evaluator.generate_responses(positive_prompts)
@@ -164,12 +209,16 @@ class DirectionTestFramework:
             raise ValueError("All negative prompts were filtered out — model refuses all of them. "
                              "Cannot compute contrastive direction.")
 
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        with open(cache_path, "w") as f:
+            json.dump({"positive": filtered_pos, "negative": filtered_neg}, f, indent=1)
+        logger.info(f"Cached filtering result to {cache_path}")
         return filtered_pos, filtered_neg
 
-    def _filter_val_by_refusal_score(self, val_pos, val_neg):
-        """Filter val set by refusal score (log-odds of refusal tokens).
+    def _filter_val_by_refusal_score(self, val_pos, val_neg, split_name="val"):
+        """Filter a split by refusal score (log-odds of refusal tokens).
 
-        Matches Arditi's filter_val=True: keep harmful prompts where the model
+        Matches Arditi's filter_train/filter_val=True: keep harmful prompts where the model
         wants to refuse (refusal_score > 0) and harmless prompts where it doesn't
         (refusal_score < 0). Uses the concept's target tokens for scoring.
         """
@@ -186,18 +235,18 @@ class DirectionTestFramework:
             last_indices = last_real_token_indices(attention_mask)
             scores = []
             for i in range(len(prompts)):
-                logits = outputs.logits[i, last_indices[i], :]
+                logits = outputs.logits[i, last_indices[i], :].float()
                 scores.append(metric.compute_log_odds(logits))
             return scores
 
-        logger.info(f"Filtering val set by refusal score ({len(val_pos)} harmful, {len(val_neg)} harmless)...")
+        logger.info(f"Filtering {split_name} set by refusal score ({len(val_pos)} harmful, {len(val_neg)} harmless)...")
         pos_scores = score_prompts(val_pos)
         neg_scores = score_prompts(val_neg)
 
         filtered_pos = [p for p, s in zip(val_pos, pos_scores) if s > 0]
         filtered_neg = [p for p, s in zip(val_neg, neg_scores) if s < 0]
 
-        logger.info(f"Val filtering: harmful {len(val_pos)}→{len(filtered_pos)}, "
+        logger.info(f"{split_name.capitalize()} filtering: harmful {len(val_pos)}→{len(filtered_pos)}, "
                      f"harmless {len(val_neg)}→{len(filtered_neg)}")
         return filtered_pos, filtered_neg
 
@@ -222,8 +271,11 @@ class DirectionTestFramework:
         if is_presplit:
             (positive_prompts, negative_prompts), (val_pos, val_neg) = result
             if config['filter_prompts']:
-                positive_prompts, negative_prompts = self._filter_prompts_by_behavior(
-                    positive_prompts, negative_prompts
+                # Pre-split data is the exact-replication path, so filter train the
+                # way Arditi's filter_train does: by refusal score, not by generating
+                # and phrase-matching as the default path does.
+                positive_prompts, negative_prompts = self._filter_val_by_refusal_score(
+                    positive_prompts, negative_prompts, split_name="train"
                 )
             # Use ALL train data for directions (no holdout)
             train_data = PromptData(positive_prompts + negative_prompts, [True]*len(positive_prompts) + [False]*len(negative_prompts))
@@ -236,7 +288,7 @@ class DirectionTestFramework:
             positive_prompts, negative_prompts = result
             if config['filter_prompts']:
                 positive_prompts, negative_prompts = self._filter_prompts_by_behavior(
-                    positive_prompts, negative_prompts
+                    positive_prompts, negative_prompts, use_cache=config.get('filter_cache', True)
                 )
             train_data = PromptData(positive_prompts + negative_prompts, [True]*len(positive_prompts) + [False]*len(negative_prompts))
             train_data, val_data = train_data.train_val_split()
@@ -248,7 +300,9 @@ class DirectionTestFramework:
         if config['mode'] == "search":
             logger.info("Running in SEARCH mode...")
             self.search_config["induce_mode"] = config['induce_mode']
-            direction_to_test = self.finder.find_best_direction(train_data, val_data)
+            direction_to_test = self.finder.find_best_direction(
+                train_data, val_data,
+                output_prefix=f"{self.model_name.split('/')[-1]}-{self.concept.name}")
             if direction_to_test is None:
                 logger.error("Search concluded without finding a suitable direction vector.")
                 return
@@ -265,9 +319,17 @@ class DirectionTestFramework:
                 logger.error(f"Mode '{config['mode']}' requires 'layer' and 'pos' to be specified.")
                 return
 
+            if pos >= 0:
+                logger.error(f"'pos' must be a negative index from the end of the prompt (got {pos}).")
+                return
+
             logger.info(f"Using pre-specified vector for Layer {layer}, Position {pos}...")
-            # We still need to compute the vector, even if we know the location
-            diff_vectors = self.finder.direction_finder_method.compute_difference_vectors(train_data)
+            # We still need to compute the vector, even if we know the location.
+            # Extract exactly as deep as `pos`: the method's default (5) is shallower
+            # than search's auto max_positions (assistant_prefix_tokens + 1 = 6 on
+            # every supported template), so a search-selected pos -6 was unreachable.
+            diff_vectors = self.finder.direction_finder_method.compute_difference_vectors(
+                train_data, max_positions=-pos)
             vec = diff_vectors.get((layer, pos))
             if vec is None:
                 logger.error(f"Vector at ({layer}, {pos}) not found. Exiting.")
@@ -297,6 +359,10 @@ class DirectionTestFramework:
                 run_arditi_evals=config['arditi_evals'],
                 alpaca_max_prompts=config['alpaca_max_prompts'],
                 strength=config['strength'],
+                conditions=config.get('conditions'),
+                generations_path=(f"results/{self.model_name.split('/')[-1]}-{self.concept.name}"
+                                  f"-evaluate-L{direction_to_test.layer}-P{direction_to_test.position_index}"
+                                  f"-generations.json"),
             )
 
         logger.info("Framework execution finished.")

@@ -477,11 +477,12 @@ def test_evaluate_jailbreakbench_not_installed(mocker):
     assert result is None
 
 
-def test_filter_prompts_by_behavior():
+def test_filter_prompts_by_behavior(tmp_path):
     """Filtering keeps only prompts where model behavior matches the label."""
     from framework import DirectionTestFramework
 
     framework = MagicMock(spec=DirectionTestFramework)
+    framework._filter_cache_path = lambda pos, neg: str(tmp_path / "cache.json")
     framework.evaluator = _make_evaluator(detection_phrases=["I cannot"])
     framework.evaluator.generate_responses = MagicMock(side_effect=[
         # Positive prompt responses: first refuses, second complies
@@ -500,11 +501,12 @@ def test_filter_prompts_by_behavior():
     assert filtered_neg == ["harmless1"]  # Only the one that wasn't refused
 
 
-def test_filter_prompts_by_behavior_empty_positive_raises():
+def test_filter_prompts_by_behavior_empty_positive_raises(tmp_path):
     """Raises ValueError when all positive prompts are filtered out."""
     from framework import DirectionTestFramework
 
     framework = MagicMock(spec=DirectionTestFramework)
+    framework._filter_cache_path = lambda pos, neg: str(tmp_path / "cache.json")
     framework.evaluator = _make_evaluator(detection_phrases=["I cannot"])
     framework.evaluator.generate_responses = MagicMock(side_effect=[
         ["Sure, no problem."],  # Positive prompt not refused → filtered out
@@ -517,11 +519,12 @@ def test_filter_prompts_by_behavior_empty_positive_raises():
         )
 
 
-def test_filter_prompts_by_behavior_empty_negative_raises():
+def test_filter_prompts_by_behavior_empty_negative_raises(tmp_path):
     """Raises ValueError when all negative prompts are filtered out."""
     from framework import DirectionTestFramework
 
     framework = MagicMock(spec=DirectionTestFramework)
+    framework._filter_cache_path = lambda pos, neg: str(tmp_path / "cache.json")
     framework.evaluator = _make_evaluator(detection_phrases=["I cannot"])
     framework.evaluator.generate_responses = MagicMock(side_effect=[
         ["I cannot help with that."],  # Positive refused → kept
@@ -721,3 +724,169 @@ def test_evaluate_alpaca_ce_loss(mocker, tmp_path):
     assert "alpaca_ce_loss" in result
     assert "alpaca_perplexity" in result
     assert result["alpaca_perplexity"] > 0
+
+
+# ============================================================
+# Evaluation report: harmless baseline + saved generations
+# ============================================================
+
+def test_run_all_evaluations_reports_harmless_baseline_and_saves_generations(monkeypatch, tmp_path):
+    """Every condition's text is written out for auditing, and the addition
+    conditions get an unintervened baseline on the same (negative) prompts."""
+    evaluator = _make_evaluator(detection_phrases=["I'm sorry"])
+    evaluator.intervention_applier.transformer_layers = [None] * 4
+    monkeypatch.setattr(evaluator, "generate_responses",
+                        lambda prompts, batch_size=None: [f"I'm sorry {p}" if p.startswith("h") else "Sure" for p in prompts])
+    monkeypatch.setattr(evaluator, "_log_odds_metric", lambda prompts, batch_size=None: None)
+    import evaluation
+    scored = []
+    def fake_score(model, tok, fmt, entries, batch_size=4):
+        # must run with every intervention hook cleared
+        scored.append(len(evaluator.intervention_applier.clear_interventions.call_args_list))
+        for e in entries:
+            e["degenerate"] = False
+        return {"response_nll": 1.0, "degenerate_rate": 0.0}
+    monkeypatch.setattr(evaluation, "score_condition", fake_score)
+
+    direction = DirectionVector(vector=t.randn(8), layer=1, position_index=-1, score=0.0)
+    out = tmp_path / "gens.json"
+    evaluator.run_all_evaluations(direction, ["h1", "h2"], ["b1"], tasks=[], limit=None,
+                                  generations_path=str(out), conditions=list(evaluation.CONDITIONS))
+
+    gens = json_mod.loads(out.read_text())
+    assert set(gens) == {"baseline", "baseline_negative", "global_ablation", "layer_specific_ablation",
+                         "layer_specific_addition", "global_addition", "layer_specific_subtraction"}
+    assert [g["prompt"] for g in gens["baseline_negative"]] == ["b1"]
+    assert {k: gens["baseline"][0][k] for k in ("prompt", "response", "detected")} == {"prompt": "h1", "response": "I'm sorry h1", "detected": True}
+    assert gens["baseline_negative"][0]["detected"] is False
+    assert gens["global_addition"][0]["degenerate"] is False   # coherence fields persisted
+    assert scored == [6] * 7   # 5 intervention conditions + the explicit clear, all before scoring
+
+
+# ============================================================
+# Framework: evaluate/eyeball extract deep enough for `pos`
+# ============================================================
+
+def test_evaluate_mode_extracts_to_requested_position(monkeypatch):
+    """Search's auto max_positions reaches pos -6; evaluate must be able to use it
+    (the extractor's default depth of 5 made -6 unreachable)."""
+    from framework import DirectionTestFramework
+
+    fw = DirectionTestFramework.__new__(DirectionTestFramework)
+    fw.concept = MagicMock()
+    fw.concept.train_data_fn = lambda: ([f"h{i}" for i in range(10)], [f"b{i}" for i in range(10)])
+    fw.concept.eval_data_fn = lambda: (["e+"], ["e-"])
+    seen = {}
+
+    def fake_diff(train_data, max_positions=5):
+        seen["max_positions"] = max_positions
+        return {(3, -p): t.ones(4) for p in range(1, max_positions + 1)}
+
+    fw.finder = MagicMock()
+    fw.finder.direction_finder_method.compute_difference_vectors = fake_diff
+    fw.evaluator = MagicMock()
+    fw.model_name = "org/model"
+
+    fw.run({"filter_prompts": False, "mode": "evaluate", "layer": 3, "pos": -6,
+            "eval_tasks": [], "limit": None, "arditi_evals": False,
+            "alpaca_max_prompts": 1, "strength": 1.0})
+
+    assert seen["max_positions"] == 6
+    direction = fw.evaluator.run_all_evaluations.call_args.args[0]
+    assert (direction.layer, direction.position_index) == (3, -6)
+
+
+# ============================================================
+# Coherence
+# ============================================================
+
+def test_is_degenerate_flags_repetition_loops_only():
+    from coherence import is_degenerate
+    assert is_degenerate([7, 8] * 32)             # "有害有害..." style loop
+    assert not is_degenerate(list(range(64)))      # varied text
+    assert not is_degenerate([1, 2, 3])            # too short to judge (short refusals)
+
+
+def test_response_nll_scores_only_response_tokens():
+    """Uniform logits give NLL = log(V) per token, and prompt tokens are excluded,
+    so the result is exactly log(V) whatever the prompt length."""
+    import math
+    from coherence import response_nll
+
+    V = 50
+
+    class UniformModel:
+        device = t.device("cpu")
+        def __call__(self, input_ids, attention_mask):
+            out = MagicMock()
+            out.logits = t.zeros(*input_ids.shape, V)
+            return out
+
+    tok = MagicMock()
+    tok.pad_token_id = 0
+    tok.encode = lambda s, add_special_tokens=False: [1 + (ord(c) % (V - 1)) for c in s]
+    formatter = MagicMock()
+    formatter.format_batch = lambda ps: {
+        'input_ids': t.tensor([[3] * (5 + len(ps[0]))]),
+        'attention_mask': t.ones(1, 5 + len(ps[0]), dtype=t.long),
+    }
+    nlls = response_nll(UniformModel(), tok, formatter, ["a", "longer prompt"], ["xyz", ""], batch_size=2)
+    assert nlls[0] == pytest.approx(math.log(V))
+    assert math.isnan(nlls[1])
+
+
+def test_filter_prompts_cache_hit_skips_generation(tmp_path):
+    """Second call with the same inputs reuses the cached result without generating;
+    use_cache=False regenerates."""
+    from framework import DirectionTestFramework
+
+    framework = MagicMock(spec=DirectionTestFramework)
+    framework._filter_cache_path = lambda pos, neg: str(tmp_path / "cache.json")
+    framework.evaluator = _make_evaluator(detection_phrases=["I cannot"])
+    framework.evaluator.generate_responses = MagicMock(side_effect=[
+        ["I cannot."], ["Paris."],   # first (uncached) call
+        ["I cannot."], ["Paris."],   # forced regeneration
+    ])
+    args = (framework, ["harmful1"], ["harmless1"])
+    first = DirectionTestFramework._filter_prompts_by_behavior(*args)
+    second = DirectionTestFramework._filter_prompts_by_behavior(*args)
+    assert first == second == (["harmful1"], ["harmless1"])
+    assert framework.evaluator.generate_responses.call_count == 2
+    DirectionTestFramework._filter_prompts_by_behavior(*args, use_cache=False)
+    assert framework.evaluator.generate_responses.call_count == 4
+
+
+def test_filter_cache_key_depends_on_inputs():
+    """Different prompts, batch size or dtype must not share a cache entry."""
+    from framework import DirectionTestFramework
+    fw = DirectionTestFramework.__new__(DirectionTestFramework)
+    fw.model_name, fw.concept = "org/m", MagicMock()
+    fw.concept.name = "refusal"
+    fw.model = MagicMock(); fw.model.dtype = t.bfloat16
+    fw.evaluator = _make_evaluator(detection_phrases=["I cannot"])
+    base = fw._filter_cache_path(["a"], ["b"])
+    assert fw._filter_cache_path(["a"], ["b"]) == base
+    assert fw._filter_cache_path(["a", "c"], ["b"]) != base
+    fw.evaluator.gen_batch_size = 8
+    assert fw._filter_cache_path(["a"], ["b"]) != base
+    fw.evaluator.gen_batch_size = 2
+    fw.model.dtype = t.float32
+    assert fw._filter_cache_path(["a"], ["b"]) != base
+
+
+def test_default_conditions_skip_degenerate_and_redundant(monkeypatch):
+    """Default evaluate runs only the conditions that test a claim, plus the baselines they need."""
+    import evaluation
+    evaluator = _make_evaluator(detection_phrases=["I'm sorry"])
+    evaluator.intervention_applier.transformer_layers = [None] * 4
+    monkeypatch.setattr(evaluator, "generate_responses", lambda prompts, batch_size=None: ["Sure"] * len(prompts))
+    monkeypatch.setattr(evaluator, "_log_odds_metric", lambda prompts, batch_size=None: None)
+    monkeypatch.setattr(evaluation, "score_condition", lambda *a, **k: {})
+    ran = []
+    orig = evaluator.intervention_applier.apply_direction_intervention
+    evaluator.intervention_applier.apply_direction_intervention = lambda d, kind, s, layers: ran.append((kind, len(layers)))
+    direction = DirectionVector(vector=t.randn(8), layer=1, position_index=-1, score=0.0)
+    evaluator.run_all_evaluations(direction, ["h"], ["b"], tasks=[], limit=None)
+    assert ran == [("ablate", 4), ("ablate", 1), ("add", 1)]
+    with pytest.raises(ValueError, match="Unknown evaluation condition"):
+        evaluator.run_all_evaluations(direction, ["h"], ["b"], tasks=[], limit=None, conditions=["nope"])

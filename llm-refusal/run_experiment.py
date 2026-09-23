@@ -10,6 +10,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 from framework import main
+from evaluation import CONDITIONS, DEFAULT_CONDITIONS
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,15 @@ examples:
                         help="Batch size for response generation (default: 2). Greedy decoding is only "
                              "bit-reproducible at a fixed batch size, so keep this constant across the runs "
                              "you intend to compare. ~2.6x faster at 16 on models <=1.5B.")
+    parser.add_argument("--conditions", nargs="+", default=None,
+                        choices=list(CONDITIONS) + ["all"],
+                        help="Evaluate-mode intervention conditions (default: %s). 'all' adds "
+                             "global_addition (always degenerate) and layer_specific_subtraction. "
+                             "Each costs one generation pass." % ", ".join(DEFAULT_CONDITIONS))
+    parser.add_argument("--no-filter-cache", dest="filter_cache", action="store_false",
+                        help="Regenerate the prompt-filtering pass instead of reusing the cached "
+                             "result for this model/concept/dtype/batch size/prompt set")
+    parser.set_defaults(filter_cache=True)
     parser.add_argument(
         "--json",
         dest="json_config",
@@ -100,6 +110,9 @@ def _namespace_to_config(args):
         "induce_mode": args.induce_mode,
         "strength": args.strength,
         "gen_batch_size": args.gen_batch_size,
+        "conditions": (list(CONDITIONS) if args.conditions and "all" in args.conditions
+                       else args.conditions),
+        "filter_cache": args.filter_cache,
     }
 
 
@@ -160,8 +173,11 @@ def parse_args(argv=None):
 
 def setup_logging(config):
     model_short_name = config["model_name"].split("/")[-1]
+    # The concept is part of the name: without it, a sycophancy/hedging search
+    # silently overwrote the refusal search log for the same model.
     log_filename_parts = [
         model_short_name,
+        config["concept"] if config["mode"] != "cross_concept" else "",
         config["mode"],
         f"L{config['layer']}" if config.get("layer") is not None else "",
         f"P{config['pos']}" if config.get("pos") is not None else "",

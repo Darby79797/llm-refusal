@@ -84,7 +84,11 @@ class Three_Score_Evaluator:
                     problem_indices = t.nonzero(t.isinf(batch_logits).any(dim=1) | t.isnan(batch_logits).any(dim=1)).squeeze().tolist()
                     if not isinstance(problem_indices, list): problem_indices = [problem_indices]
                     for idx in problem_indices: logger.warning(f"NaN/Inf detected in logits for prompt at batch index {idx}: '{prompts[idx][:100]}...'")
-                all_logits = [logit.cpu() for logit in batch_logits]
+                # Upcast before any softmax/KL: bf16 models emit bf16 logits, and
+                # log_softmax/KL over a ~150k vocab in bf16 gives e.g. a nonzero
+                # (even negative) self-KL. Small (~0.001 KL, ~0.02 log-odds on
+                # Qwen2.5-1.5B) but free to remove.
+                all_logits = [logit.float().cpu() for logit in batch_logits]
         finally:
             if intervention: self.intervention_applier.clear_interventions()
         return all_logits

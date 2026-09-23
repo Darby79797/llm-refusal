@@ -87,11 +87,15 @@ class DirectionFinder:
             logger.error(f"Failed to generate or save bypass score plot: {e}")
 
     def find_best_direction(
-        self, train_data: PromptData, val_data: PromptData, max_positions: Optional[int] = None
+        self, train_data: PromptData, val_data: PromptData, max_positions: Optional[int] = None,
+        output_prefix: Optional[str] = None,
     ) -> Optional[DirectionVector]:
         """
         Selects a direction vector based on strict multi-objective criteria.
         Also logs a summary of the best candidates found for each metric.
+
+        output_prefix names the saved plots and the per-candidate score CSV
+        (e.g. "<model>-<concept>"); defaults to the model name.
         """
         if max_positions is None:
             cfg_positions = self.search_config.get("max_positions", "auto")
@@ -147,6 +151,13 @@ class DirectionFinder:
                 'induce_global_score': scores.induce_global,
                 'kl_score': scores.kl,
             })
+            # Non-finite scores come from zero vectors: at layer 0 the post-instruction
+            # positions hold identical template-token embeddings for every prompt, so
+            # the difference-in-means is exactly 0 and its unit vector is NaN. Keep
+            # them out of selection (NaN also breaks the fallback's sort order).
+            if not all(np.isfinite([scores.bypass, scores.induce, scores.induce_global, scores.kl])):
+                logger.debug(f"Skipping candidate L{layer} P{pos_idx}: non-finite scores {scores}")
+                continue
             all_candidates.append((current_direction, scores))
 
             if scores.bypass < best_bypass_info['score']:
@@ -168,8 +179,13 @@ class DirectionFinder:
 
         if all_scores_data:
             results_df = pd.DataFrame(all_scores_data)
-            model_short_name = self.model.name_or_path.split('/')[-1] if hasattr(self.model, 'name_or_path') else 'unknown_model'
-            self._plot_and_save_search_results(results_df, model_short_name)
+            if output_prefix is None:
+                output_prefix = self.model.name_or_path.split('/')[-1] if hasattr(self.model, 'name_or_path') else 'unknown_model'
+            os.makedirs("results", exist_ok=True)
+            csv_path = os.path.join("results", f"{output_prefix}-search-scores.csv")
+            results_df.to_csv(csv_path, index=False)
+            logger.info(f"Saved per-candidate search scores to {csv_path}")
+            self._plot_and_save_search_results(results_df, output_prefix)
         else:
             logger.warning("No data was collected during search; skipping data saving and plotting.")
 

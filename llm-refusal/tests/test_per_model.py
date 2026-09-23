@@ -3,7 +3,8 @@ Per-model correctness tests.
 
 These tests verify invariants that must hold for every model we experiment on.
 They catch bugs like:
-  - Left-padding logit corruption (the position_ids / RoPE bug)
+  - Reading a padded batch at the wrong index (the April 2026 scoring bug;
+    left padding itself is fine, see TestLeftPaddingRegression)
   - Chat template not producing a generation prompt (the Llama-2 bug)
   - Activation extraction returning wrong values for padded sequences
 
@@ -116,12 +117,18 @@ class TestPaddedBatchConsistency:
 
 
 # ── 1b. Left-padding regression test ────────────────────────────────────────
-# This test checks which models produce WRONG logits under left-padding
-# (the old default). Models that fail here had corrupted results in all
-# prior experiments. We expect Llama-3 and Llama-3.1 to fail.
+# Left padding read at index -1 is correct; right-padding index arithmetic
+# applied to a left-padded batch is the bug, and must raise.
 
 class TestLeftPaddingRegression:
-    """Identifies models whose prior results were corrupted by left-padding."""
+    """Pins down the April 2026 scoring bug with its *correct* diagnosis.
+
+    That bug was recorded for months as "left padding corrupts RoPE". It did not:
+    RoPE depends only on relative positions, so uniformly shifting every real
+    token is a no-op. The bug was reading a left-padded batch at `mask.sum()-1`
+    (valid only under right padding), which addresses a mid-prompt token.
+    See RESULTS.md "Two Padding Bugs".
+    """
 
     SHORT_PROMPT = "What is 2+2?"
     LONG_PROMPT = (
@@ -130,55 +137,49 @@ class TestLeftPaddingRegression:
         "the role of chlorophyll, and the overall chemical equation."
     )
 
-    def test_left_padding_corrupts_logits(self, per_model_setup):
-        """Check if left-padding produces different top-1 token vs individual.
-        Models that FAIL this test had corrupted prior results and need re-running.
-        Models that PASS were unaffected by the left-padding bug."""
+    def _left_padded_batch(self, tokenizer, formatter):
+        short_ids = formatter.format_batch([self.SHORT_PROMPT])['input_ids'][0]
+        long_ids = formatter.format_batch([self.LONG_PROMPT])['input_ids'][0]
+        pad_len = long_ids.shape[0] - short_ids.shape[0]
+        assert pad_len > 0, "LONG_PROMPT must tokenize longer than SHORT_PROMPT"
+        pad_ids = t.full((pad_len,), tokenizer.pad_token_id, dtype=t.long)
+        ids = t.stack([t.cat([pad_ids, short_ids]), long_ids])
+        mask = t.stack([t.cat([t.zeros(pad_len, dtype=t.long), t.ones_like(short_ids)]),
+                        t.ones_like(long_ids)])
+        return ids, mask
+
+    def test_left_padding_read_at_last_column_is_correct(self, per_model_setup):
+        """Left padding, no position_ids, read at index -1 (Arditi's scheme):
+        must match the unpadded run. If this fails, RoPE/masking really is
+        broken for this model, which would be a new finding."""
         model, tokenizer, formatter, model_name = per_model_setup
 
-        # Get individual (no padding) top-5 for the short prompt
-        # Use the formatter for template, but process individually
-        batch_single = formatter.format_batch([self.SHORT_PROMPT])
-        ids_single = batch_single['input_ids'].to(model.device)
-        mask_single = batch_single['attention_mask'].to(model.device)
-        pos_single = batch_single['position_ids'].to(model.device)
+        single = formatter.format_batch([self.SHORT_PROMPT])
         with t.no_grad():
-            out_single = model(input_ids=ids_single, attention_mask=mask_single, position_ids=pos_single)
-        last_single = mask_single.sum(dim=1) - 1
-        individual_top1 = t.argmax(out_single.logits[0, last_single[0], :].float()).item()
+            out_single = model(input_ids=single['input_ids'].to(model.device),
+                               attention_mask=single['attention_mask'].to(model.device))
+        ref = out_single.logits[0, -1, :].float()
 
-        # Now manually left-pad a batch (simulating old behavior: no position_ids)
-        short_formatted = formatter.format_batch([self.SHORT_PROMPT])
-        long_formatted = formatter.format_batch([self.LONG_PROMPT])
-        short_ids = short_formatted['input_ids'][0]
-        long_ids = long_formatted['input_ids'][0]
-
-        # Left-pad the short one to match long's length
-        pad_len = long_ids.shape[0] - short_ids.shape[0]
-        if pad_len > 0:
-            pad_ids = t.full((pad_len,), tokenizer.pad_token_id, dtype=t.long)
-            padded_short_ids = t.cat([pad_ids, short_ids])
-            padded_short_mask = t.cat([t.zeros(pad_len, dtype=t.long), t.ones_like(short_ids)])
-        else:
-            padded_short_ids = short_ids
-            padded_short_mask = t.ones_like(short_ids)
-
-        batch_ids = t.stack([padded_short_ids, long_ids]).to(model.device)
-        batch_mask = t.stack([padded_short_mask, long_formatted['attention_mask'][0]]).to(model.device)
-
-        # NO position_ids — this is the old broken behavior
+        ids, mask = self._left_padded_batch(tokenizer, formatter)
         with t.no_grad():
-            out_batch = model(input_ids=batch_ids, attention_mask=batch_mask)
-        last_batch = batch_mask.sum(dim=1) - 1
-        batched_top1 = t.argmax(out_batch.logits[0, last_batch[0], :].float()).item()
+            out = model(input_ids=ids.to(model.device), attention_mask=mask.to(model.device))
+        got = out.logits[0, -1, :].float()
 
-        if individual_top1 != batched_top1:
-            pytest.xfail(
-                f"[{model_name}] LEFT-PADDING BUG CONFIRMED: "
-                f"individual top-1={repr(tokenizer.decode([individual_top1]))} "
-                f"vs left-padded={repr(tokenizer.decode([batched_top1]))}. "
-                f"ALL PRIOR RESULTS FOR THIS MODEL WERE CORRUPTED."
-            )
+        assert t.argmax(got).item() == t.argmax(ref).item(), (
+            f"[{model_name}] left-padded top-1 {tokenizer.decode([t.argmax(got).item()])!r} "
+            f"!= unpadded {tokenizer.decode([t.argmax(ref).item()])!r}")
+        corr = t.corrcoef(t.stack([got, ref]))[0, 1].item()
+        assert corr > 0.99, f"[{model_name}] logit correlation {corr:.5f} (bf16 noise should keep this >0.99)"
+
+    def test_right_padding_index_rejects_left_padded_batch(self, per_model_setup):
+        """The actual bug: right-padding index arithmetic applied to a left-padded
+        batch. last_real_token_indices() must refuse instead of returning
+        `mask.sum()-1`, which here points into the middle of the short prompt."""
+        from formatting import last_real_token_indices
+        _, tokenizer, formatter, _ = per_model_setup
+        _, mask = self._left_padded_batch(tokenizer, formatter)
+        with pytest.raises(ValueError, match="not right-padded"):
+            last_real_token_indices(mask)
 
 
 # ── 2. Chat template produces generation boundary ───────────────────────────
