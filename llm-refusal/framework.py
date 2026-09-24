@@ -77,7 +77,7 @@ class DirectionTestFramework:
                  judge_api_base: Optional[str] = None, judge_api_key: Optional[str] = None, judge_model: Optional[str] = None,
                  llamaguard_api_base: Optional[str] = None, llamaguard_api_key: Optional[str] = None,
                  llamaguard_model: Optional[str] = None, jbb_api_key: Optional[str] = None,
-                 gen_batch_size: int = 2):
+                 gen_batch_size: Union[int, str] = "auto"):
         self.model_name = model_name
         self.concept = get_concept(concept)
 
@@ -140,7 +140,7 @@ class DirectionTestFramework:
 
         logger.info(f"Framework initialized on device: {self.device}")
 
-    def _filter_cache_path(self, positive_prompts, negative_prompts):
+    def _filter_cache_path(self, positive_prompts, negative_prompts, batch_size: int):
         """Cache file for a filtering pass, keyed on everything that determines its outcome.
 
         Greedy decoding makes the pass deterministic given: model, dtype, generation
@@ -156,7 +156,7 @@ class DirectionTestFramework:
             "version": FILTER_CACHE_VERSION,
             "model": self.model_name,
             "dtype": str(self.model.dtype),
-            "gen_batch_size": ev.gen_batch_size,
+            "gen_batch_size": batch_size,
             "max_new_tokens": 64,
             "judge": judge,
             "detector": detector,
@@ -177,7 +177,10 @@ class DirectionTestFramework:
         The pass is ~17% of an evaluate run and identical across runs with the same
         inputs, so its result is cached (see _filter_cache_path).
         """
-        cache_path = self._filter_cache_path(positive_prompts, negative_prompts)
+        # Resolved once over both sets, so 'auto' gives a fixed, logged batch size
+        # (and the cache key records the one actually used).
+        batch_size = self.evaluator.resolve_batch_size(list(positive_prompts) + list(negative_prompts), 64)
+        cache_path = self._filter_cache_path(positive_prompts, negative_prompts, batch_size)
         if use_cache and os.path.exists(cache_path):
             with open(cache_path) as f:
                 cached = json.load(f)
@@ -188,11 +191,11 @@ class DirectionTestFramework:
 
         logger.info(f"Filtering prompts by model behavior ({len(positive_prompts)} positive, {len(negative_prompts)} negative)...")
 
-        pos_responses = self.evaluator.generate_responses(positive_prompts)
+        pos_responses = self.evaluator.generate_responses(positive_prompts, batch_size=batch_size)
         filtered_pos = [p for p, r in zip(positive_prompts, pos_responses)
                         if self.evaluator._check_for_detection(r)]
 
-        neg_responses = self.evaluator.generate_responses(negative_prompts)
+        neg_responses = self.evaluator.generate_responses(negative_prompts, batch_size=batch_size)
         filtered_neg = [p for p, r in zip(negative_prompts, neg_responses)
                         if not self.evaluator._check_for_detection(r)]
 

@@ -8,9 +8,14 @@ import argparse
 # Must be set before importing any ML libraries
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
+# Bound the MPS caching allocator so it GCs / raises OOM instead of swapping
+# (see batching.MPS_WATERMARKS; duplicated here because it must precede torch).
+os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", "0.6")
+os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
 
 from framework import main
 from evaluation import CONDITIONS, DEFAULT_CONDITIONS
+from batching import parse_batch_size
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +63,13 @@ examples:
                         help="Intervention strength for evaluate mode (default: 1.0)")
     parser.add_argument("--induce-mode", choices=["single_layer", "all_layers"], default="single_layer",
                         help="Induce score mode for search selection: single_layer (default) or all_layers (Arditi-style)")
-    parser.add_argument("--gen-batch-size", type=int, default=2,
-                        help="Batch size for response generation (default: 2). Greedy decoding is only "
-                             "bit-reproducible at a fixed batch size, so keep this constant across the runs "
-                             "you intend to compare. ~2.6x faster at 16 on models <=1.5B.")
+    parser.add_argument("--gen-batch-size", type=parse_batch_size, default="auto",
+                        help="Batch size for generation and scoring: an int, or 'auto' (default). 'auto' picks "
+                             "the largest power of two (<=64) whose estimated peak memory fits half of "
+                             "(device memory - weights). It is deterministic for a given machine, model, prompt "
+                             "set and generation length, and is logged. In bf16 on MPS, results shift by a few "
+                             "pp across batch sizes (and bs<=8 is no faster than bs=2), so pin an int to "
+                             "reproduce an earlier run.")
     parser.add_argument("--conditions", nargs="+", default=None,
                         choices=list(CONDITIONS) + ["all"],
                         help="Evaluate-mode intervention conditions (default: %s). 'all' adds "

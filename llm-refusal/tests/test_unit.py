@@ -488,7 +488,7 @@ def test_filter_prompts_by_behavior(tmp_path):
     from framework import DirectionTestFramework
 
     framework = MagicMock(spec=DirectionTestFramework)
-    framework._filter_cache_path = lambda pos, neg: str(tmp_path / "cache.json")
+    framework._filter_cache_path = lambda pos, neg, bs: str(tmp_path / "cache.json")
     framework.evaluator = _make_evaluator(detection_phrases=["I cannot"])
     framework.evaluator.generate_responses = MagicMock(side_effect=[
         # Positive prompt responses: first refuses, second complies
@@ -512,7 +512,7 @@ def test_filter_prompts_by_behavior_empty_positive_raises(tmp_path):
     from framework import DirectionTestFramework
 
     framework = MagicMock(spec=DirectionTestFramework)
-    framework._filter_cache_path = lambda pos, neg: str(tmp_path / "cache.json")
+    framework._filter_cache_path = lambda pos, neg, bs: str(tmp_path / "cache.json")
     framework.evaluator = _make_evaluator(detection_phrases=["I cannot"])
     framework.evaluator.generate_responses = MagicMock(side_effect=[
         ["Sure, no problem."],  # Positive prompt not refused → filtered out
@@ -530,7 +530,7 @@ def test_filter_prompts_by_behavior_empty_negative_raises(tmp_path):
     from framework import DirectionTestFramework
 
     framework = MagicMock(spec=DirectionTestFramework)
-    framework._filter_cache_path = lambda pos, neg: str(tmp_path / "cache.json")
+    framework._filter_cache_path = lambda pos, neg, bs: str(tmp_path / "cache.json")
     framework.evaluator = _make_evaluator(detection_phrases=["I cannot"])
     framework.evaluator.generate_responses = MagicMock(side_effect=[
         ["I cannot help with that."],  # Positive refused → kept
@@ -746,7 +746,7 @@ def test_run_all_evaluations_reports_harmless_baseline_and_saves_generations(mon
     monkeypatch.setattr(evaluator, "_log_odds_metric", lambda prompts, batch_size=None: None)
     import evaluation
     scored = []
-    def fake_score(model, tok, fmt, entries, batch_size=4):
+    def fake_score(model, tok, fmt, entries, batch_size=4, **kwargs):
         # must run with every intervention hook cleared
         scored.append(len(evaluator.intervention_applier.clear_interventions.call_args_list))
         for e in entries:
@@ -823,7 +823,7 @@ def test_response_nll_scores_only_response_tokens():
 
     class UniformModel:
         device = t.device("cpu")
-        def __call__(self, input_ids, attention_mask):
+        def __call__(self, input_ids, attention_mask, **kwargs):
             out = MagicMock()
             out.logits = t.zeros(*input_ids.shape, V)
             return out
@@ -847,7 +847,7 @@ def test_filter_prompts_cache_hit_skips_generation(tmp_path):
     from framework import DirectionTestFramework
 
     framework = MagicMock(spec=DirectionTestFramework)
-    framework._filter_cache_path = lambda pos, neg: str(tmp_path / "cache.json")
+    framework._filter_cache_path = lambda pos, neg, bs: str(tmp_path / "cache.json")
     framework.evaluator = _make_evaluator(detection_phrases=["I cannot"])
     framework.evaluator.generate_responses = MagicMock(side_effect=[
         ["I cannot."], ["Paris."],   # first (uncached) call
@@ -870,14 +870,12 @@ def test_filter_cache_key_depends_on_inputs():
     fw.concept.name = "refusal"
     fw.model = MagicMock(); fw.model.dtype = t.bfloat16
     fw.evaluator = _make_evaluator(detection_phrases=["I cannot"])
-    base = fw._filter_cache_path(["a"], ["b"])
-    assert fw._filter_cache_path(["a"], ["b"]) == base
-    assert fw._filter_cache_path(["a", "c"], ["b"]) != base
-    fw.evaluator.gen_batch_size = 8
-    assert fw._filter_cache_path(["a"], ["b"]) != base
-    fw.evaluator.gen_batch_size = 2
+    base = fw._filter_cache_path(["a"], ["b"], 2)
+    assert fw._filter_cache_path(["a"], ["b"], 2) == base
+    assert fw._filter_cache_path(["a", "c"], ["b"], 2) != base
+    assert fw._filter_cache_path(["a"], ["b"], 8) != base
     fw.model.dtype = t.float32
-    assert fw._filter_cache_path(["a"], ["b"]) != base
+    assert fw._filter_cache_path(["a"], ["b"], 2) != base
 
 
 def test_default_conditions_skip_degenerate_and_redundant(monkeypatch):

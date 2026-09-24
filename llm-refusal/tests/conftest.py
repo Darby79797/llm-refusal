@@ -7,6 +7,10 @@ import logging
 # Must be set before importing any ML libraries
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
+# Bound the MPS caching allocator so it GCs / raises OOM instead of swapping
+# (see batching.MPS_WATERMARKS; duplicated here because it must precede torch).
+os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", "0.6")
+os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
 
 # Suppress Pydantic v1 validator warnings only for Hugging Face / Transformers libraries
 warnings.filterwarnings(

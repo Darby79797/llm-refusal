@@ -22,6 +22,7 @@ from generation import generate_with_hooks
 from scoring import LogOddsMetric
 from concept import DEFAULT_REFUSAL_PHRASES
 from coherence import score_condition
+from batching import map_batched, parse_batch_size, resolve_batch_size
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class InterventionSuite:
         self.tokenizer = tokenizer
         self.intervention_applier = intervention_applier
         self.prompt_formatter = prompt_formatter
-        self.gen_batch_size = gen_batch_size
+        self.gen_batch_size = parse_batch_size(gen_batch_size)
 
     def _generate(self, test_prompts: List[str], max_new_tokens: int) -> List[str]:
         """Generate in fixed-size chunks, so every condition sees identical batch
@@ -41,13 +42,12 @@ class InterventionSuite:
         that into whole-trajectory divergence on near-tied logits — so comparing a
         baseline generated at one batch size against an intervention generated at
         another compares two different decoders."""
-        texts = []
-        for i in range(0, len(test_prompts), self.gen_batch_size):
-            texts += generate_with_hooks(
-                self.model, self.tokenizer, self.prompt_formatter,
-                test_prompts[i:i + self.gen_batch_size], max_new_tokens=max_new_tokens,
-            )
-        return texts
+        bs = resolve_batch_size(self.gen_batch_size, self.model, self.prompt_formatter,
+                                test_prompts, max_new_tokens)
+        return map_batched(
+            lambda chunk: generate_with_hooks(self.model, self.tokenizer, self.prompt_formatter,
+                                              chunk, max_new_tokens=max_new_tokens),
+            test_prompts, bs)
 
     def test_generation(
         self,
@@ -127,7 +127,10 @@ class BigEvaluator:
         # by a few points. Keep it fixed within a comparison; raise it (memory
         # permitting) for small models when throughput matters more than
         # comparability with previously logged runs.
-        self.gen_batch_size = gen_batch_size
+        self.gen_batch_size = parse_batch_size(gen_batch_size)
+        # Batches that ran out of memory and were split (see batching.map_batched).
+        # Nonzero means some rows ran at a smaller batch shape than the rest.
+        self.oom_splits = 0
         self.model = framework.model
         self.tokenizer = framework.tokenizer
         self.intervention_applier = framework.intervention_applier
@@ -170,11 +173,11 @@ class BigEvaluator:
         """
         if self.metric is None or not prompts:
             return None
-        bs = batch_size or self.gen_batch_size
+        bs = batch_size or self.resolve_batch_size(prompts, max_new_tokens=0)
         device = self.model.device
-        scores = []
-        for i in range(0, len(prompts), bs):
-            batch = self.framework.prompt_formatter.format_batch(prompts[i:i + bs])
+
+        def score(chunk):
+            batch = self.framework.prompt_formatter.format_batch(chunk)
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             position_ids = batch['position_ids'].to(device)
@@ -182,8 +185,10 @@ class BigEvaluator:
                 logits = self.model(input_ids=input_ids, attention_mask=attention_mask,
                                     position_ids=position_ids).logits
             last = last_real_token_indices(attention_mask)
-            for j in range(input_ids.shape[0]):
-                scores.append(self.metric.compute_log_odds(logits[j, last[j], :].float()))
+            return [self.metric.compute_log_odds(logits[j, last[j], :].float())
+                    for j in range(input_ids.shape[0])]
+
+        scores = map_batched(score, prompts, bs, on_split=self._record_split)
         finite = [s for s in scores if not math.isnan(s)]
         return sum(finite) / len(finite) if finite else float('nan')
 
@@ -238,21 +243,28 @@ class BigEvaluator:
         per-sequence positions, and does pure greedy argmax.
         """
         if batch_size is None:
-            batch_size = self.gen_batch_size
-        all_texts = []
-        num_batches = (len(prompts) + batch_size - 1) // batch_size
+            batch_size = self.resolve_batch_size(prompts, max_new_tokens)
+        progress = tqdm(total=len(prompts), desc="Generating Responses")
 
-        for i in tqdm(range(num_batches), desc="Generating Responses"):
-            batch_prompts = prompts[i*batch_size : (i+1)*batch_size]
-            all_texts.extend(generate_with_hooks(
-                self.model,
-                self.tokenizer,
-                self.framework.prompt_formatter,
-                batch_prompts,
-                max_new_tokens=max_new_tokens,
-            ))
+        def generate(chunk):
+            texts = generate_with_hooks(self.model, self.tokenizer, self.framework.prompt_formatter,
+                                        chunk, max_new_tokens=max_new_tokens)
+            progress.update(len(chunk))
+            return texts
 
-        return all_texts
+        try:
+            return map_batched(generate, prompts, batch_size, on_split=self._record_split)
+        finally:
+            progress.close()
+
+    def resolve_batch_size(self, prompts: List[str], max_new_tokens: int) -> int:
+        """The configured batch size, with 'auto' resolved for this prompt set and
+        generation length (deterministic per machine/model; see batching.py)."""
+        return resolve_batch_size(self.gen_batch_size, self.model, self.framework.prompt_formatter,
+                                  prompts, max_new_tokens)
+
+    def _record_split(self, chunk_size: int):
+        self.oom_splits += 1
 
     def evaluate_detection_rate(self, prompts: List[str], batch_size: Optional[int] = None,
                                 generated_texts: Optional[List[str]] = None) -> float:
@@ -539,8 +551,12 @@ class BigEvaluator:
         results = {}
         generations = {}
         num_layers = len(self.intervention_applier.transformer_layers)
+        # One batch size for every condition, resolved once over both prompt sets:
+        # conditions are only comparable if they share it (bf16 numerics depend on it).
+        bs = self.resolve_batch_size(list(positive_prompts) + list(negative_prompts), max_new_tokens)
+        splits_before = self.oom_splits
         # Recorded because results are only comparable across runs that share it.
-        logger.info(f"Evaluation config: gen_batch_size={self.gen_batch_size}, max_new_tokens={max_new_tokens}, "
+        logger.info(f"Evaluation config: gen_batch_size={bs} (requested {self.gen_batch_size}), max_new_tokens={max_new_tokens}, "
                     f"log_odds_metric={'on' if self.metric is not None else 'off'}, "
                     f"dtype={self.model.dtype}")
 
@@ -551,13 +567,13 @@ class BigEvaluator:
             intervention, so every rate in the report has a decoding-free
             companion measurement.
             """
-            generated_texts = self.generate_responses(prompts, max_new_tokens=max_new_tokens)
+            generated_texts = self.generate_responses(prompts, batch_size=bs, max_new_tokens=max_new_tokens)
             generations[condition_name] = [
                 {"prompt": p, "response": r, "detected": self._check_for_detection(r)}
                 for p, r in zip(prompts, generated_texts)
             ]
             condition_results[rate_key] = self.evaluate_detection_rate(prompts, generated_texts=generated_texts)
-            log_odds = self._log_odds_metric(prompts)
+            log_odds = self._log_odds_metric(prompts, batch_size=bs)
             if log_odds is not None:
                 condition_results["log_odds_metric"] = log_odds
             if run_arditi_evals:
@@ -627,7 +643,7 @@ class BigEvaluator:
             for condition, entries in generations.items():
                 results[condition].update(score_condition(
                     self.model, self.tokenizer, self.framework.prompt_formatter, entries,
-                    batch_size=self.gen_batch_size))
+                    batch_size=bs, on_split=self._record_split))
         except Exception as e:
             logger.warning(f"Coherence scoring failed; rates are reported without it: {e}")
 
@@ -647,7 +663,11 @@ class BigEvaluator:
                     report_lines.append(f"  {metric}: {value:.4f}")
 
         # Construct the final multi-line string
-        header = "\n\n" + "="*20 + " COMPREHENSIVE EVALUATION REPORT " + "="*20
+        splits = self.oom_splits - splits_before
+        header = ("\n\n" + "="*20 + " COMPREHENSIVE EVALUATION REPORT " + "="*20
+                  + f"\n  gen_batch_size: {bs}, max_new_tokens: {max_new_tokens}, dtype: {self.model.dtype}"
+                  + (f"\n  WARNING: {splits} batch(es) ran out of memory and were split; those rows ran at a "
+                     "smaller batch shape, so their bf16 numerics are not comparable with the rest." if splits else ""))
         report_body = "".join(report_lines)
         footer = "\n" + "="*70 + "\n"
 

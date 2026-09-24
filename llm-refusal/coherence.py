@@ -25,6 +25,7 @@ from typing import Dict, List, Optional
 import torch as t
 
 from formatting import ChatPromptFormatter
+from batching import map_batched
 
 DEGENERATE_DISTINCT_BIGRAM_RATIO = 0.5
 _MIN_TOKENS_FOR_DEGENERACY = 16
@@ -44,7 +45,8 @@ def is_degenerate(token_ids: List[int]) -> bool:
 
 
 def response_nll(model, tokenizer, prompt_formatter: ChatPromptFormatter,
-                 prompts: List[str], responses: List[str], batch_size: int = 4) -> List[float]:
+                 prompts: List[str], responses: List[str], batch_size: int = 4,
+                 on_split=None) -> List[float]:
     """Mean per-token NLL of each response given its prompt, under `model` as-is.
 
     Callers must ensure no intervention hooks are active. Rows are built as
@@ -53,10 +55,10 @@ def response_nll(model, tokenizer, prompt_formatter: ChatPromptFormatter,
     """
     device = model.device
     pad_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
-    out: List[float] = []
-    for i in range(0, len(prompts), batch_size):
+
+    def score_batch(pairs):
         rows, spans = [], []
-        for prompt, response in zip(prompts[i:i + batch_size], responses[i:i + batch_size]):
+        for prompt, response in pairs:
             enc = prompt_formatter.format_batch([prompt])
             p_ids = enc['input_ids'][0][enc['attention_mask'][0].bool()].tolist()
             r_ids = tokenizer.encode(response, add_special_tokens=False)
@@ -69,26 +71,30 @@ def response_nll(model, tokenizer, prompt_formatter: ChatPromptFormatter,
             ids[j, :len(r)] = t.tensor(r)
             mask[j, :len(r)] = 1
         with t.no_grad():
-            logits = model(input_ids=ids.to(device), attention_mask=mask.to(device)).logits
+            # use_cache=False: a KV cache here is never read and only costs memory.
+            logits = model(input_ids=ids.to(device), attention_mask=mask.to(device), use_cache=False).logits
+        scores = []
         for j, (p_len, r_len) in enumerate(spans):
             if r_len == 0:
-                out.append(float('nan'))
+                scores.append(float('nan'))
                 continue
             # Token k is predicted by logits at k-1. Upcast/softmax only the
             # response span: materialising fp32 log-probs for the whole padded
             # batch costs ~3x the memory for tokens that are never scored.
             span_lp = t.log_softmax(logits[j, p_len - 1:p_len - 1 + r_len].float(), dim=-1)
             targets = ids[j, p_len:p_len + r_len].to(device)
-            out.append(-span_lp.gather(-1, targets.unsqueeze(-1)).mean().item())
-    return out
+            scores.append(-span_lp.gather(-1, targets.unsqueeze(-1)).mean().item())
+        return scores
+
+    return map_batched(score_batch, list(zip(prompts, responses)), batch_size, on_split=on_split)
 
 
 def score_condition(model, tokenizer, prompt_formatter, entries: List[Dict],
-                    batch_size: int = 4) -> Dict[str, float]:
+                    batch_size: int = 4, on_split=None) -> Dict[str, float]:
     """Coherence summary for one condition's [{'prompt','response',...}] list."""
     prompts = [e['prompt'] for e in entries]
     responses = [e['response'] for e in entries]
-    nlls = response_nll(model, tokenizer, prompt_formatter, prompts, responses, batch_size)
+    nlls = response_nll(model, tokenizer, prompt_formatter, prompts, responses, batch_size, on_split=on_split)
     degenerate = [is_degenerate(tokenizer.encode(r, add_special_tokens=False)) for r in responses]
     for e, nll, deg in zip(entries, nlls, degenerate):
         e['nll'] = nll

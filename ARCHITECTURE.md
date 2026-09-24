@@ -15,6 +15,7 @@ All code under `llm-refusal/`. Flat imports (`from formatting import ...`), set 
 | `search.py` | `DirectionFinder` — multi-objective search with progressive fallback tiers, supports `induce_mode` |
 | `evaluation.py` | `BigEvaluator` (detection rates, LlamaGuard2, JailbreakBench, Alpaca CE, lm-eval), `InterventionSuite` (eyeball) |
 | `coherence.py` | Per-response coherence under the clean model: `degenerate` (repetition-loop flag, the breakage signal) and response NLL (divergence from clean behaviour, not fluency). Scored for every evaluate condition (~4% of runtime) |
+| `batching.py` | `--gen-batch-size auto` resolution (deterministic memory estimate → largest power of two), `map_batched` (splits a batch in half on OOM and records it), MPS allocator watermarks |
 | `generation.py` | `generate_with_hooks()` — autoregressive gen with KV-cache and explicit `position_ids` (hooks fire per-step) |
 | `cross_concept.py` | Cosine similarity, PCA, interference matrix, multi-ablation composition |
 | `attribution.py` | Circuit analysis: per-head/MLP projection onto the direction, contrastive (harmful−benign) attribution. Used by `scripts/`, not the CLI |
