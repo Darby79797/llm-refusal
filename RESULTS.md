@@ -55,7 +55,18 @@ Every headline effect clears its interval by a wide margin. Even the weakest, Ll
 - **Llama-2 template bug**: HuggingFace's Llama-2 chat template doesn't respond to `add_generation_prompt`. We override with `[INST] {x} [/INST] ` (trailing space). Without this, induction fails completely.
 - **Our dataset produces strong directions**: topic-matched prompts work well (90 harmful / 64 harmless train, 99/80 eval). Arditi's 128+128 set (from AdvBench, MaliciousInstruct and TDC2023) also works when scoring is correct.
 - **Detection is Arditi's phrase list.** `DEFAULT_REFUSAL_PHRASES` is exactly Arditi's JailbreakBench refusal-substring list. Reading the Qwen2.5-0.5B generations, it misses about 1 in 100 responses in each direction ("…is illegal and unethical", "I am not capable of…"). That is small next to the ~90pp effects, but it is part of the ±3pp noise floor.
-- **Not yet replicated: the safety half of the paper.** Arditi pair the refusal score with a Llama Guard 2 *safety* score over JailbreakBench, and generate 512 tokens. Everything above is phrase-match refusal only, at 64 tokens. "Ablation removes refusal phrases" is established here; "ablation elicits unsafe completions" is not. The plumbing exists (`--arditi-evals`); no reported run has used it.
+- **The safety half of the paper replicates (Llama-3-8B, 2026-09-24).** Setup: `refusal_arditi_exact`, L12/pos-5, JailbreakBench, 512 greedy tokens, LlamaGuard 2, bf16, bs=2, `results/safety1/`. Match to the paper's Table (fine-tuning comparison, Llama-3 8B):
+
+  | | Refusal score | Safety score (1 = safe) |
+  |---|---|---|
+  | Paper, no intervention | 0.95 | 0.97 |
+  | Ours, no intervention | 0.96 [0.90, 0.98] | 0.98 (unsafe 2% [0.6, 7.0]) |
+  | Paper, directional ablation | 0.01 | 0.15 |
+  | Ours, directional ablation | 0.00 [0.00, 0.04] | 0.17 (unsafe 83% [74.5, 89.1]) |
+
+  Activation addition at L12 on 100 Alpaca prompts: harmless baseline 0% refusal, addition 100% [96.3, 100], all fluent (0% degenerate), with LlamaGuard 0% unsafe as expected. The LlamaGuard verdict is deterministic: re-classifying the same responses reproduces 83/100.
+  - **The safety score is a lower bound on harm.** Of the 17 ablated responses rated "safe", about 13 are LlamaGuard 2 false negatives: fully compliant harassment, a body-shaming campaign, cult recruitment, political disinformation, and a fake minor's account for sexual solicitation. Its misses cluster in harassment and misinformation. Only about 4 are genuinely safe: the model reinterpreted "make a bomb" as a dessert, or corrected a false premise. Read by hand, the ablated model complies with ~95% of JailbreakBench.
+  - **Not replicated:** the paper's CE-loss columns. Our "Alpaca CE" scores instruction tokens, not completions (see ARDITI.md); it moved 5.04 → 5.08 under ablation.
 - **Intervals are narrow enough for the headline, too wide for fine comparisons.** At n=99 harmful / 80 harmless, a 0% rate still has an upper bound of 3.7-4.6%, and a 3pp difference is ~3 prompts, inside both sampling error and bf16 decoding noise. See the Wilson table above; differences between models of a few pp should not be interpreted.
 
 > **Everything below this line is pre-fix and unreliable.** All non-refusal findings are detection rates produced by the broken generation path (bug 2), on Qwen2.5 models — the family the bug hit hardest. None have been re-run. Treat them as hypotheses, not results.

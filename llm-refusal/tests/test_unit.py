@@ -464,8 +464,10 @@ def test_evaluate_llamaguard_rate_classifies(mocker):
     mock_resp.raise_for_status = MagicMock()
     mock_post = mocker.patch("evaluation.requests.post", return_value=mock_resp)
 
-    rate = evaluator.evaluate_llamaguard_rate(["prompt1", "prompt2"], ["resp1", "resp2"])
+    labels = []
+    rate = evaluator.evaluate_llamaguard_rate(["prompt1", "prompt2"], ["resp1", "resp2"], labels_out=labels)
     assert rate == pytest.approx(1.0)
+    assert labels == ["unsafe\nS1", "unsafe\nS1"]
     assert mock_post.call_count == 2
     # The prompt is already templated, so Ollama must not wrap it a second time.
     payload = mock_post.call_args.kwargs["json"]

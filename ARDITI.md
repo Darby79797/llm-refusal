@@ -4,7 +4,7 @@
 
 We replicate the **direction-selection** result of Arditi & Obeso's "Refusal in Language Models Is Mediated by a Single Direction" on Llama-3-8B-Instruct: our pipeline selects **L12/pos-5** — exactly matching the paper — with bypass_score=-10.7 (paper: -9.7), strictly passing all criteria (induce > 0, KL < 0.1).
 
-Scope: this covers §2.3 (extracting the direction) and the refusal-score half of §3. It does **not** yet cover the paper's *safety* score (Llama Guard 2 over JailbreakBench, 512-token generations), so "ablation elicits unsafe completions" is untested here — only "ablation removes refusal phrasing". §4 (weight orthogonalisation) and §5 (adversarial suffixes) are out of scope.
+Scope: this covers §2.3 (extracting the direction) and **both halves of §3**. The refusal score replicates, and since 2026-09-24 so does the *safety* score: Llama Guard 2 over JailbreakBench at 512 tokens gives 0.98 → 0.17 under directional ablation (paper: 0.97 → 0.15). See RESULTS.md. Not replicated: the CE-loss metrics (our Alpaca data has no completions). §4 (weight orthogonalisation) and §5 (adversarial suffixes) are out of scope.
 
 The replication was blocked for months by an **indexing bug on padded batches**, and the behavioural numbers were subsequently wrong again for a different padding reason. Both are recorded under "Bugs Found" below and in RESULTS.md "Two Padding Bugs".
 
