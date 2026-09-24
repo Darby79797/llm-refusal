@@ -103,14 +103,19 @@ def check_weights_fit(model_name: str, n_params: int, dtype, device: t.device, u
                       working_margin: int = 4 * 10**9) -> None:
     """Raise before loading if the weights alone would leave < working_margin free.
     Loading anyway would swap on MPS/CPU, or OOM partway through on CUDA."""
-    if dtype == "auto":
-        return
     need = n_params * t.tensor([], dtype=dtype).element_size()
     if need + working_margin > usable:
         raise ValueError(
             f"{model_name} in {str(dtype).replace('torch.', '')} needs ~{need / 1e9:.1f} GB of weights, "
             f"but {device.type} has ~{usable / 1e9:.1f} GB usable (with {working_margin / 1e9:.0f} GB kept for "
-            f"activations). Use --torch-dtype bfloat16 (numerics then depend on batch size) or a larger GPU.")
+            f"activations). Use a smaller dtype (--torch-dtype bfloat16 / auto) or a larger GPU.")
+
+
+def stored_dtype(model_name: str) -> t.dtype:
+    """The checkpoint's stored dtype (what dtype='auto' loads), defaulting to fp32."""
+    from transformers import AutoConfig
+    d = getattr(AutoConfig.from_pretrained(model_name), "torch_dtype", None)
+    return parse_dtype(str(d).replace("torch.", "")) if d is not None else t.float32
 
 
 def count_parameters(model_name: str) -> int:
@@ -134,7 +139,7 @@ class DirectionTestFramework:
     """
     Main orchestrator for finding, evaluating, and testing direction vectors.
     """
-    def __init__(self, model_name: str, torch_dtype: Union[str, t.dtype] = "float32", force_cpu: bool = False, concept: str = "refusal",
+    def __init__(self, model_name: str, torch_dtype: Union[str, t.dtype] = "auto", force_cpu: bool = False, concept: str = "refusal",
                  judge_api_base: Optional[str] = None, judge_api_key: Optional[str] = None, judge_model: Optional[str] = None,
                  llamaguard_api_base: Optional[str] = None, llamaguard_api_key: Optional[str] = None,
                  llamaguard_model: Optional[str] = None, jbb_api_key: Optional[str] = None,
@@ -154,18 +159,18 @@ class DirectionTestFramework:
         else:
             self.device = t.device("cpu")
             logger.info(f"No GPU/MPS found. Using device: {self.device}")
-        # fp32 by default, as the reference measurement. Checkpoints are stored in
-        # bf16 (Llama-2: fp16), and upcasting them is exact, so fp32 evaluates the
-        # same function with less rounding between ops. That is closer to the
-        # released weights' exact function, but not how models are usually served:
-        # typical inference feeds bf16 into matmuls with fp32 accumulation. fp32 is
-        # also batch-invariant on MPS (bf16 is not; see batching.py). bf16 is
-        # opt-in, both as the deployment-realistic setting and for models whose
-        # fp32 weights don't fit.
+        # Default "auto" = the checkpoint's stored dtype (bf16 for Qwen2.5 / Llama-3,
+        # fp16 for Llama-2), i.e. how these models are actually run. bf16 vs fp32
+        # changed 7 of 1,361 refusal labels on Qwen2.5-0.5B/1.5B/3B (RESULTS.md),
+        # concentrated on near-tied prompts in borderline conditions, and within
+        # sampling error. It is also 2-15x faster on
+        # CUDA tensor cores, halves memory, and is the only option at 70B. fp32 is
+        # opt-in, for debugging: it evaluates the same function with less rounding
+        # and is exactly batch-invariant on MPS, where bf16 drifts by a few pp.
         torch_dtype = parse_dtype(torch_dtype)
-        if torch_dtype != "auto":
-            check_weights_fit(model_name, count_parameters(model_name), torch_dtype, self.device,
-                              usable_device_bytes(self.device))
+        check_weights_fit(model_name, count_parameters(model_name),
+                          stored_dtype(model_name) if torch_dtype == "auto" else torch_dtype,
+                          self.device, usable_device_bytes(self.device))
         if torch_dtype == t.float32:
             use_full_fp32_matmuls()
         logger.info(f"Loading chat model '{model_name}' to device '{self.device}' as {torch_dtype}...")

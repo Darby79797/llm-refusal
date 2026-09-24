@@ -911,8 +911,7 @@ def test_check_weights_fit_refuses_before_loading():
     """8B params in fp32 = 32 GB: refuse on a ~31 GB MPS budget, allow in bf16 or on an 80 GB GPU."""
     from framework import check_weights_fit
     n = 8 * 10**9
-    with pytest.raises(ValueError, match="--torch-dtype bfloat16"):
+    with pytest.raises(ValueError, match="smaller dtype"):
         check_weights_fit("m", n, t.float32, t.device("mps"), usable=31 * 10**9)
     check_weights_fit("m", n, t.bfloat16, t.device("mps"), usable=31 * 10**9)
     check_weights_fit("m", n, t.float32, t.device("cuda"), usable=80 * 10**9)
-    check_weights_fit("m", n, "auto", t.device("mps"), usable=1)  # auto: dtype unknown until load, no check
