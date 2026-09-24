@@ -894,3 +894,25 @@ def test_default_conditions_skip_degenerate_and_redundant(monkeypatch):
     assert ran == [("ablate", 4), ("ablate", 1), ("add", 1)]
     with pytest.raises(ValueError, match="Unknown evaluation condition"):
         evaluator.run_all_evaluations(direction, ["h"], ["b"], tasks=[], limit=None, conditions=["nope"])
+
+
+# ============================================================
+# Compute dtype
+# ============================================================
+
+@pytest.mark.parametrize("value,expected", [("float32", t.float32), ("bf16", t.bfloat16), ("auto", "auto"),
+                                            (t.float16, t.float16)])
+def test_parse_dtype(value, expected):
+    from framework import parse_dtype
+    assert parse_dtype(value) == expected
+
+
+def test_check_weights_fit_refuses_before_loading():
+    """8B params in fp32 = 32 GB: refuse on a ~31 GB MPS budget, allow in bf16 or on an 80 GB GPU."""
+    from framework import check_weights_fit
+    n = 8 * 10**9
+    with pytest.raises(ValueError, match="--torch-dtype bfloat16"):
+        check_weights_fit("m", n, t.float32, t.device("mps"), usable=31 * 10**9)
+    check_weights_fit("m", n, t.bfloat16, t.device("mps"), usable=31 * 10**9)
+    check_weights_fit("m", n, t.float32, t.device("cuda"), usable=80 * 10**9)
+    check_weights_fit("m", n, "auto", t.device("mps"), usable=1)  # auto: dtype unknown until load, no check

@@ -22,7 +22,7 @@ def test_minimal_json_config_gets_all_defaults():
 
     assert config["model_name"] == "x"
     assert config["mode"] == "search"
-    assert config["torch_dtype"] == "auto"
+    assert config["torch_dtype"] == "float32"
     assert config["force_cpu"] is False
     assert config["filter_prompts"] is True
     assert config["concept"] == "refusal"
@@ -37,7 +37,7 @@ def test_minimal_json_config_via_parse_args():
     config = parse_args(["--json", json.dumps({"model_name": "x", "mode": "search"})])
     assert config["model_name"] == "x"
     assert config["mode"] == "search"
-    assert config["torch_dtype"] == "auto"
+    assert config["torch_dtype"] == "float32"
     assert config["force_cpu"] is False
     assert config["filter_prompts"] is True
     assert config["concept"] == "refusal"

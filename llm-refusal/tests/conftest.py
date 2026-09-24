@@ -9,8 +9,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 # Bound the MPS caching allocator so it GCs / raises OOM instead of swapping
 # (see batching.MPS_WATERMARKS; duplicated here because it must precede torch).
-os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", "0.6")
-os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
+# LOW must not exceed HIGH (PyTorch refuses to start), so derive it unless set.
+_high = os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
+os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", str(min(0.6, 0.75 * float(_high))))
 
 # Suppress Pydantic v1 validator warnings only for Hugging Face / Transformers libraries
 warnings.filterwarnings(

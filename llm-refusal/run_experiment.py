@@ -10,8 +10,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 # Bound the MPS caching allocator so it GCs / raises OOM instead of swapping
 # (see batching.MPS_WATERMARKS; duplicated here because it must precede torch).
-os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", "0.6")
-os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
+# LOW must not exceed HIGH (PyTorch refuses to start), so derive it unless set.
+_high = os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
+os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", str(min(0.6, 0.75 * float(_high))))
 
 from framework import main
 from evaluation import CONDITIONS, DEFAULT_CONDITIONS
@@ -43,7 +44,11 @@ examples:
     parser.add_argument("--concepts", default=None, help="Comma-separated concept names for cross_concept mode")
     parser.add_argument("--layer", type=int, default=None, help="Layer index (required for evaluate/eyeball)")
     parser.add_argument("--pos", type=int, default=None, help="Position index (required for evaluate/eyeball)")
-    parser.add_argument("--torch-dtype", default="auto", help="Torch dtype for from_pretrained (default: auto)")
+    parser.add_argument("--torch-dtype", default="float32",
+                        help="Compute dtype: float32 (default), bfloat16, float16, or auto (the checkpoint's "
+                             "native dtype, usually bf16). fp32 is exact w.r.t. the bf16 weights and "
+                             "batch-invariant on MPS; bf16 halves memory but results shift a few pp with batch "
+                             "size. Refuses to load if the weights won't fit.")
     parser.add_argument("--force-cpu", action="store_true", help="Force CPU device")
     parser.add_argument("--eval-tasks", nargs="*", default=[], help="lm-eval tasks: mmlu, arc_challenge, gsm8k, truthfulqa")
     parser.add_argument("--limit", type=int, default=100, help="Sample limit for lm-eval benchmarks (default: 100)")

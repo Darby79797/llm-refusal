@@ -69,11 +69,72 @@ def normalize_train_data_result(result, concept_name):
     )
 
 
+_DTYPES = {"float32": t.float32, "fp32": t.float32, "bfloat16": t.bfloat16, "bf16": t.bfloat16,
+           "float16": t.float16, "fp16": t.float16}
+
+
+def parse_dtype(value):
+    """'auto' (the checkpoint's native dtype), or a named dtype."""
+    if isinstance(value, t.dtype) or value == "auto":
+        return value
+    try:
+        return _DTYPES[str(value).lower()]
+    except KeyError:
+        raise ValueError(f"Unknown dtype {value!r}; use auto, float32, bfloat16 or float16")
+
+
+def usable_device_bytes(device: t.device) -> int:
+    """What the model's weights plus working memory may occupy on `device`.
+
+    MPS: the allocator's hard limit (PYTORCH_MPS_HIGH_WATERMARK_RATIO x the
+    recommended working set; run_experiment.py sets 0.8). CUDA: total memory.
+    CPU: 80% of RAM.
+    """
+    from batching import device_total_bytes
+    total = device_total_bytes(device)
+    if device.type == "mps":
+        return int(float(os.environ.get("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "1.7")) * total)
+    if device.type == "cpu":
+        return int(0.8 * total)
+    return total
+
+
+def check_weights_fit(model_name: str, n_params: int, dtype, device: t.device, usable: int,
+                      working_margin: int = 4 * 10**9) -> None:
+    """Raise before loading if the weights alone would leave < working_margin free.
+    Loading anyway would swap on MPS/CPU, or OOM partway through on CUDA."""
+    if dtype == "auto":
+        return
+    need = n_params * t.tensor([], dtype=dtype).element_size()
+    if need + working_margin > usable:
+        raise ValueError(
+            f"{model_name} in {str(dtype).replace('torch.', '')} needs ~{need / 1e9:.1f} GB of weights, "
+            f"but {device.type} has ~{usable / 1e9:.1f} GB usable (with {working_margin / 1e9:.0f} GB kept for "
+            f"activations). Use --torch-dtype bfloat16 (numerics then depend on batch size) or a larger GPU.")
+
+
+def count_parameters(model_name: str) -> int:
+    """Parameter count from the config alone (model built on the meta device)."""
+    from transformers import AutoConfig
+    from accelerate import init_empty_weights
+    with init_empty_weights():
+        m = AutoModelForCausalLM.from_config(AutoConfig.from_pretrained(model_name))
+    return sum(p.numel() for p in m.parameters())
+
+
+def use_full_fp32_matmuls() -> None:
+    """On CUDA (Ampere+), 'fp32' matmuls may silently run as TF32 (10-bit
+    mantissa). Pin true fp32 so fp32 runs mean what they say."""
+    t.backends.cuda.matmul.allow_tf32 = False
+    t.backends.cudnn.allow_tf32 = False
+    t.set_float32_matmul_precision("highest")
+
+
 class DirectionTestFramework:
     """
     Main orchestrator for finding, evaluating, and testing direction vectors.
     """
-    def __init__(self, model_name: str, torch_dtype: Union[str, t.dtype] = "auto", force_cpu: bool = False, concept: str = "refusal",
+    def __init__(self, model_name: str, torch_dtype: Union[str, t.dtype] = "float32", force_cpu: bool = False, concept: str = "refusal",
                  judge_api_base: Optional[str] = None, judge_api_key: Optional[str] = None, judge_model: Optional[str] = None,
                  llamaguard_api_base: Optional[str] = None, llamaguard_api_key: Optional[str] = None,
                  llamaguard_model: Optional[str] = None, jbb_api_key: Optional[str] = None,
@@ -93,10 +154,24 @@ class DirectionTestFramework:
         else:
             self.device = t.device("cpu")
             logger.info(f"No GPU/MPS found. Using device: {self.device}")
-        logger.info(f"Loading chat model '{model_name}' to device '{self.device}'...")
+        # fp32 by default, as the reference measurement. Checkpoints are stored in
+        # bf16 (Llama-2: fp16), and upcasting them is exact, so fp32 evaluates the
+        # same function with less rounding between ops. That is closer to the
+        # released weights' exact function, but not how models are usually served:
+        # typical inference feeds bf16 into matmuls with fp32 accumulation. fp32 is
+        # also batch-invariant on MPS (bf16 is not; see batching.py). bf16 is
+        # opt-in, both as the deployment-realistic setting and for models whose
+        # fp32 weights don't fit.
+        torch_dtype = parse_dtype(torch_dtype)
+        if torch_dtype != "auto":
+            check_weights_fit(model_name, count_parameters(model_name), torch_dtype, self.device,
+                              usable_device_bytes(self.device))
+        if torch_dtype == t.float32:
+            use_full_fp32_matmuls()
+        logger.info(f"Loading chat model '{model_name}' to device '{self.device}' as {torch_dtype}...")
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch_dtype,
+            dtype=torch_dtype,
             device_map=self.device  # Use device_map instead of .to(). Not sure this is actually necessary.
         )
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
