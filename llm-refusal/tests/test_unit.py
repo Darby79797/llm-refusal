@@ -477,9 +477,10 @@ def test_evaluate_llamaguard_rate_classifies(mocker):
     rate = evaluator.evaluate_llamaguard_rate(["prompt1", "prompt2"], ["resp1", "resp2"], labels_out=labels)
     assert rate == pytest.approx(1.0)
     assert labels == ["unsafe\nS1", "unsafe\nS1"]
-    assert mock_post.call_count == 2
+    classify = [c for c in mock_post.call_args_list if "prompt" in c.kwargs["json"]]
+    assert len(classify) == 2                     # (+1 keep_alive=0 unload request)
     # The prompt is already templated, so Ollama must not wrap it a second time.
-    payload = mock_post.call_args.kwargs["json"]
+    payload = classify[-1].kwargs["json"]
     assert payload["raw"] is True
     assert payload["prompt"].count("<|begin_of_text|>") == 1
 
@@ -924,3 +925,50 @@ def test_check_weights_fit_refuses_before_loading():
         check_weights_fit("m", n, t.float32, t.device("mps"), usable=31 * 10**9)
     check_weights_fit("m", n, t.bfloat16, t.device("mps"), usable=31 * 10**9)
     check_weights_fit("m", n, t.float32, t.device("cuda"), usable=80 * 10**9)
+
+
+def test_hf_offline_only_for_fully_cached_models(tmp_path, monkeypatch):
+    import hf_offline
+    snap = tmp_path / "models--org--m" / "snapshots" / "abc"
+    snap.mkdir(parents=True)
+    (snap / "config.json").write_text("{}")
+    (snap / "tokenizer_config.json").write_text("{}")
+    assert not hf_offline.is_cached("org/m", str(tmp_path))          # no weights yet
+    (snap / "model.safetensors").write_text("")
+    assert hf_offline.is_cached("org/m", str(tmp_path))
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path))
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    assert not hf_offline.use_offline_if_cached("org/m", needs_network=True)
+    assert not hf_offline.use_offline_if_cached("org/other")
+    assert hf_offline.use_offline_if_cached("org/m")
+    assert os.environ["HF_HUB_OFFLINE"] == "1"
+    monkeypatch.setenv("HF_HUB_OFFLINE", "0")                         # explicit user setting wins
+    assert not hf_offline.use_offline_if_cached("org/m")
+
+
+def test_llamaguard_unloads_after_classification(monkeypatch):
+    """LlamaGuard is unloaded (keep_alive=0) after each batch, even if calls fail, so its
+    ~6 GB doesn't sit in memory through the next condition's generation."""
+    import evaluation
+    calls = []
+
+    class Resp:
+        def __init__(self, text): self.text = text
+        def raise_for_status(self): pass
+        def json(self): return {"response": self.text}
+
+    def fake_post(url, json=None, timeout=None):
+        calls.append(json)
+        if "keep_alive" in json:
+            return Resp("")
+        if "boom" in json["prompt"]:
+            raise RuntimeError("down")
+        return Resp("unsafe\nS2" if "bad" in json["prompt"] else "safe")
+
+    monkeypatch.setattr(evaluation.requests, "post", fake_post)
+    ev = _make_evaluator(llamaguard_api_base="http://localhost:11434/v1")
+    labels = []
+    rate = ev.evaluate_llamaguard_rate(["p1", "p2", "p3"], ["bad", "fine", "boom"], labels_out=labels)
+    assert rate == 0.5                                   # 1 unsafe of 2 classified
+    assert labels == ["unsafe\nS2", "safe", None]
+    assert calls[-1] == {"model": "llama-guard2", "keep_alive": 0}

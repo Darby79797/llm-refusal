@@ -14,6 +14,16 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 _high = os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
 os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", str(min(0.6, 0.75 * float(_high))))
 
+# Cached models run offline (transformers otherwise calls the Hub API on every
+# tokenizer load). Must precede the transformers import below.
+from hf_offline import use_offline_if_cached  # noqa: E402
+_argv = " ".join(sys.argv)
+if "--json" not in sys.argv:
+    _model = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--model"), None)
+    # Only lm-eval tasks need the Hub (datasets). --arditi-evals is local: Alpaca prompts
+    # from data/, LlamaGuard via Ollama, JailbreakBench only with an API key.
+    _offline = use_offline_if_cached(_model, needs_network="--eval-tasks" in _argv)
+
 from framework import main
 from evaluation import CONDITIONS, DEFAULT_CONDITIONS
 from batching import parse_batch_size
