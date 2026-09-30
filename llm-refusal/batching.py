@@ -112,6 +112,46 @@ def estimate_bytes_per_row(config, dtype: t.dtype, prompt_tokens: int, max_new_t
     return int(ESTIMATE_SAFETY_FACTOR * max(generation, scoring))
 
 
+def estimate_forward_bytes_per_row(config, dtype: t.dtype, tokens: int) -> int:
+    """Peak bytes one row adds to a single no-cache forward that reads hidden states
+    (no full-sequence logits): layer activations plus one layer's attention scores."""
+    b = _dtype_bytes(dtype)
+    hidden = config.hidden_size
+    inter = getattr(config, "intermediate_size", None) or 4 * hidden
+    heads = config.num_attention_heads
+    return int(ESTIMATE_SAFETY_FACTOR * (tokens * (4 * hidden + 3 * inter) * b + heads * tokens * tokens * 4))
+
+
+def forward_token_budget(model, memory_fraction: float = AUTO_MEMORY_FRACTION) -> int:
+    """Padded tokens one cached forward batch may hold: the KV cache it keeps plus one
+    layer's transient activations, within `memory_fraction` of (device - weights)."""
+    c, b = model.config, _dtype_bytes(model.dtype)
+    heads = c.num_attention_heads
+    kv_heads = getattr(c, "num_key_value_heads", None) or heads
+    head_dim = getattr(c, "head_dim", None) or c.hidden_size // heads
+    inter = getattr(c, "intermediate_size", None) or 4 * c.hidden_size
+    per_token = ESTIMATE_SAFETY_FACTOR * (2 * c.num_hidden_layers * kv_heads * head_dim * b
+                                          + (4 * c.hidden_size + 3 * inter) * b)
+    budget = memory_fraction * (device_total_bytes(model.device) - weight_bytes(model))
+    return int(budget / per_token)
+
+
+def resolve_forward_batch_size(requested: Union[str, int], model, max_tokens: int,
+                               cap: int = MAX_AUTO_BATCH_SIZE, memory_fraction: float = AUTO_MEMORY_FRACTION) -> int:
+    """resolve_batch_size for forward-only passes (CAA vectors / A/B probabilities)."""
+    requested = parse_batch_size(requested)
+    if requested != AUTO:
+        return requested
+    per_row = estimate_forward_bytes_per_row(model.config, model.dtype, max_tokens)
+    budget = memory_fraction * (device_total_bytes(model.device) - weight_bytes(model))
+    bs = 1
+    while bs * 2 <= cap and bs * 2 * per_row <= budget:
+        bs *= 2
+    logger.info(f"Auto forward batch size: {bs} (longest sequence {max_tokens} tokens; "
+                f"~{per_row / 1e6:.0f} MB/row est. vs {budget / 1e9:.1f} GB budget, cap {cap})")
+    return bs
+
+
 def resolve_batch_size(requested: Union[str, int], model, prompt_formatter, prompts: Sequence[str],
                        max_new_tokens: int, cap: int = MAX_AUTO_BATCH_SIZE,
                        memory_fraction: float = AUTO_MEMORY_FRACTION) -> int:

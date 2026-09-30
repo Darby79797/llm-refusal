@@ -183,6 +183,16 @@ class ChatPromptFormatter:
         logger.info(f"Assistant prefix tokens: {suffix_tokens} (tokens between EOI and position -1)")
         return suffix_tokens
 
+    def format_text(self, prompt: str) -> str:
+        """The templated prompt string, ending at the generation boundary (no BOS:
+        callers that tokenize it themselves must prepend BOS when `prepend_bos`)."""
+        if self.template is not None:
+            # Manual template (instruction-tuned) or pass-through ("{x}" for base models)
+            return self.template.format(x=prompt)
+        # Tokenizer's built-in chat_template
+        return self.tokenizer.apply_chat_template(
+            [{'role': 'user', 'content': prompt}], tokenize=False, add_generation_prompt=True)
+
     def format_batch(self, prompts: List[str]) -> Dict[str, t.Tensor]:
         """
         Formats a batch of prompts, applying the chat template then tokenizing.
@@ -197,19 +207,7 @@ class ChatPromptFormatter:
                            f"{self.tokenizer.padding_side!r}; restoring 'right'.")
             self.tokenizer.padding_side = 'right'
 
-        # --- Apply chat template ---
-        if self.template is not None:
-            # Manual template (instruction-tuned) or pass-through ("{x}" for base models)
-            formatted_prompts = [self.template.format(x=p) for p in prompts]
-        else:
-            # Use tokenizer's built-in chat_template
-            formatted_prompts = [
-                self.tokenizer.apply_chat_template(
-                    [{'role': 'user', 'content': p}],
-                    tokenize=False,
-                    add_generation_prompt=True
-                ) for p in prompts
-            ]
+        formatted_prompts = [self.format_text(p) for p in prompts]
 
         # --- Tokenize (special tokens disabled — we manage them ourselves) ---
         tokenized_output = self.tokenizer(

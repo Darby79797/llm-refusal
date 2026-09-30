@@ -408,6 +408,11 @@ class DirectionTestFramework:
             direction_to_test.save(save_path)
             logger.info(f"Direction vector saved to {save_path}.pt/.json")
 
+        elif config['mode'] == "evaluate" and config.get('direction_file'):
+            direction_to_test = DirectionVector.load(config['direction_file'])
+            logger.info(f"Evaluating saved direction {config['direction_file']} "
+                        f"(layer {direction_to_test.layer}, norm {direction_to_test.vector.norm():.3f})")
+
         elif config['mode'] in ["eyeball", "evaluate"]:
             layer, pos = config['layer'], config['pos']
             if layer is None or pos is None:
@@ -457,12 +462,73 @@ class DirectionTestFramework:
                 conditions=config.get('conditions'),
                 max_new_tokens=config.get('max_new_tokens', 64),
                 generations_path=(f"results/{self.model_name.split('/')[-1]}-{self.concept.name}"
-                                  f"-evaluate-L{direction_to_test.layer}-P{direction_to_test.position_index}"
+                                  + (f"-evaluate-{os.path.basename(config['direction_file'])}"
+                                     if config.get('direction_file') else
+                                     f"-evaluate-L{direction_to_test.layer}-P{direction_to_test.position_index}")
                                   + (f"-T{config['max_new_tokens']}" if config.get('max_new_tokens', 64) != 64 else "")
                                   + "-generations.json"),
             )
 
         logger.info("Framework execution finished.")
+
+    def run_caa(self, config: Dict):
+        """CAA A/B replication (see caa.py): vectors for every behavior, a layer x
+        multiplier sweep, and comparison with this repo's saved directions for the model."""
+        import caa
+        from batching import forward_token_budget, parse_batch_size
+
+        model_short = self.model_name.split('/')[-1]
+        behaviors = config.get('caa_behaviors') or caa.BEHAVIORS
+        layers = config.get('caa_layers') or list(range(len(self.intervention_applier.transformer_layers)))
+        multipliers = config.get('caa_multipliers') or [-1.0, 1.0]
+        # Rows per batch: an explicit --gen-batch-size, else up to 64 packed to a token
+        # budget sized for the prefix KV cache (batches are length-sorted).
+        requested = parse_batch_size(self.evaluator.gen_batch_size)
+        rows = requested if requested != "auto" else 64
+        budget = None if requested != "auto" else forward_token_budget(self.model)
+        logger.info(f"CAA batching: <= {rows} rows" + (f", <= {budget} padded prefix tokens per batch" if budget else ""))
+        runner = caa.CAA(self.model, self.tokenizer, self.prompt_formatter,
+                         self.intervention_applier.transformer_layers, batch_size=rows,
+                         max_batch_tokens=budget, on_split=self.evaluator._record_split)
+
+        # This repo's directions for the same model, cross-applied at the same
+        # residual-stream point (our layer l = CAA layer l-1).
+        ours = {}
+        for concept in ("refusal", "sycophancy"):
+            path = f"results/{model_short}-{concept}-direction"
+            if os.path.exists(f"{path}.pt"):
+                dv = DirectionVector.load(path)
+                ours[concept] = (dv.layer, dv.vector)
+                logger.info(f"Our {concept} direction: layer {dv.layer} (= CAA layer {dv.layer - 1}), "
+                            f"pos {dv.position_index}")
+        extra = {f"ours_{c}": (layer - 1, vec) for c, (layer, vec) in ours.items()}
+
+        os.makedirs("results/caa", exist_ok=True)
+        tag = config.get('caa_tag') or ""
+        out_path = f"results/caa/{model_short}-ab{'-' + tag if tag else ''}.json"
+        vec_path = f"results/caa/{model_short}-ab-vectors.pt"
+        vectors = None
+        if config.get('caa_reuse_vectors'):
+            saved = t.load(vec_path)["raw"]
+            missing = [b for b in behaviors if b not in saved]
+            if missing:
+                raise ValueError(f"{vec_path} lacks vectors for {missing}; run without --caa-reuse-vectors")
+            vectors = {b: saved[b] for b in behaviors}
+            logger.info(f"Reusing CAA vectors from {vec_path}")
+        results = caa.run_ab_sweep(runner, behaviors, layers, multipliers, out_path, extra_vectors=extra,
+                                   vectors=vectors)
+        if ours:
+            raw = t.load(vec_path)["raw"]
+            results["cosine"] = caa.cosine_table(raw, ours)
+            for concept, row in results["cosine"].items():
+                for b, c in row.items():
+                    logger.info(f"cos(ours {concept} @L{ours[concept][0]}, CAA {b}): matched CAA L{c['matched_caa_layer']} "
+                                f"{c['cos_matched']:+.3f}; best CAA L{c['best_caa_layer']} {c['cos_best']:+.3f}")
+            with open(out_path, "w") as f:
+                json.dump(results, f)
+        if self.evaluator.oom_splits:
+            logger.warning(f"{self.evaluator.oom_splits} batch(es) split on OOM; those rows ran at a smaller batch shape.")
+        logger.info("CAA run finished.")
 
     def run_cross_concept(self, config: Dict):
         """Load saved direction vectors for multiple concepts and run cross-concept analysis."""
@@ -526,5 +592,7 @@ def main(
     )
     if config['mode'] == 'cross_concept':
         framework.run_cross_concept(config)
+    elif config['mode'] == 'caa':
+        framework.run_caa(config)
     else:
         framework.run(config)

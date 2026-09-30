@@ -47,13 +47,26 @@ examples:
     parser.add_argument("--model", dest="model_name", help="HuggingFace model ID")
     parser.add_argument(
         "--mode",
-        choices=["search", "evaluate", "eyeball", "cross_concept"],
+        choices=["search", "evaluate", "eyeball", "cross_concept", "caa"],
         help="Experiment mode",
     )
     parser.add_argument("--concept", default="refusal", help="Concept to study (default: refusal)")
     parser.add_argument("--concepts", default=None, help="Comma-separated concept names for cross_concept mode")
     parser.add_argument("--layer", type=int, default=None, help="Layer index (required for evaluate/eyeball)")
     parser.add_argument("--pos", type=int, default=None, help="Position index (required for evaluate/eyeball)")
+    parser.add_argument("--caa-behaviors", default=None,
+                        help="caa mode: comma-separated CAA behaviors (default: all 7)")
+    parser.add_argument("--caa-layers", type=int, nargs="+", default=None,
+                        help="caa mode: layers to sweep, in CAA's block-output convention (default: all)")
+    parser.add_argument("--caa-multipliers", type=float, nargs="+", default=[-1.0, 1.0],
+                        help="caa mode: steering multipliers (default: -1 1; 0 is always run as the baseline)")
+    parser.add_argument("--caa-reuse-vectors", action="store_true",
+                        help="caa mode: load results/caa/<model>-ab-vectors.pt instead of recomputing vectors")
+    parser.add_argument("--caa-tag", default="",
+                        help="caa mode: suffix for the output (results/caa/<model>-ab-<tag>.json), e.g. 'mult'")
+    parser.add_argument("--direction-file", default=None,
+                        help="evaluate mode: evaluate a saved direction (path without .pt/.json) instead of "
+                             "recomputing one at --layer/--pos, e.g. a CAA vector")
     parser.add_argument("--torch-dtype", default="auto",
                         help="Compute dtype: auto (default: the checkpoint's stored dtype, bf16 for "
                              "Qwen2.5/Llama-3, fp16 for Llama-2, upcast to bf16 on MPS), bfloat16, float16, or "
@@ -140,6 +153,12 @@ def _namespace_to_config(args):
                        else args.conditions),
         "filter_cache": args.filter_cache,
         "max_new_tokens": args.max_new_tokens,
+        "caa_behaviors": [s.strip() for s in args.caa_behaviors.split(",")] if args.caa_behaviors else None,
+        "caa_layers": args.caa_layers,
+        "caa_multipliers": args.caa_multipliers,
+        "direction_file": args.direction_file,
+        "caa_reuse_vectors": args.caa_reuse_vectors,
+        "caa_tag": args.caa_tag,
     }
 
 
@@ -204,7 +223,7 @@ def setup_logging(config):
     # silently overwrote the refusal search log for the same model.
     log_filename_parts = [
         model_short_name,
-        config["concept"] if config["mode"] != "cross_concept" else "",
+        config["concept"] if config["mode"] not in ("cross_concept", "caa") else "",
         config["mode"],
         f"L{config['layer']}" if config.get("layer") is not None else "",
         f"P{config['pos']}" if config.get("pos") is not None else "",
