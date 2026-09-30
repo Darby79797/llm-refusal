@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Direction Results</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f5f4f1; --surface-1: #fcfcfb; --surface-2: #efeeea;
+  --grid: #e3e2de; --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7b7a75;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-muted: #a3a29c;
+  --div-neg: #2a78d6; --div-mid: #f0efec; --div-pos: #e34948;
+  --warn-ink: #8a5a00; --warn-bg: #fdf3dc; --accent-bg: #e6f0fb;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #242422;
+    --grid: #33332f; --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --series-1: #3987e5; --series-2: #d95926; --series-muted: #6d6c66;
+    --div-neg: #3987e5; --div-mid: #383835; --div-pos: #e66767;
+    --warn-ink: #f0c060; --warn-bg: #3a2f14; --accent-bg: #1c2d44;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #242422;
+  --grid: #33332f; --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+  --series-1: #3987e5; --series-2: #d95926; --series-muted: #6d6c66;
+  --div-neg: #3987e5; --div-mid: #383835; --div-pos: #e66767;
+  --warn-ink: #f0c060; --warn-bg: #3a2f14; --accent-bg: #1c2d44;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--surface-1); border-bottom: 1px solid var(--grid);
+  display: flex; gap: 16px; align-items: center; padding: 10px 16px; flex-wrap: wrap; }
+header h1 { font-size: 15px; margin: 0 8px 0 0; }
+nav a { color: var(--text-secondary); text-decoration: none; margin-right: 14px; padding: 4px 0; }
+nav a.on { color: var(--text-primary); border-bottom: 2px solid var(--series-1); }
+header .meta { margin-left: auto; color: var(--text-muted); font-size: 12px; }
+button.theme { background: none; border: 1px solid var(--grid); color: var(--text-secondary); border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+main { padding: 16px; max-width: 1400px; margin: 0 auto; }
+h2 { font-size: 18px; margin: 8px 0 4px; } h3 { font-size: 15px; margin: 18px 0 6px; }
+.sub { color: var(--text-secondary); margin: 0 0 12px; }
+.card { background: var(--surface-1); border: 1px solid var(--grid); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 13px; }
+th, td { padding: 5px 9px; text-align: left; border-bottom: 1px solid var(--grid); vertical-align: top; white-space: nowrap; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+td.num { font-variant-numeric: tabular-nums; text-align: right; }
+td.wrap { white-space: normal; min-width: 320px; }
+a { color: var(--series-1); }
+.chip { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--surface-2); color: var(--text-secondary); margin: 1px 3px 1px 0; }
+.chip.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.chip.det { background: var(--accent-bg); color: var(--text-primary); }
+.muted { color: var(--text-muted); }
+.matrix td { vertical-align: middle; }
+.cell { display: block; text-decoration: none; color: var(--text-primary); padding: 4px 2px; min-width: 150px; }
+.cell .ln { display: flex; gap: 6px; align-items: baseline; font-variant-numeric: tabular-nums; font-size: 12px; }
+.cell .lab { color: var(--text-muted); width: 30px; }
+.arrow-down::before { content: "↓ "; } .arrow-up::before { content: "↑ "; }
+.eff { font-weight: 600; } .noeff { color: var(--text-muted); }
+.controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; font-size: 13px; }
+select, input[type=text], input[type=search] { background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--grid); border-radius: 6px; padding: 4px 6px; font: inherit; }
+.gen { border-top: 1px solid var(--grid); padding: 10px 0; }
+.gen .prompt { font-weight: 600; margin-bottom: 6px; white-space: pre-wrap; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
+.resp { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; font-size: 13px; overflow-wrap: anywhere; }
+.resp .hd { margin-bottom: 4px; }
+.heat { border-collapse: separate; border-spacing: 2px; }
+.heat td { width: 44px; height: 22px; text-align: center; font-size: 11px; border: none; padding: 0; border-radius: 3px; font-variant-numeric: tabular-nums; }
+.heat td.sel { outline: 2px solid var(--text-primary); outline-offset: -1px; }
+.heat th { border: none; font-weight: 400; color: var(--text-muted); padding: 0 4px; }
+.tok { border-radius: 3px; padding: 1px 1px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; }
+.tokline { line-height: 1.9; }
+.resp-mark { display: inline-block; width: 2px; height: 1.2em; background: var(--text-primary); vertical-align: middle; margin: 0 4px; }
+.legend { display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
+.sw { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.grid-multi { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+#tip { position: fixed; pointer-events: none; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--grid);
+  border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.15); display: none; z-index: 20; max-width: 360px; white-space: pre-line; }
+svg text { fill: var(--text-muted); font-size: 11px; }
+.gradbar { height: 8px; width: 160px; border-radius: 4px; background: linear-gradient(90deg, var(--div-neg), var(--div-mid), var(--div-pos)); display: inline-block; vertical-align: middle; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Direction results</h1>
+  <nav id="nav"></nav>
+  <span class="meta" id="meta"></span>
+  <button class="theme" id="theme" title="Toggle light/dark">◐</button>
+</header>
+<main id="main"></main>
+<div id="tip"></div>
+<script>
+const DATA = /*__DATA__*/null;
+const $ = (s, el = document) => el.querySelector(s);
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v; else if (k === "html") el.innerHTML = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) el.append(k instanceof Node ? k : document.createTextNode(k));
+  return el;
+}
+const SVG = "http://www.w3.org/2000/svg";
+function s(tag, attrs = {}, ...kids) {
+  const el = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) el.setAttribute(k, v);
+  for (const k of kids.flat()) if (k != null) el.append(k instanceof Node ? k : document.createTextNode(k));
+  return el;
+}
+const pct = x => x == null || isNaN(x) ? "–" : `${Math.round(100 * x)}%`;
+const f2 = x => x == null || isNaN(x) ? "–" : (x >= 0 ? "+" : "") + x.toFixed(2);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function wilson(k, n) { if (!n) return [NaN, NaN]; const z = 1.959964, p = k / n, d = 1 + z*z/n;
+  const c = (p + z*z/(2*n)) / d, hw = z * Math.sqrt(p*(1-p)/n + z*z/(4*n*n)) / d; return [Math.max(0, c - hw), Math.min(1, c + hw)]; }
+function mix(a, b, t) { const pa = hex(a), pb = hex(b); return `rgb(${pa.map((x, i) => Math.round(x + (pb[i] - x) * t)).join(",")})`; }
+function hex(c) { c = c.replace("#", ""); if (c.length === 3) c = [...c].map(x => x + x).join(""); return [0, 2, 4].map(i => parseInt(c.slice(i, i + 2), 16)); }
+function diverging(v, scale) { // v in data units; blue = negative, red = positive, gray midpoint
+  if (v == null || isNaN(v)) return css("--surface-2");
+  const t = Math.max(-1, Math.min(1, v / (scale || 1)));
+  return t < 0 ? mix(css("--div-mid"), css("--div-neg"), -t) : mix(css("--div-mid"), css("--div-pos"), t);
+}
+function sequential(t) { return mix(css("--surface-2"), css("--series-1"), Math.max(0, Math.min(1, t))); }
+function inkFor(bg) { const m = bg.match(/\d+/g); if (!m) return css("--text-primary");
+  const [r, g, b] = m.map(Number); return (0.299*r + 0.587*g + 0.114*b) > 150 ? "#0b0b0b" : "#ffffff"; }
+
+// ── tooltip ───────────────────────────────────────────────────
+const tip = $("#tip");
+document.addEventListener("mousemove", e => {
+  const t = e.target.closest("[data-tip]");
+  if (!t) { tip.style.display = "none"; return; }
+  tip.textContent = t.getAttribute("data-tip"); tip.style.display = "block";
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8);
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+});
+
+// ── theme ─────────────────────────────────────────────────────
+try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+$("#theme").onclick = () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  try { localStorage.setItem("theme", document.documentElement.dataset.theme); } catch (e) {}
+  route();
+};
+
+// ── routing ───────────────────────────────────────────────────
+const VIEWS = { overview: "Overview", caa: "CAA", cross: "Cross-concept", proj: "Projections" };
+function nav(active) {
+  $("#nav").replaceChildren(...Object.entries(VIEWS).map(([k, v]) => h("a", { href: `#/${k}`, class: k === active ? "on" : "" }, v)));
+}
+function route() {
+  const [, view = "overview", ...rest] = decodeURIComponent(location.hash || "#/overview").split("/");
+  const arg = rest.join("/");
+  nav(view === "run" ? "overview" : view);
+  const m = $("#main"); m.replaceChildren();
+  ({ overview: viewOverview, run: viewRun, caa: viewCAA, cross: viewCross, proj: viewProj }[view] || viewOverview)(m, arg);
+  scrollTo(0, 0);
+}
+addEventListener("hashchange", route);
+$("#meta").textContent = `built ${DATA.built} · ${DATA.roots.join(", ")}`;
+
+const cond = (run, name) => run.conditions.find(c => c.name === name);
+
+// ── overview ──────────────────────────────────────────────────
+function effectLine(run, label, baseName, condName) {
+  const b = cond(run, baseName), c = cond(run, condName);
+  if (!b || !c) return null;
+  const e = c.effect, cls = e === "down" ? "eff arrow-down" : e === "up" ? "eff arrow-up" : "noeff";
+  const [lo, hi] = wilson(c.k, c.n);
+  return h("div", { class: "ln", "data-tip": `${condName}: ${pct(c.k / c.n)} [${pct(lo)}, ${pct(hi)}] vs ${baseName} ${pct(b.k / b.n)} (n=${c.n})\nlog-odds ${f2(b.log_odds)} → ${f2(c.log_odds)}\n${e === "none" ? "CIs overlap: no detectable effect" : "CIs separate"}` },
+    h("span", { class: "lab" }, label), h("span", {}, `${pct(b.k / b.n)} → ${pct(c.k / c.n)}`), h("span", { class: cls }, e === "none" ? "none" : ""));
+}
+function viewOverview(m) {
+  const runs = DATA.runs.filter(r => !r.variant);
+  const models = [...new Set(runs.map(r => r.model))].sort();
+  const concepts = [...new Set(runs.map(r => r.concept))].sort();
+  m.append(h("h2", {}, "Overview"),
+    h("p", { class: "sub" }, "Each cell: global ablation on the positive prompts (behavior removed?) and single-layer addition on the negative prompts (behavior induced?). ↓/↑ = the condition's 95% CI clears the baseline's; \"none\" = they overlap. Hover for numbers; click for the run."));
+  const t = h("table", { class: "matrix" }, h("tr", {}, h("th", {}, "model"), concepts.map(c => h("th", {}, c))));
+  for (const model of models) {
+    t.append(h("tr", {}, h("td", {}, model.replace("-Instruct", "")), concepts.map(c => {
+      const rs = runs.filter(r => r.model === model && r.concept === c);
+      if (!rs.length) return h("td", { class: "muted" }, "·");
+      return h("td", {}, rs.map(r => h("a", { class: "cell", href: `#/run/${r.id}` },
+        h("div", { class: "ln muted" }, `${r.tag}${r.filter && r.filter.pos_in === undefined ? " · unfiltered" : ""}`),
+        effectLine(r, "abl", "baseline", "global_ablation"),
+        effectLine(r, "add", "baseline_negative", "layer_specific_addition"),
+        r.flags.filter(f => !f.startsWith("degenerate G-add")).length ? h("span", { class: "chip warn", "data-tip": r.flags.join("\n") }, `⚠ ${r.flags.filter(f => !f.startsWith("degenerate G-add")).length}`) : null)));
+    })));
+  }
+  m.append(h("div", { class: "card scroll" }, t));
+
+  // digest table
+  const cols = ["baseline", "global_ablation", "layer_specific_ablation", "baseline_negative", "layer_specific_addition"];
+  const dt = h("table", {}, h("tr", {}, ["run", "filter", ...cols.map(c => c.replace(/_/g, " ")), "log-odds (abl)", "log-odds (add)", "dtype/bs", "flags"].map(x => h("th", {}, x))));
+  for (const r of DATA.runs) {
+    const cell = n => { const c = cond(r, n); if (!c) return h("td", { class: "muted" }, "–"); const [lo, hi] = wilson(c.k, c.n);
+      return h("td", { class: "num", "data-tip": `k=${c.k}/${c.n}${c.k !== c.k_saved ? ` (saved label: ${c.k_saved})` : ""}\ndegenerate ${pct(c.degenerate)}  nll ${c.nll == null ? "–" : c.nll.toFixed(2)}` }, `${pct(c.k / c.n)} `, h("span", { class: "muted" }, `[${pct(lo)},${pct(hi)}]`)); };
+    const lo = (a, b) => `${f2((cond(r, a) || {}).log_odds)} → ${f2((cond(r, b) || {}).log_odds)}`;
+    const filt = r.filter == null ? "?" : r.filter.pos_in === undefined ? "off" : `${r.filter.pos_out}/${r.filter.pos_in}`;
+    dt.append(h("tr", {}, h("td", {}, h("a", { href: `#/run/${r.id}` }, r.id)), h("td", {}, filt), cols.map(cell),
+      h("td", { class: "num" }, lo("baseline", "global_ablation")), h("td", { class: "num" }, lo("baseline_negative", "layer_specific_addition")),
+      h("td", {}, `${r.header.dtype || "?"}/${r.header.gen_batch_size || "?"}`),
+      h("td", { class: "wrap" }, r.flags.map(f => h("span", { class: "chip warn" }, f)))));
+  }
+  m.append(h("h3", {}, "All runs"), h("p", { class: "sub" }, "Rates are detection rates with 95% Wilson intervals, relabeled with the current detector. Archived variants (filtered-, rerun-, …) included."), h("div", { class: "card scroll" }, dt));
+}
+
+// ── run detail ────────────────────────────────────────────────
+function rateChart(run) {
+  const rows = run.conditions, W = 560, L = 170, R = 16, rowH = 28, H = rows.length * rowH + 28;
+  const x = v => L + v * (W - L - R);
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", style: `max-width:${W}px`, role: "img", "aria-label": "Detection rate by condition with 95% CIs" });
+  for (const t of [0, .25, .5, .75, 1]) {
+    svg.append(s("line", { x1: x(t), x2: x(t), y1: 4, y2: H - 22, stroke: css("--grid"), "stroke-width": 1 }),
+      s("text", { x: x(t), y: H - 6, "text-anchor": "middle" }, `${t * 100}%`));
+  }
+  rows.forEach((c, i) => {
+    const y = 16 + i * rowH, [lo, hi] = wilson(c.k, c.n), base = c.name.startsWith("baseline");
+    const color = base ? css("--series-muted") : css("--series-1");
+    svg.append(s("text", { x: L - 10, y: y + 4, "text-anchor": "end", style: `fill:${css("--text-secondary")}` }, c.name.replace(/_/g, " ")),
+      s("line", { x1: x(lo), x2: x(hi), y1: y, y2: y, stroke: color, "stroke-width": 2, "stroke-linecap": "round" }),
+      s("circle", { cx: x(c.k / c.n), cy: y, r: 5, fill: color, stroke: css("--surface-1"), "stroke-width": 2 }),
+      s("rect", { x: L, y: y - rowH / 2, width: W - L - R, height: rowH, fill: "transparent",
+        "data-tip": `${c.name} (${c.side} prompts)\n${pct(c.k / c.n)} [${pct(lo)}, ${pct(hi)}], k=${c.k}/${c.n}\nlog-odds ${f2(c.log_odds)}  degenerate ${pct(c.degenerate)}` }));
+  });
+  return svg;
+}
+function searchHeat(run) {
+  const sr = run.search; if (!sr) return h("p", { class: "muted" }, "No search scores found for this run.");
+  const metrics = { bypass: [2, "lower = stronger ablation effect"], induce: [3, "higher = stronger induction"], induce_global: [4, "higher = stronger all-layer induction"], kl: [5, "lower = less damage on negative prompts"] };
+  const wrap = h("div");
+  const sel = h("select", { onchange: () => draw() }, Object.keys(metrics).map(k => h("option", { value: k }, k)));
+  const holder = h("div", { class: "scroll" });
+  wrap.append(h("div", { class: "controls" }, "metric ", sel, h("span", { class: "muted" }, ""), h("span", { class: "muted" },
+    `selected L${sr.selected ? sr.selected[0] : "?"} / P${sr.selected ? sr.selected[1] : "?"} via ${sr.tier || "?"}`)), holder);
+  function draw() {
+    const [col, note] = metrics[sel.value], lowerBetter = sel.value === "bypass" || sel.value === "kl";
+    sel.nextSibling.textContent = note;
+    const layers = [...new Set(sr.rows.map(r => r[0]))].sort((a, b) => a - b), poss = [...new Set(sr.rows.map(r => r[1]))].sort((a, b) => b - a);
+    const vals = sr.rows.map(r => r[col]).filter(v => v != null && !isNaN(v)).sort((a, b) => a - b);
+    const rank = v => { const i = vals.findIndex(x => x >= v); return lowerBetter ? 1 - i / (vals.length - 1) : i / (vals.length - 1); };
+    const g = new Map(sr.rows.map(r => [`${r[0]},${r[1]}`, r]));
+    const t = h("table", { class: "heat" }, h("tr", {}, h("th", {}, "layer"), poss.map(p => h("th", {}, `pos ${p}`))));
+    for (const l of layers) t.append(h("tr", {}, h("th", {}, l), poss.map(p => {
+      const r = g.get(`${l},${p}`); const v = r ? r[col] : null;
+      if (v == null || isNaN(v)) return h("td", { style: `background:${css("--surface-2")}` }, "");
+      const bg = sequential(rank(v)); const on = sr.selected && sr.selected[0] === l && sr.selected[1] === p;
+      return h("td", { class: on ? "sel" : "", style: `background:${bg};color:${inkFor(bg)}`,
+        "data-tip": `L${l} pos ${p}${on ? " (selected)" : ""}\nbypass ${f2(r[2])}\ninduce ${f2(r[3])}\ninduce_global ${f2(r[4])}\nKL ${f2(r[5])}` }, v.toFixed(1));
+    })));
+    holder.replaceChildren(t, h("p", { class: "muted" }, "Shade = rank within this search (darker = better on the chosen metric). Outlined = selected."));
+  }
+  draw();
+  return wrap;
+}
+function gensBrowser(run) {
+  const names = Object.keys(run.gens), wrap = h("div");
+  const pos = names.filter(n => run.conditions.find(c => c.name === n)?.side === "positive");
+  const neg = names.filter(n => run.conditions.find(c => c.name === n)?.side === "negative");
+  const mkSel = def => h("select", { onchange: () => draw() }, names.map(n => h("option", { value: n, selected: n === def ? "" : null }, n)));
+  const selA = mkSel(pos.includes("baseline") ? "baseline" : names[0]);
+  const selB = mkSel(pos.includes("global_ablation") ? "global_ablation" : names[1] || names[0]);
+  const flip = h("input", { type: "checkbox", onchange: () => draw() });
+  const lab = h("select", { onchange: () => draw() }, ["any", "detected in B", "not detected in B"].map(x => h("option", { value: x }, x)));
+  const deg = h("input", { type: "checkbox", onchange: () => draw() });
+  const q = h("input", { type: "search", placeholder: "search prompt/response", oninput: () => draw() });
+  const presets = h("select", { onchange: e => { const [a, b] = e.target.value.split("|"); if (a) { selA.value = a; selB.value = b; draw(); } } },
+    h("option", { value: "" }, "presets…"),
+    pos.length > 1 ? h("option", { value: `baseline|global_ablation` }, "positive: baseline vs global ablation") : null,
+    pos.includes("layer_specific_ablation") ? h("option", { value: `baseline|layer_specific_ablation` }, "positive: baseline vs layer ablation") : null,
+    neg.length > 1 ? h("option", { value: `baseline_negative|layer_specific_addition` }, "negative: baseline vs addition") : null);
+  const list = h("div"), count = h("span", { class: "muted" });
+  let limit = 40;
+  wrap.append(h("div", { class: "controls" }, presets, "A ", selA, "B ", selB, h("label", {}, flip, " label flips only"), lab, h("label", {}, deg, " degenerate"), q, count), list);
+  function card(e, name) {
+    return h("div", { class: "resp" }, h("div", { class: "hd" },
+      h("span", { class: "chip" }, name.replace(/_/g, " ")),
+      e.d ? h("span", { class: "chip det" }, "detected") : h("span", { class: "chip" }, "not detected"),
+      e.was !== undefined ? h("span", { class: "chip warn", "data-tip": "Label differs from the one saved at run time (detector fixed since)" }, `saved: ${e.was ? "detected" : "not"}`) : null,
+      e.x ? h("span", { class: "chip warn" }, "degenerate") : null,
+      e.nll != null ? h("span", { class: "chip", "data-tip": "Mean response NLL under the clean model" }, `nll ${e.nll}`) : null,
+      e.lg != null ? h("span", { class: "chip" + (e.lg === true || String(e.lg).trim().toLowerCase().startsWith("unsafe") ? " warn" : "") }, `LlamaGuard: ${String(e.lg).replace(/\n/g, " ")}`) : null), e.r);
+  }
+  function draw() {
+    const A = run.gens[selA.value], B = run.gens[selB.value];
+    const aligned = A.length === B.length && A.every((e, i) => e.p === B[i].p);
+    const ql = q.value.toLowerCase();
+    let idx = [...B.keys()];
+    if (flip.checked && aligned) idx = idx.filter(i => A[i].d !== B[i].d);
+    if (lab.value !== "any") idx = idx.filter(i => B[i].d === (lab.value === "detected in B"));
+    if (deg.checked) idx = idx.filter(i => B[i].x || (aligned && A[i].x));
+    if (ql) idx = idx.filter(i => (B[i].p + B[i].r + (aligned ? A[i].r : "")).toLowerCase().includes(ql));
+    count.textContent = `${idx.length} of ${B.length}${aligned ? "" : " · A and B use different prompt sets: showing B only"}`;
+    list.replaceChildren(...idx.slice(0, limit).map(i => h("div", { class: "gen" }, h("div", { class: "prompt" }, `#${i}  ${B[i].p}`),
+      aligned ? h("div", { class: "pair" }, card(A[i], selA.value), card(B[i], selB.value)) : card(B[i], selB.value))));
+    if (idx.length > limit) list.append(h("button", { class: "theme", onclick: () => { limit += 40; draw(); } }, `show more (${idx.length - limit} left)`));
+  }
+  draw();
+  return wrap;
+}
+function viewRun(m, id) {
+  const run = DATA.runs.find(r => r.id === id);
+  if (!run) { m.append(h("p", {}, `No run ${id}`)); return; }
+  const filt = run.filter == null ? "unknown" : run.filter.pos_in === undefined ? "off (prompt contrast)" : `kept ${run.filter.pos_out}/${run.filter.pos_in} positive, ${run.filter.neg_out}/${run.filter.neg_in} negative`;
+  m.append(h("h2", {}, run.id),
+    h("p", { class: "sub" }, `direction L${run.layer} / pos ${run.pos} · behavioral filter: ${filt} · dtype ${run.header.dtype || "?"}, batch ${run.header.gen_batch_size || "?"} · ${run.root}`),
+    h("div", {}, run.flags.map(f => h("span", { class: "chip warn" }, "⚠ " + f)), run.relabeled ? h("span", { class: "chip warn" }, `${run.relabeled} labels changed by current detector`) : null));
+  const t = h("table", {}, h("tr", {}, ["condition", "prompts", "n", "rate", "95% CI", "vs baseline", "log-odds", "degenerate", "nll", "LlamaGuard unsafe"].map(x => h("th", {}, x))));
+  for (const c of run.conditions) { const [lo, hi] = wilson(c.k, c.n);
+    t.append(h("tr", {}, h("td", {}, c.name.replace(/_/g, " ")), h("td", {}, c.side), h("td", { class: "num" }, c.n), h("td", { class: "num" }, pct(c.k / c.n)),
+      h("td", { class: "num" }, `[${pct(lo)}, ${pct(hi)}]`), h("td", {}, c.effect || ""), h("td", { class: "num" }, f2(c.log_odds)),
+      h("td", { class: "num" }, pct(c.degenerate)), h("td", { class: "num" }, c.nll == null ? "–" : c.nll.toFixed(2)), h("td", { class: "num" }, pct(c.unsafe)))); }
+  m.append(h("div", { class: "card" }, h("h3", {}, "Detection rate by condition"), rateChart(run), h("div", { class: "scroll" }, t)));
+  m.append(h("div", { class: "card" }, h("h3", {}, "Direction search"), searchHeat(run)));
+  m.append(h("div", { class: "card" }, h("h3", {}, "Generations"), gensBrowser(run)));
+}
+
+// ── CAA ───────────────────────────────────────────────────────
+function caaChart(title, sweep, base, crossRows) {
+  const W = 320, H = 190, L = 34, R = 10, T = 22, B = 26;
+  const layers = Object.keys(sweep).map(Number).sort((a, b) => a - b);
+  const x = l => L + (l - layers[0]) / Math.max(1, layers.at(-1) - layers[0]) * (W - L - R), y = p => T + (1 - p) * (H - T - B);
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": `${title}: p(matching) by layer` });
+  svg.append(s("text", { x: L, y: 13, style: `fill:${css("--text-primary")};font-weight:600;font-size:12px` }, title));
+  for (const p of [0, .5, 1]) svg.append(s("line", { x1: L, x2: W - R, y1: y(p), y2: y(p), stroke: css("--grid") }), s("text", { x: L - 5, y: y(p) + 4, "text-anchor": "end" }, p));
+  svg.append(s("line", { x1: L, x2: W - R, y1: y(base), y2: y(base), stroke: css("--series-muted"), "stroke-width": 1 }),
+    s("text", { x: L + 4, y: y(base) - 4 }, `baseline ${base.toFixed(2)}`));
+  const series = [["1.0", css("--series-1")], ["-1.0", css("--series-2")]];
+  for (const [mlt, color] of series) {
+    const pts = layers.filter(l => sweep[l][mlt]).map(l => [x(l), y(sweep[l][mlt].p)]);
+    svg.append(s("polyline", { points: pts.map(p => p.join(",")).join(" "), fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  }
+  for (const [name, row] of Object.entries(crossRows || {})) {
+    for (const [mlt, color] of series) if (row[mlt]) svg.append(s("circle", { cx: x(row.layer), cy: y(row[mlt].p), r: 4.5, fill: "none", stroke: color, "stroke-width": 2,
+      "data-tip": `${name} ×${mlt} at CAA layer ${row.layer}: ${row[mlt].p.toFixed(3)}` }));
+  }
+  for (const l of layers) if (l % 4 === 0) svg.append(s("text", { x: x(l), y: H - 8, "text-anchor": "middle" }, l));
+  const step = (W - L - R) / Math.max(1, layers.length - 1);
+  for (const l of layers) {
+    const r = sweep[l];
+    svg.append(s("rect", { x: x(l) - step / 2, y: T, width: step, height: H - T - B, fill: "transparent",
+      "data-tip": `layer ${l}\n×+1: ${r["1.0"] ? r["1.0"].p.toFixed(3) : "–"}\n×−1: ${r["-1.0"] ? r["-1.0"].p.toFixed(3) : "–"}\nbaseline: ${base.toFixed(3)}` }));
+  }
+  return svg;
+}
+function viewCAA(m, model) {
+  // layer x (±1) sweeps only; tagged multiplier sweeps are tables (look.py caa)
+  const models = Object.keys(DATA.caa).filter(k => Object.values(DATA.caa[k].sweep).some(rows => Object.values(rows).some(r => r["1.0"])));
+  m.append(h("h2", {}, "CAA: multiple-choice steering"),
+    h("p", { class: "sub" }, "p(answer matching behavior) on each behavior's 50 held-out A/B questions, steering at one layer (CAA's block-output convention: CAA layer L = our layer L+1) with the normalized vector ×+1 and ×−1. Open circles: this repo's direction for the same model, applied at its own layer at the same norm."));
+  if (!models.length) { m.append(h("div", { class: "card" }, "No CAA results yet (results/caa/<model>-ab.json).")); return; }
+  const cur = models.includes(model) ? model : models[0];
+  m.append(h("div", { class: "controls" }, "model ", h("select", { onchange: e => location.hash = `#/caa/${e.target.value}` }, models.map(x => h("option", { value: x, selected: x === cur ? "" : null }, x))),
+    h("span", { class: "legend" }, h("span", {}, h("span", { class: "sw", style: `background:${css("--series-1")}` }), "×+1 (toward behavior)"),
+      h("span", {}, h("span", { class: "sw", style: `background:${css("--series-2")}` }), "×−1 (away)"),
+      h("span", {}, h("span", { class: "sw", style: `background:${css("--series-muted")};height:1px` }), "unsteered baseline"))));
+  const d = DATA.caa[cur];
+  const grid = h("div", { class: "grid-multi" });
+  for (const b of d.behaviors) if (d.sweep[b]) {
+    const cross = Object.fromEntries(Object.entries(d.cross).filter(([, per]) => per[b]).map(([n, per]) => [n, per[b]]));
+    grid.append(h("div", { class: "card" }, caaChart(b, d.sweep[b], d.baseline[b].p, cross)));
+  }
+  m.append(grid);
+  const t = h("table", {}, h("tr", {}, ["behavior", "baseline", "best layer", "×−1", "×+1", "spread", "baseline (CAA's scoring)"].map(x => h("th", {}, x))));
+  for (const b of d.behaviors) { const sw = d.sweep[b]; if (!sw) continue;
+    let best = null, bs = -Infinity; for (const [l, r] of Object.entries(sw)) if (r["1.0"] && r["-1.0"] && r["1.0"].p - r["-1.0"].p > bs) { bs = r["1.0"].p - r["-1.0"].p; best = l; }
+    t.append(h("tr", {}, h("td", {}, b), h("td", { class: "num" }, d.baseline[b].p.toFixed(2)), h("td", { class: "num" }, best), h("td", { class: "num" }, sw[best]["-1.0"].p.toFixed(2)),
+      h("td", { class: "num" }, sw[best]["1.0"].p.toFixed(2)), h("td", { class: "num" }, f2(bs)), h("td", { class: "num" }, d.baseline[b].pc == null ? "–" : d.baseline[b].pc.toFixed(2)))); }
+  m.append(h("div", { class: "card scroll" }, h("h3", {}, "Summary"), t));
+  for (const [concept, rows] of Object.entries(d.cosine || {})) {
+    const ct = h("table", {}, h("tr", {}, ["CAA behavior", "matched CAA layer", "cos", "best CAA layer", "cos at best"].map(x => h("th", {}, x))));
+    for (const [b, c] of Object.entries(rows)) ct.append(h("tr", {}, h("td", {}, b), h("td", { class: "num" }, c.matched_caa_layer), h("td", { class: "num" }, f2(c.cos_matched)), h("td", { class: "num" }, c.best_caa_layer), h("td", { class: "num" }, f2(c.cos_best))));
+    m.append(h("div", { class: "card scroll" }, h("h3", {}, `Cosine: our ${concept} direction vs CAA vectors`), ct));
+  }
+}
+
+// ── cross-concept ─────────────────────────────────────────────
+function viewCross(m, key) {
+  const keys = Object.keys(DATA.cross);
+  m.append(h("h2", {}, "Cross-concept"), h("p", { class: "sub" }, "Ablating one concept's direction globally, measuring every concept's detection rate on its own positive prompts. Cell = change in rate vs that concept's unablated baseline (blue = down, red = up)."));
+  if (!keys.length) { m.append(h("div", { class: "card" }, "No cross-concept results yet.")); return; }
+  const cur = keys.includes(key) ? key : keys[0], d = DATA.cross[cur], n = d.concepts;
+  m.append(h("div", { class: "controls" }, h("select", { onchange: e => location.hash = `#/cross/${e.target.value}` }, keys.map(x => h("option", { value: x, selected: x === cur ? "" : null }, x))),
+    h("span", { class: "legend" }, "−100pp ", h("span", { class: "gradbar" }), " +100pp")));
+  const cell = (a, b) => d.cells[a.length ? `ablate[${[...a].sort().join("+")}]->${b}` : `baseline->${b}`];
+  const t = h("table", { class: "heat" }, h("tr", {}, h("th", {}, "ablate ↓ / measure →"), n.map(c => h("th", {}, c))));
+  n.forEach((a, i) => t.append(h("tr", {}, h("th", {}, a), n.map((b, j) => {
+    const v = d.interference_matrix[i][j], c = cell([a], b), base = cell([], b), bg = diverging(v, 1);
+    return h("td", { style: `background:${bg};color:${inkFor(bg)};width:90px`, "data-tip": `ablate ${a} → ${b}\n${pct(base.rate)} → ${pct(c.rate)} (n=${c.n})\nlog-odds ${f2(base.log_odds)} → ${f2(c.log_odds)}\ndegenerate ${pct(c.degenerate_rate)}` },
+      `${v >= 0 ? "+" : ""}${Math.round(100 * v)}pp`);
+  }))));
+  const sim = h("table", {}, h("tr", {}, h("th", {}, "cos"), n.map(c => h("th", {}, c))));
+  n.forEach((a, i) => sim.append(h("tr", {}, h("th", {}, a), n.map((b, j) => h("td", { class: "num" }, f2(d.similarity_matrix[i][j]))))));
+  const cells = h("table", {}, h("tr", {}, ["cell", "rate", "95% CI", "log-odds", "degenerate", "n"].map(x => h("th", {}, x))));
+  for (const [k, c] of Object.entries(d.cells)) { const kk = Math.round(c.rate * c.n), [lo, hi] = wilson(kk, c.n);
+    cells.append(h("tr", {}, h("td", {}, k), h("td", { class: "num" }, pct(c.rate)), h("td", { class: "num" }, `[${pct(lo)}, ${pct(hi)}]`), h("td", { class: "num" }, f2(c.log_odds)), h("td", { class: "num" }, pct(c.degenerate_rate)), h("td", { class: "num" }, c.n))); }
+  m.append(h("div", { class: "card scroll" }, h("h3", {}, "Interference (Δ detection rate)"), t, h("p", { class: "muted" }, `directions: ${Object.entries(d.directions).map(([k, v]) => `${k} L${v.layer}/P${v.position_index}`).join(", ")} · batch ${d.gen_batch_size}`)),
+    h("div", { class: "card scroll" }, h("h3", {}, "Cosine similarity"), sim), h("div", { class: "card scroll" }, h("h3", {}, "All cells"), cells));
+}
+
+// ── projections ───────────────────────────────────────────────
+function viewProj(m, key) {
+  const keys = Object.keys(DATA.proj);
+  m.append(h("h2", {}, "Per-token projections"), h("p", { class: "sub" }, "Scalar projection of each token's residual stream (input of the chosen block) onto the unit direction, from tools/project.py. Blue = against the direction, red = along it; the scale is the mean projection at the generation boundary over the positive baseline prompts at that layer. The bar marks where the response starts."));
+  if (!keys.length) { m.append(h("div", { class: "card" }, "No projection files yet (results/proj/*.json; run tools/project.py).")); return; }
+  const cur = keys.includes(key) ? key : keys[0], d = DATA.proj[cur], nL = d.items[0].proj.length;
+  const layer = h("input", { type: "range", min: 0, max: nL - 1, value: d.direction_layer, oninput: () => draw() });
+  const lv = h("span", { class: "muted" });
+  const condSel = h("select", { onchange: () => draw() }, h("option", { value: "" }, "all conditions"), [...new Set(d.items.map(i => i.condition))].map(c => h("option", { value: c }, c)));
+  const out = h("div");
+  m.append(h("div", { class: "controls" }, h("select", { onchange: e => location.hash = `#/proj/${e.target.value}` }, keys.map(x => h("option", { value: x, selected: x === cur ? "" : null }, x))),
+    "layer ", layer, lv, condSel, h("span", { class: "legend" }, "against ", h("span", { class: "gradbar" }), " along")), out);
+  function draw() {
+    const l = +layer.value, ref = d.reference.positive ? Math.abs(d.reference.positive[l]) : 1;
+    lv.textContent = `L${l}${l === d.direction_layer ? " (direction's layer)" : ""} · scale ±${ref.toFixed(2)}${d.replay ? " · interventions replayed" : ""}`;
+    out.replaceChildren(...d.items.filter(i => !condSel.value || i.condition === condSel.value).map(it => {
+      const vals = it.proj[l];
+      const line = h("div", { class: "tokline" });
+      it.tokens.forEach((tk, j) => {
+        if (j === it.response_start) line.append(h("span", { class: "resp-mark", title: "response starts" }));
+        const bg = diverging(vals[j], ref || 1);
+        line.append(h("span", { class: "tok", style: `background:${bg};color:${inkFor(bg)}`, "data-tip": `${JSON.stringify(tk)}  ${f2(vals[j])}` }, tk.replace(/\n/g, "↵")));
+      });
+      return h("div", { class: "card" }, h("div", {}, h("span", { class: "chip" }, it.condition.replace(/_/g, " ")), it.detected ? h("span", { class: "chip det" }, "detected") : h("span", { class: "chip" }, "not detected"), h("span", { class: "muted" }, ` #${it.index}`)), line);
+    }));
+  }
+  draw();
+}
+route();
+</script>
+</body>
+</html>
