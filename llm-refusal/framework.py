@@ -497,6 +497,8 @@ class DirectionTestFramework:
             directions=directions,
             concepts=concepts,
             model_name=self.model_name,
+            gen_batch_size=self.evaluator.gen_batch_size,
+            output_path=f"results/{model_short}-cross_concept-{'-'.join(concept_names)}.json",
         )
         logger.info("Cross-concept analysis finished.")
         return result

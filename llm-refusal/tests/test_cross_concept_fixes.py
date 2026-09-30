@@ -13,9 +13,11 @@ from unittest.mock import MagicMock
 
 from datatypes import DirectionVector
 from cross_concept import (
+    CellRunner,
     _joint_ablation_basis,
     analyze_direction_subspace,
     measure_interference,
+    run_multi_ablation,
 )
 
 
@@ -155,43 +157,63 @@ class TestHookSafety:
             layer.mlp.register_forward_hook = MagicMock(return_value=MagicMock())
         return model
 
-    def test_hooks_cleared_after_exception_in_measure_interference(self, monkeypatch):
-        """If evaluation raises mid-way through measure_interference, the intervention
-        hooks registered for the in-flight ablation must still be removed (finally)."""
+    def _make_runner(self, monkeypatch, n_concepts=1, fail_after=None):
+        """CellRunner over a stub model, with _measure stubbed (no generation). Returns
+        (runner, applier, calls) where calls counts _measure invocations."""
         from interventions import ModelInterventionApplier
-        import evaluation
 
         model = self._make_stub_model()
         applier = ModelInterventionApplier(model)
+        concepts, directions = [], []
+        for i in range(n_concepts):
+            concept = MagicMock()
+            concept.name = f"c{i}"
+            concept.detection_phrases = ["x"]
+            concept.detection_fn = None
+            concept.judge_prompt = None
+            concept.target_tokens = None
+            concept.eval_data_fn = MagicMock(return_value=(["p1", "p2"], []))
+            concepts.append(concept)
+            directions.append(_make_direction(t.randn(8)))
 
-        direction = _make_direction(t.randn(8))
-        concept = MagicMock()
-        concept.name = "test_concept"
-        concept.detection_phrases = ["x"]
-        concept.detection_fn = None
-        concept.judge_prompt = None
-        concept.eval_data_fn = MagicMock(return_value=(["p1", "p2"], []))
+        calls = {"n": 0}
 
-        tokenizer = MagicMock()
-        prompt_formatter = MagicMock()
-
-        call_count = {"n": 0}
-
-        def flaky_evaluate_detection_rate(self, prompts, *args, **kwargs):
-            call_count["n"] += 1
-            if call_count["n"] > 1:
+        def fake_measure(self, measured, key):
+            calls["n"] += 1
+            if fail_after is not None and calls["n"] > fail_after:
                 raise RuntimeError("simulated evaluation failure")
-            return 0.5
+            return {"rate": 0.5, "log_odds": None, "degenerate_rate": 0.0, "n": 2}
 
-        monkeypatch.setattr(
-            evaluation.BigEvaluator, "evaluate_detection_rate", flaky_evaluate_detection_rate
-        )
+        monkeypatch.setattr(CellRunner, "_measure", fake_measure)
+        runner = CellRunner(model, MagicMock(), applier, MagicMock(), directions, concepts,
+                            gen_batch_size=2)
+        return runner, applier, calls
 
+    def test_hooks_cleared_after_exception_in_measure_interference(self, monkeypatch):
+        """If evaluation raises mid-way through measure_interference, the intervention
+        hooks registered for the in-flight ablation must still be removed (finally)."""
+        runner, applier, _ = self._make_runner(monkeypatch, fail_after=1)
         with pytest.raises(RuntimeError, match="simulated evaluation failure"):
-            measure_interference(
-                model, tokenizer, applier, prompt_formatter,
-                [direction], [concept], max_prompts=2,
-            )
-
-        # The finally block must have run: no hooks left registered on the applier.
+            measure_interference(runner, ["c0"])
         assert applier.intervention_hooks == []
+
+    def test_joint_ablation_hooks_cleared_after_exception(self, monkeypatch):
+        runner, _, _ = self._make_runner(monkeypatch, n_concepts=3, fail_after=0)
+        layer = runner.intervention_applier.transformer_layers[0]
+        with pytest.raises(RuntimeError, match="simulated evaluation failure"):
+            runner.run(["c0", "c1"], "c2")
+        handle = layer.register_forward_pre_hook.return_value
+        assert handle.remove.called
+
+    def test_run_multi_ablation_reuses_interference_cells(self, monkeypatch):
+        """3 concepts: 3 baselines + 9 single ablations + 3 joint ablations = 15 cells.
+        The multi-ablation test must not regenerate baselines or single ablations."""
+        runner, _, calls = self._make_runner(monkeypatch, n_concepts=3)
+        names = ["c0", "c1", "c2"]
+        measure_interference(runner, names)
+        assert calls["n"] == 12
+        for name in names:
+            run_multi_ablation(runner, [n for n in names if n != name], name)
+        assert calls["n"] == 15
+        # Joint cells are keyed order-independently.
+        assert runner.key(["c1", "c0"], "c2") == runner.key(["c0", "c1"], "c2")
