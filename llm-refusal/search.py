@@ -137,7 +137,10 @@ class DirectionFinder:
 
         candidate_iterator = tqdm(difference_vectors.items(), desc="Evaluating candidates")
         for (layer, pos_idx), vec in candidate_iterator:
-            if layer >= layer_cutoff:
+            # Layer 0 is the raw token embeddings: no context has been mixed in, so a
+            # difference in means there is a token-identity contrast, not a behavior
+            # (and at the post-instruction template positions it is exactly 0).
+            if layer == 0 or layer >= layer_cutoff:
                 continue
 
             current_direction = DirectionVector(vector=vec, layer=layer, position_index=pos_idx, score=0)
@@ -151,10 +154,9 @@ class DirectionFinder:
                 'induce_global_score': scores.induce_global,
                 'kl_score': scores.kl,
             })
-            # Non-finite scores come from zero vectors: at layer 0 the post-instruction
-            # positions hold identical template-token embeddings for every prompt, so
-            # the difference-in-means is exactly 0 and its unit vector is NaN. Keep
-            # them out of selection (NaN also breaks the fallback's sort order).
+            # Non-finite scores come from (near-)zero difference vectors, whose unit
+            # vector is NaN. Keep them out of selection (NaN also breaks the
+            # fallback's sort order).
             if not all(np.isfinite([scores.bypass, scores.induce, scores.induce_global, scores.kl])):
                 logger.debug(f"Skipping candidate L{layer} P{pos_idx}: non-finite scores {scores}")
                 continue

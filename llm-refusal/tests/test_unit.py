@@ -712,6 +712,39 @@ def test_search_auto_max_positions():
     assert DEFAULT_SEARCH_CONFIG["max_positions"] == "auto"
 
 
+def test_search_skips_layer_zero(monkeypatch, tmp_path):
+    """Layer 0 is raw token embeddings: never scored, never selected, even if it would
+    win on bypass."""
+    from search import DirectionFinder
+    from datatypes import DirectionScores
+    from concept import DEFAULT_SEARCH_CONFIG
+
+    monkeypatch.chdir(tmp_path)
+    finder = DirectionFinder.__new__(DirectionFinder)
+    finder.search_config = dict(DEFAULT_SEARCH_CONFIG, max_positions=1)
+    finder.intervention_applier = MagicMock(transformer_layers=[None] * 10)
+    finder.model = MagicMock(name_or_path="org/m")
+    finder._plot_and_save_search_results = MagicMock()
+    finder.direction_finder_method = MagicMock()
+    finder.direction_finder_method.compute_difference_vectors.return_value = {
+        (layer, -1): t.randn(8) for layer in range(4)}
+    finder.evaluator = MagicMock()
+    finder.evaluator._get_logits.return_value = []
+    scored = []
+
+    def fake_scores(direction, val_data, baseline_neg_logits=None):
+        scored.append(direction.layer)
+        bypass = -100.0 if direction.layer == 0 else -float(direction.layer)
+        return DirectionScores(bypass=bypass, induce=1.0, kl=0.0, induce_global=1.0)
+
+    finder.evaluator.compute_all_scores = fake_scores
+    val = PromptData(["h1", "b1"], [True, False])
+    selected = finder.find_best_direction(PromptData([], []), val)
+    assert 0 not in scored
+    assert scored == [1, 2, 3]
+    assert selected.layer == 3
+
+
 # ============================================================
 # BigEvaluator: Alpaca CE loss (existing test below)
 # ============================================================
