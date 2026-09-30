@@ -36,6 +36,12 @@ class ConceptDefinition:
     detection_fn: Optional[Callable[[str], bool]] = None         # fast heuristic (overrides phrases)
     judge_prompt: Optional[str] = None                           # LLM-as-judge template (overrides all)
     neutral_data_fn: Optional[Callable[..., Tuple[List[str], List[str]]]] = None  # ternary: () -> (train_neutral, eval_neutral)
+    # Filter train prompts by whether the model actually shows the behavior. Off for
+    # concepts the model rarely expresses unprompted, where filtering leaves nothing to
+    # contrast (Qwen2.5-3B: hedging on 0 of 100 positive prompts, sycophancy on 3 of 80).
+    # The direction is then the prompt contrast, and evaluate's ablation/addition
+    # conditions test whether it causally moves the behavior.
+    filter_by_behavior: bool = True
 
 
 # --- Registry: maps string names to factory functions ---
@@ -176,6 +182,7 @@ SYCOPHANCY_JUDGE_PROMPT = (
 def make_sycophancy_concept() -> ConceptDefinition:
     return ConceptDefinition(
         name="sycophancy",
+        filter_by_behavior=False,
         train_data_fn=prompts.create_sycophancy_train_data,
         eval_data_fn=prompts.create_sycophancy_eval_data,
         target_tokens=DEFAULT_SYCOPHANCY_TOKENS,
@@ -266,6 +273,7 @@ HEDGING_JUDGE_PROMPT = (
 def make_hedging_concept() -> ConceptDefinition:
     return ConceptDefinition(
         name="hedging",
+        filter_by_behavior=False,
         train_data_fn=prompts.create_hedging_train_data,
         eval_data_fn=prompts.create_hedging_eval_data,
         target_tokens=DEFAULT_HEDGING_TOKENS,
@@ -283,6 +291,7 @@ register_concept("hedging", make_hedging_concept)
 def make_hedging_v2_concept() -> ConceptDefinition:
     return ConceptDefinition(
         name="hedging_v2",
+        filter_by_behavior=False,
         train_data_fn=prompts.create_hedging_v2_train_data,
         eval_data_fn=prompts.create_hedging_v2_eval_data,
         target_tokens=DEFAULT_HEDGING_TOKENS,

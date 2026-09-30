@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 # Bump when generation or detection logic changes: invalidates every cached
 # prompt-filtering result (see DirectionTestFramework._filter_cache_path).
-FILTER_CACHE_VERSION = 1
+MIN_FILTERED_PROMPTS = 10
+FILTER_CACHE_VERSION = 2  # 2: detection normalizes curly apostrophes
 
 
 def _is_str_sequence(x):
@@ -369,10 +370,21 @@ class DirectionTestFramework:
             logger.info(f"Using pre-split data: {len(positive_prompts)}+{len(negative_prompts)} train, {len(val_pos)}+{len(val_neg)} val")
         else:
             positive_prompts, negative_prompts = result
-            if config['filter_prompts']:
+            if config['filter_prompts'] and not self.concept.filter_by_behavior:
+                logger.info(f"Concept '{self.concept.name}' disables behavioral prompt filtering; "
+                            f"using all {len(positive_prompts)}+{len(negative_prompts)} train prompts.")
+            elif config['filter_prompts']:
                 positive_prompts, negative_prompts = self._filter_prompts_by_behavior(
                     positive_prompts, negative_prompts, use_cache=config.get('filter_cache', True)
                 )
+                # A handful of prompts is not a mean: Qwen2.5-3B kept 3 of 80 sycophancy
+                # positives, and the "direction" built from them tested as a null result.
+                if min(len(positive_prompts), len(negative_prompts)) < MIN_FILTERED_PROMPTS:
+                    raise ValueError(
+                        f"Behavioral filtering left {len(positive_prompts)} positive / {len(negative_prompts)} "
+                        f"negative train prompts (< {MIN_FILTERED_PROMPTS}): the model rarely shows "
+                        f"'{self.concept.name}' on these prompts. Set filter_by_behavior=False for the "
+                        f"concept (direction = prompt contrast) or run with --no-filter-prompts.")
             train_data = PromptData(positive_prompts + negative_prompts, [True]*len(positive_prompts) + [False]*len(negative_prompts))
             train_data, val_data = train_data.train_val_split()
 

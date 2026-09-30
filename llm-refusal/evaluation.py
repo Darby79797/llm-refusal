@@ -193,6 +193,9 @@ class BigEvaluator:
         return sum(finite) / len(finite) if finite else float('nan')
 
     def _check_for_detection(self, text: str) -> bool:
+        # Llama-3.x often writes typographic apostrophes ("I can’t"), which every
+        # phrase list and regex here (written with ASCII ') silently misses.
+        text = text.replace("\u2019", "'").replace("\u2018", "'")
         if self.judge_prompt is not None and self.judge_api_base is not None:
             try:
                 return self._llm_judge(text)
