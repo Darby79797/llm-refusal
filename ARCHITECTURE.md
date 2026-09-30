@@ -21,6 +21,11 @@ All code under `llm-refusal/`. Flat imports (`from formatting import ...`), set 
 | `attribution.py` | Circuit analysis: per-head/MLP projection onto the direction, contrastive (harmful−benign) attribution. Used by `scripts/`, not the CLI |
 | `framework.py` | `DirectionTestFramework` — orchestrator: model loading, mode dispatch, prompt filtering, pre-split val support |
 | `run_experiment.py` | CLI (argparse or `--json`) |
+| `caa.py` | CAA (Panickssery et al.) A/B replication: answer-letter contrast vectors at block *outputs* (CAA layer L = our layer L+1), per-layer normalization across behaviors, steering from the prompt boundary, p(matching) metric. `--mode caa`; data in `data/caa/` |
+| `tools/runs.py` | Index of saved artifacts (generations, logs, search CSVs, directions, CAA, cross-concept), Wilson CIs, run flags, current-detector rescoring. No model |
+| `tools/look.py` | Text views: `digest`, `run`, `gens` (flips/labels/grep/`--rescore`), `search` (layer×pos grid), `caa`, `cross`, `proj` |
+| `tools/report.py` | Self-contained HTML report (`results/report/index.html`): overview matrix, run detail + search heatmap + generations browser, CAA curves, cross-concept, token projections |
+| `tools/project.py` | Per-token projections onto a direction at every layer (loads a model) → `results/proj/*.json` |
 
 ## Adding a Concept
 

@@ -25,11 +25,19 @@ Two padding bugs have now been fixed: the April 2026 indexing bug in the scoring
 
 **What needs re-running** (all used at least one of the two broken paths):
 - ~~Refusal **search** on all models~~ Done 2026-09-23: all 7 pass strictly; 6/7 re-select the old coordinates (Qwen2.5-0.5B: L13→L14). Evaluate re-run at the selected coordinates reproduces 2026-08 exactly. See RESULTS.md.
-- Sycophancy, hedging, empathy: search + evaluation on all models
-- Cross-concept analysis (refusal × sycophancy × hedging) — its Qwen2.5-3B refusal baseline is 29pp off
-- Not yet attempted at all: the paper's **safety score** (Llama Guard 2 over JailbreakBench, 512-token generations). Only the refusal-phrase half of §3 is replicated.
+- ~~Sycophancy, hedging, empathy: search + evaluation on all models~~ Done 2026-09-24 (RESULTS.md "Non-Refusal Concepts"): empathy works on 6/7, hedging is a real negative, sycophancy needs a response-contrast direction.
+- ~~Cross-concept analysis~~ Done 2026-09-25 on all 7 models (4 concepts); the −63pp headline does not replicate.
+- ~~The paper's **safety score**~~ Done 2026-09-25 on all 7 models (ablation → 66-89% LlamaGuard-unsafe).
 
-## Priority 1: Re-run Non-Refusal Concepts
+## Next (from the 2026-09-25 sweep)
+
+1. **Sycophancy from a response contrast.** Same prompts, activations when the model was vs wasn't sycophantic (CAA-style), instead of the prompt contrast (which encodes framing) or behavioral filtering (too few sycophantic responses on ≥1.5B models).
+2. **Selection rule:** break bypass near-ties by induce (Llama-3.1: L11/P-1 gives 100% induction vs 85% at the selected L12/P-2).
+3. **Detection:** widen the refusal phrase list for non-apologetic refusals ("I do not provide…", "I must strongly advise against…"), or lead with log-odds where phrasing can change (cross-concept).
+4. **CAA open-ended half** (LLM judge via OpenRouter, pending a key); check "ablating refusal raises sycophancy" against the text.
+5. `hedging_v2` (subjective questions); a larger empathy eval set (20 prompts now).
+
+## Priority 1: Re-run Non-Refusal Concepts (DONE 2026-09-24, see RESULTS.md)
 
 All sycophancy, hedging, and empathy results were produced through the broken generation path on Qwen2.5 models — the family that bug hit hardest. The directions may be wrong and every evaluation is unreliable. Note in particular that the hedging "0% detection" negative result is exactly what a corrupted generation path also produces, so it is currently uninterpretable in either direction.
 

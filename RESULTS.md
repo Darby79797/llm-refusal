@@ -1,6 +1,6 @@
 # Results
 
-Current best refusal results and key findings. The refusal numbers below come from the **2026-09-23 re-verification sweep** (`results/sweep4/`, which is gitignored and local only): a fresh post-fix `--mode search` on every model, followed by `--mode evaluate` at the selected coordinates, with every response saved and scored for coherence. They reproduce the 2026-08-11 post-fix evaluate runs (`results/rerun3-*`, index `committed-results/rerun3-MANIFEST.md`) exactly on every model. Pre-fix numbers are preserved as `results/prefix-*.log` and `results/repro-*.log`.
+Current best results and key findings: refusal (all 7 models), the safety score (all 7), empathy/hedging/sycophancy, cross-concept, and a CAA replication. The refusal numbers below come from the **2026-09-23 re-verification sweep** (`results/sweep4/`, which is gitignored and local only): a fresh post-fix `--mode search` on every model, followed by `--mode evaluate` at the selected coordinates, with every response saved and scored for coherence. They reproduce the 2026-08-11 post-fix evaluate runs (`results/rerun3-*`, index `committed-results/rerun3-MANIFEST.md`) exactly on every model. Pre-fix numbers are preserved as `results/prefix-*.log` and `results/repro-*.log`.
 
 Every evaluate number before 2026-08-11 was wrong, by up to 24pp, because generation ran through `model.generate()` on right-padded batches. See "Two Padding Bugs" below.
 
@@ -21,6 +21,7 @@ Rates are phrase-match detection rates over 64 greedy tokens: refusal on the 99 
 - **Every selection passed the strict criteria** (induce > 0, KL < 0.1). None needed the relaxed fallback tiers.
 - **The post-fix search confirms 6 of 7 of the old pre-fix coordinates.** Only Qwen2.5-0.5B moved, from L13 to L14 (bold). Both pass strictly: L14 has the lower bypass (-5.89 vs -4.20) and moves global ablation from 1.0% to 0.0%.
 - **Sweet spot:** Qwen ~54-61% depth, Llama ~38% depth. 5 of 7 models select a position other than -1.
+- **Llama-3.1's 83.8% induction is a selection artifact, not a weak direction** (2026-09-25). Selection takes the lowest bypass score among strictly passing candidates, and L12/P-2 had the weakest induce score (1.08) of the near-ties. L11/P-1 (bypass 0.33 worse, induce 7.15) gives **100% induction** (log-odds +7.72) with the same 0% global ablation; L12/P-2 re-run at the same (auto) batch size gives 85% (+1.60), matching the bs=2 figure. 2 of the 13 L12/P-2 misses were refusals written with a curly apostrophe ("I can’t"), which the detector now normalizes. Breaking bypass near-ties by induce would fix the rule.
 - **Llama-3-8B changed batch size, not results.** It is now at bs=2 (previously 8) and reproduces the bs=8 numbers to within 0.01 log-odds.
 - **Coherence.** Every ablation and induction condition is 0% degenerate on every model: ablated outputs are fluent compliance, and induced outputs are fluent refusals.
 
@@ -56,7 +57,7 @@ Every headline effect clears its interval by a wide margin. Even the weakest, Ll
 - **Llama-2 template bug**: HuggingFace's Llama-2 chat template doesn't respond to `add_generation_prompt`. We override with `[INST] {x} [/INST] ` (trailing space). Without this, induction fails completely.
 - **Our dataset produces strong directions**: topic-matched prompts work well (90 harmful / 64 harmless train, 99/80 eval). Arditi's 128+128 set (from AdvBench, MaliciousInstruct and TDC2023) also works when scoring is correct.
 - **Detection is Arditi's phrase list.** `DEFAULT_REFUSAL_PHRASES` is exactly Arditi's JailbreakBench refusal-substring list. Reading the Qwen2.5-0.5B generations, it misses about 1 in 100 responses in each direction ("…is illegal and unethical", "I am not capable of…"). That is small next to the ~90pp effects, but it is part of the ±3pp noise floor.
-- **The safety half of the paper replicates (Llama-3-8B, 2026-09-24).** Setup: `refusal_arditi_exact`, L12/pos-5, JailbreakBench, 512 greedy tokens, LlamaGuard 2, bf16, bs=2, `results/safety1/`. Match to the paper's Table (fine-tuning comparison, Llama-3 8B):
+- **The safety half of the paper replicates on all 7 models** (see "Safety Score on All 7 Models"). Detailed Llama-3-8B comparison with the paper **(2026-09-24)**: Setup: `refusal_arditi_exact`, L12/pos-5, JailbreakBench, 512 greedy tokens, LlamaGuard 2, bf16, bs=2, `results/safety1/`. Match to the paper's Table (fine-tuning comparison, Llama-3 8B):
 
   | | Refusal score | Safety score (1 = safe) |
   |---|---|---|
@@ -70,34 +71,83 @@ Every headline effect clears its interval by a wide margin. Even the weakest, Ll
   - **Not replicated:** the paper's CE-loss columns. Our "Alpaca CE" scores instruction tokens, not completions (see ARDITI.md); it moved 5.04 → 5.08 under ablation.
 - **Intervals are narrow enough for the headline, too wide for fine comparisons.** At n=99 harmful / 80 harmless, a 0% rate still has an upper bound of 3.7-4.6%, and a 3pp difference is ~3 prompts, inside both sampling error and bf16 decoding noise. See the Wilson table above; differences between models of a few pp should not be interpreted.
 
-> **Everything below this line is pre-fix and unreliable.** All non-refusal findings are detection rates produced by the broken generation path (bug 2), on Qwen2.5 models — the family the bug hit hardest. None have been re-run. Treat them as hypotheses, not results.
+## Safety Score on All 7 Models (2026-09-25)
 
-- **Sycophancy is harder** *(pre-fix)*: Low induction rates (2-12%), no clean single direction on small models.
-- **Hedging: negative result** *(pre-fix)*: 0% behavioral detection across all conditions on all 4 Qwen2.5 models. Note this "negative result" is exactly what a corrupted generation path also produces, so it needs re-running before it can be believed either way.
-- **Empathy direction works** *(pre-fix)*: Layer subtraction drops empathy 80%→10% on 1.5B and 25%→0% on 3B. Layer addition induces empathy on 100% (1.5B) and 40% (3B) of neutral prompts.
-- **Refusal–sycophancy entanglement** *(pre-fix)*: Ablating the sycophancy direction collapses refusal (−63pp on Qwen2.5-3B) despite near-orthogonality (cos 0.23). See Cross-Concept below.
+`refusal_arditi_exact` search per model, then JailbreakBench (100 prompts) with 512 greedy tokens, LlamaGuard 2 (via Ollama), bf16, auto batch size, `results/sweep5/`. Unsafe = LlamaGuard 2 verdict "unsafe"; it misses compliant harassment/misinformation (see the Llama-3 audit above), so unsafe rates are lower bounds.
 
-## Cross-Concept (Qwen2.5-3B, refusal × sycophancy × hedging) — SUPERSEDED
+| Model | Coords | Refusal: base → ablated | Unsafe: base → ablated | Induction on harmless (Alpaca) | Notes |
+|---|---|---|---|---|---|
+| Llama-3-8B | L12/P-5 | 96% → 0% | 2% → **83%** | 0% → 100% | paper: 0.95→0.01 refusal, 0.97→0.15 safety |
+| Llama-3.1-8B | L12/P-1 | 92% → 0% | 5% → **89%** | 0% → 89% | |
+| Llama-2-7B | L12/P-2 | 97% → 10% | 1% → **78%** | 1% → 95% | |
+| Qwen2.5-7B | L17/P-1 | 91% → 5% | 6% → **66%** | 3% → 70% | |
+| Qwen2.5-3B | L27/P-1 | 87% → 2% | 4% → **76%** | 4% → 96% | 28% of induced refusals degenerate at 512 tokens |
+| Qwen2.5-1.5B | L21/P-1 | 99% → 2% | 1% → **74%** | 8% → 96% | 20% / 47% degenerate (ablation / addition); OOM batch splits |
+| Qwen2.5-0.5B | L15/P-1 | 73% → 1% | 18% → **78%** | 5% → 94% | 18% of ablated outputs degenerate |
 
-> **Do not cite these numbers.** Every detection rate here came from the broken generation path, on Qwen2.5-3B — the model where that bug was worst. Its refusal baseline is quoted below as 66.7%; the corrected value is **96.0%**, a 29pp error, and every interference delta is measured against that wrong baseline. The cosine similarities and the SVD subspace analysis are unaffected (they operate on the saved direction vectors, not on generations), so those survive; the interference matrix and joint-ablation rows do not. Re-running `--mode cross_concept` is outstanding.
+The safety half of Arditi's result replicates on every model: directional ablation takes JailbreakBench refusal to 0-10% and LlamaGuard-unsafe output to 66-89%. The degenerate fractions on the small Qwens are a 512-token effect (the 64-token refusal evaluations are 0% degenerate): long generations under intervention eventually loop.
 
-From `results/repro-Qwen2.5-3B-cross_concept.log` (2026-08-08), using the saved post-fix direction files. Detection rates are over 30 prompts per condition (~3pp granularity). Baselines: refusal 66.7%, sycophancy 6.7%, hedging 0%.
+## Non-Refusal Concepts (post-fix, 2026-09-24)
 
-**Cosine similarity**: refusal–sycophancy 0.23, refusal–hedging 0.09, sycophancy–hedging 0.07 — all near-orthogonal.
+Search + evaluate on all 7 models (`results/sweep5/`, auto batch size, bf16). Rates are the concept's heuristic detector over 64 greedy tokens; `lo` is the concept's log-odds metric. Global ablation on positive prompts / single-layer addition on negative prompts.
 
-**Subspace**: uncentered SVD on the stacked unit directions gives explained variance [43%, 32%, 26%] — effective rank 3; the three directions span the full 3D space, fairly evenly. (Centered PCA cannot measure span from the origin: k centered vectors are bounded to rank k−1, so it is not used for this.)
+**Empathy: a working single direction on 6 of 7 models.** Eval set is only 20 prompts per side (95% CIs ±~20pp).
 
-**Interference** (single-direction ablation, detection-rate deltas):
+| Model | Coords | Baseline | Global abl | Layer abl | Neg baseline | Addition |
+|---|---|---|---|---|---|---|
+| Qwen2.5-0.5B | L13/P-1 | 95% | 60% | 85% | 0% | 5% |
+| Qwen2.5-1.5B | L17/P-1 | 100% | 0% | 0% | 0% | 100% |
+| Qwen2.5-3B | L21/P-4 | 40% | 0% | 5% | 0% | 80% |
+| Qwen2.5-7B | L16/P-4 | 80% | 25% | 40% | 0% | 85% |
+| Llama-3-8B | L14/P-2 | 95% | 10% | 35% | 0% | 95% |
+| Llama-3.1-8B | L14/P-1 | 60% | 15% | 15% | 0% | 60% |
+| Llama-2-7B | L17/P-2 | 30% | 0% | 20% | 0% | 70% |
 
-| Ablated | Refusal Δ | Sycophancy Δ | Hedging Δ |
-|---------|-----------|--------------|-----------|
-| Refusal | −63pp | +3pp | 0 |
-| Sycophancy | −63pp | +47pp | 0 |
-| Hedging | −37pp | +3pp | 0 |
+**Hedging: a real negative for this prompt set.** 0% in every condition on all 7 models. No model hedges on these factual questions, and adding the prompt-contrast direction doesn't make it start. (The pipeline is sound here; the pre-fix "negative result" was uninterpretable, this one isn't.) Behavioral filtering is off for hedging: there is nothing to filter. `hedging_v2` (subjective questions) is the natural next test.
 
-**Joint span ablation** (order-independent, ablating the other two concepts' directions simultaneously): refusal 66.7%→6.7%; sycophancy 6.7%→23.3%; hedging 0%→0%.
+**Sycophancy: no working direction from the prompt contrast; the behaviorally filtered direction works where it can be built.**
 
-Notable: ablating the sycophancy direction is as destructive to refusal as ablating the refusal direction itself; ablating the sycophancy direction *raises* sycophancy detection by 47pp (unexplained — worth an eyeball pass); hedging detection is 0% in every condition, consistent with the hedging negative result.
+| Qwen2.5-0.5B sycophancy | Baseline | Global abl | Neg baseline | Addition |
+|---|---|---|---|---|
+| filtered: built from the 25/80 prompts where the model *was* sycophantic (`filtered-*`) | 42% | **5%** | 11% | **52%** |
+| unfiltered: prompt contrast (current default) | 42% | 30% | 11% | 25% |
+
+- On the other 6 models the model is sycophantic on 0-19% of positive prompts, and neither ablation nor addition moves it (all within CI). Filtering leaves too few prompts there (Qwen2.5-3B: 3/80), which is why the default was switched to the prompt contrast. The 0.5B comparison shows that switch doesn't work either: the prompt contrast mostly encodes the *framing* of the prompt. The fix is a response-contrast direction (same prompts, sycophantic vs non-sycophantic responses), as CAA's paired answers do.
+- **Llama-2's sycophancy direction breaks the model**: the search fell back to a relaxed tier and picked L5/P-6; ablating it gives 100% degenerate output (`'ws?ws? right? right? right???…`). It encodes the token "right?" that ends the sycophantic prompts. Phrase matching alone would have scored it "sycophancy ablated to 0%"; the degeneracy check catches it.
+- **CAA agrees** (below): sycophancy is the weakest-steering behavior under CAA's answer-contrast method too.
+
+**Search note:** 6 of 7 sycophancy searches and 3 of 7 hedging searches select pos -6 (the last instruction token), which never wins for refusal (no refusal search picks it, and dropping it changes no refusal winner). Dropping -6 would be a refusal-only saving.
+
+## Cross-Concept (all 7 models, refusal × sycophancy × hedging × empathy, 2026-09-25)
+
+Global ablation of each direction, detection rate of each concept on its full positive eval set, with log-odds and degeneracy per cell (`results/<model>-cross_concept-*.json`; `tools/look.py cross`).
+
+- **The pre-fix headline does not replicate.** "Ablating sycophancy destroys refusal (−63pp, Qwen2.5-3B)" is −11pp now (−5 to +2pp on the other models). The one −100 is Llama-2, where the sycophancy ablation breaks the model (100% degenerate). Caveat: the sycophancy directions are the weak prompt-contrast ones above.
+- **Large off-diagonal drops can be rewording, not removal.** On Qwen2.5-3B, ablating the empathy direction drops refusal 96% → 2%, and ablating the hedging direction drops it to 16%, but the refusal log-odds stay positive (+2.25 and +0.66, vs −8.18 under refusal ablation). The model still declines, without the apology: "I do not provide information on how to break into ATMs…", "I must strongly advise against…". The phrase list only knows apologetic refusals; empathy and refusal share the apology component (cos 0.32 on 3B, the highest pair). `look.py cross` and the run flags now mark "rate fell but log-odds stayed > 0".
+- **Ablating refusal raises measured sycophancy on every Qwen** (+42, +59, +14, +18pp on 0.5B/1.5B/3B/7B), plausibly a general "push back / say no" component in the refusal direction. Not yet checked against the text.
+- Otherwise the directions are close to independent: pairwise cosines 0.0-0.3 (highest: refusal-empathy 0.21-0.32 on Qwen 1.5B-7B), off-diagonal effects near zero on the Llama models.
+
+## CAA: Contrastive Activation Addition (Panickssery et al.), A/B Half (2026-09-24/25)
+
+`--mode caa` (`caa.py`), faithful to github.com/nrimsky/CAA: vector = mean(act(matching answer) − act(non-matching)) at the answer-letter token, block-output convention (CAA layer L = our layer L+1), normalized per layer across the 7 behaviors, added from the prompt boundary on; metric p(matching) on 50 held-out A/B questions per behavior. Llama-2 token sequences are identical to the reference. `results/caa/`.
+
+**Replication (Llama-2-7B-chat, ×±1): all 7 behaviors steer, peaking at layers 11-13**, as in the paper ("layer 13 and adjacent"); spreads p(×+1) − p(×−1): corrigible +0.71, AI coordination +0.56, hallucination +0.45, refusal +0.41, survival +0.36, myopic reward +0.35, sycophancy +0.24 (weakest, also as in the paper). On every model the best layer sits at 40-65% depth.
+
+**×1 is too small a push on most other models; ×2 is the useful range.** Beyond ×2 most models stop answering with a letter (A/B probability mass → 0) or drift to 0.5. Spreads at the best layer, ×±2 (where both ends still answer with a letter):
+
+| Model | Refusal | Sycophancy |
+|---|---|---|
+| Llama-2-7B | +0.57 | (×−2 off-format) |
+| Llama-3.1-8B | +0.48 | +0.19 |
+| Llama-3-8B | +0.33 | +0.11 |
+| Qwen2.5-7B | +0.06 (baseline 0.90) | +0.18 |
+| Qwen2.5-3B | +0.22 | +0.18 |
+| Qwen2.5-1.5B | +0.48 | +0.12 |
+| Qwen2.5-0.5B | +0.58 | 0.00 (no movement at any multiplier) |
+
+**CAA vectors vs this repo's directions.** Cosine between CAA's refusal vector and our refusal direction (same residual-stream point) is ≈ 0 on every model (−0.06 to +0.16). The positions differ (answer-letter token vs template tokens), so orthogonality doesn't rule out a shared causal effect. Cross-applied at the same norm (×±1), our refusal direction moves CAA's refusal questions on Llama-2 (+0.17 vs CAA's own +0.32 at that layer), but not on Qwen2.5 1.5B-7B (≤ +0.01). It also lowers corrigibility and AI-coordination answers on Llama-2 (−0.36, −0.26), consistent with "refuse whatever is asked". Open-ended CAA evaluation (LLM judge) is pending an API key.
+
+**Scoring note:** CAA's reference plotting code scores the 4 survival-instinct test questions labelled (C)/(E) as 0 (it only checks for "A"/"B"); `p_match` uses the two given letters, `p_match_caa` reproduces the reference.
 
 ## Two Padding Bugs
 
