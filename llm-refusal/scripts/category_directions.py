@@ -17,6 +17,7 @@ Writes results/categories/<model>-refusal.json.
 import argparse
 import io
 import inspect
+import json
 import os
 import sys
 import tokenize
@@ -49,6 +50,17 @@ def categorised_train_prompts():
     return out
 
 
+EVAL_CATEGORIES = os.path.join(os.path.dirname(__file__), "..", "data", "refusal_eval_categories.json")
+
+
+def eval_prompts_by_category(cats):
+    """{category: [eval prompts]} from data/refusal_eval_categories.json, or None if absent."""
+    if not os.path.exists(EVAL_CATEGORIES):
+        return None
+    labels = json.load(open(EVAL_CATEGORIES))["eval"]
+    return {c: [p for p, k in labels.items() if k == c] for c in cats}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True)
@@ -66,6 +78,9 @@ def main():
     _, train_neg = fw.concept.train_data_fn()
     eval_pos, eval_neg = fw.concept.eval_data_fn()
     eval_pos, eval_neg = eval_pos[:a.n_eval], eval_neg[:a.n_harmless]
+    eval_by_cat = eval_prompts_by_category(cats)
+    if eval_by_cat:
+        print("eval prompts by category:", {c: len(v) for c, v in eval_by_cat.items()}, flush=True)
     print("categories:", {c: len(v) for c, v in by_cat.items()}, flush=True)
 
     h_pos = {c: residuals_at(model, fmt, blocks, by_cat[c], P)[:, L] for c in cats}      # [n_c, d]
@@ -106,10 +121,18 @@ def main():
                    "ablate_loo_own": behaviour(fw, by_cat[c], abl(loo[c]))["rate"],
                    "ablate_r_hat_own": behaviour(fw, by_cat[c], abl(r_hat))["rate"],
                    "add_dk_harmless": behaviour(fw, eval_neg, run.add(d[c]))}
+            line_extra = ""
+            if eval_by_cat and eval_by_cat[c]:
+                ev = eval_by_cat[c]
+                res["baseline_eval_own"] = behaviour(fw, ev)
+                res["ablate_dk_eval_own"] = behaviour(fw, ev, abl(d[c]))
+                res["ablate_loo_eval_own"] = behaviour(fw, ev, abl(loo[c]))
+                line_extra = (f" | eval-own (n={len(ev)}): base {res['baseline_eval_own']['rate']:4.0%} "
+                              f"d_k {res['ablate_dk_eval_own']['rate']:4.0%} LOO {res['ablate_loo_eval_own']['rate']:4.0%}")
             out["causal"][c] = res
             print(f"{c[:28]:28s} base {out['baseline']['train_by_category'][c]:4.0%} | ablate own-dir: own {res['ablate_dk_own']:4.0%} "
                   f"others {res['ablate_dk_others']:4.0%} eval {res['ablate_dk_eval']['rate']:4.0%} | LOO on own {res['ablate_loo_own']:4.0%} "
-                  f"| r̂ on own {res['ablate_r_hat_own']:4.0%} | induce {res['add_dk_harmless']['rate']:4.0%}", flush=True)
+                  f"| r̂ on own {res['ablate_r_hat_own']:4.0%} | induce {res['add_dk_harmless']['rate']:4.0%}" + line_extra, flush=True)
     print("saved", save_json(run.path("categories", "refusal"), out))
 
 
