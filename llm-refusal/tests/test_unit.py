@@ -938,3 +938,80 @@ def test_offline_for_script(monkeypatch, tmp_path):
     assert hf_offline.offline_for_script(["--model", "org/uncached"])          # no network: cache only
     monkeypatch.setenv("HF_HUB_OFFLINE", "0")                                  # explicit setting wins
     assert not hf_offline.offline_for_script(["--model", "org/cached"])
+
+
+class _CharTokenizer:
+    """Character-level tokenizer (id = ord % 90 + 1) with right padding, enough for the real
+    ChatPromptFormatter.format_batch / format_with_completions."""
+    padding_side, pad_token_id, eos_token_id, bos_token_id = 'right', 0, 0, None
+
+    def encode(self, s, add_special_tokens=False):
+        return [ord(c) % 90 + 1 for c in s]
+
+    def __call__(self, texts, padding=True, **kw):
+        from formatting import pad_rows
+        enc = pad_rows([self.encode(s) for s in texts], 0)
+        return {'input_ids': enc['input_ids'], 'attention_mask': enc['attention_mask']}
+
+
+class _EmbeddingResidualModel:
+    """ResidualModel whose stream starts at a token embedding, so positions differ."""
+    def __init__(self, dim=8, n_layers=3):
+        from tests.fakes import ResidualModel
+        self.inner = ResidualModel(dim, n_layers=n_layers)
+        self.model = self.inner.model
+        self.emb = t.nn.Embedding(100, dim)
+        self.device = t.device("cpu")
+
+    def __call__(self, input_ids, **kwargs):
+        return self.inner(x=self.emb(input_ids))
+
+
+def _completion_extractor_setup():
+    from formatting import ChatPromptFormatter
+    from activations import ActivationExtractor
+    fmt = object.__new__(ChatPromptFormatter)
+    fmt.tokenizer, fmt.template, fmt.safe_max_length, fmt.prepend_bos = _CharTokenizer(), "<{x}>", 512, False
+    model = _EmbeddingResidualModel()
+    return fmt, model, ActivationExtractor(model, fmt.tokenizer, model.model.layers, fmt)
+
+
+def test_extract_over_completions_means_and_kth_from_end():
+    """(layer,-1) is the mean block-input residual over exactly the completion tokens, (layer,-k)
+    the k-th completion token from the end, and no hooks are left behind."""
+    from tests.fakes import no_hooks
+    from prompts import COMPLETION_SEP as SEP
+    fmt, model, ex = _completion_extractor_setup()
+    strings = [f"hello{SEP}abcd", f"hi there friend{SEP}xy"]
+    acts = ex.extract_residual_activations(strings, max_positions=3)
+
+    batch = fmt.format_with_completions(["hello", "hi there friend"], ["abcd", "xy"])
+    captured = {}
+    hooks = [l.register_forward_pre_hook(lambda m, a, i=i: captured.__setitem__(i, a[0].detach()))
+             for i, l in enumerate(model.model.layers)]
+    model(input_ids=batch['input_ids'])
+    for h in hooks:
+        h.remove()
+    scored = batch['labels'] != -100
+    assert scored.sum(1).tolist() == [4, 2]
+    for layer, h in captured.items():
+        rows = [h[i, scored[i]].double() for i in range(2)]
+        assert t.allclose(acts[(layer, -1)], t.stack([r.mean(0) for r in rows]).mean(0))
+        assert t.allclose(acts[(layer, -2)], t.stack([r[-2] for r in rows]).mean(0))
+        assert t.allclose(acts[(layer, -3)], rows[0][-3].double())   # only the 4-token row has a 3rd
+    assert (0, -4) not in acts and no_hooks(model.model.layers)
+
+
+def test_extract_over_completions_rejects_mixed_strings():
+    from prompts import COMPLETION_SEP as SEP
+    _, _, ex = _completion_extractor_setup()
+    with pytest.raises(ValueError, match="Mixed"):
+        ex.extract_residual_activations([f"p{SEP}c", "bare prompt"])
+
+
+def test_format_text_and_batch_strip_completion():
+    from prompts import COMPLETION_SEP as SEP
+    fmt, _, _ = _completion_extractor_setup()
+    assert fmt.format_text(f"hello{SEP}some completion") == fmt.format_text("hello") == "<hello>"
+    a, b = fmt.format_batch([f"hello{SEP}some completion"]), fmt.format_batch(["hello"])
+    assert all(t.equal(a[k], b[k]) for k in b)
