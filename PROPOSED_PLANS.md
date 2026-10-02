@@ -57,3 +57,7 @@ The edit-cost sweeps already show that orthogonalising r̂ out of only the block
 - `--mode capability` with `--edit-layers`, for ARC/GSM8K/TruthfulQA on the restricted edit (needs capability.py to pass edit_layers through, a few lines);
 - regrowth after the restricted edit: does leaving the late writers intact make refusal regrow faster or slower (`--mode regrow --orthogonalize-first --edit-layers …`, readers arm, 8 and 16 examples);
 - the hook-ablation analogue (ablate at layers ≤ D only) as a sanity check that the weight and hook versions still agree when restricted.
+
+## 10. The many-shot exception on Qwen2.5-3B — S
+
+3B refuses 97% of many-shot-wrapped prompts although the r̂ projection at both decision positions (end-of-instruction token and generation boundary, read at L21's input) is near the level of the suppression template it complies with. Measure the last-token projection at *every* layer for many-shot vs suppression vs plain prompts (one forward pass each; extend `scripts/jailbreak_projection.py` with a per-layer last-token curve). If later layers rebuild r̂ at the boundary for many-shot only, the monitor should read a later layer; if not, that refusal runs through something other than r̂.
