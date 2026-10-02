@@ -9,6 +9,9 @@ Nothing here loads a model.
   look.py caa [MODEL]                                      CAA A/B sweep summary
   look.py cross [MODEL]                                    cross-concept cells
   look.py proj FILE [--layer L] [--item I]                 per-token projections (tools/project.py)
+  look.py limbs [MODEL]                                    side experiments: edit-cost, trajectory,
+                                                           jailbreak, categories, finetune (identity,
+                                                           regrow dose, rank-1 adapters)
 
 MODEL is a case-insensitive substring ("3B", "llama-3.1"). --root (repeatable) picks
 result directories; default results/. Rates are detection rates with 95% Wilson CIs.
@@ -291,6 +294,153 @@ def cmd_proj(ix, a):
         print()
 
 
+# ── limbs ─────────────────────────────────────────────────────────
+def _num(x, f="+.2f"):
+    return "–" if x is None or (isinstance(x, float) and math.isnan(x)) else format(x, f)
+
+
+def _rate(x):
+    """Rates are saved either bare or as {rate, log_odds, n}."""
+    return pct(x["rate"] if isinstance(x, dict) else x)
+
+
+def _short_model(m):
+    return m.split("/")[-1].replace("-Instruct", "")
+
+
+def _dir(d):
+    return f"L{d['direction']['layer']}/P{d['direction']['position_index']}" if "direction" in d else "?"
+
+
+def limbs_edit_cost(ix, a):
+    for x in ix.find_limbs("edit_cost", a.model):
+        d = x.load()
+        none = d["specs"].get("none", {})
+        n = d.get("n", {})
+        print(f"== edit-cost  {x.model} {x.parts['concept']}{' ' + x.parts['tag'] if x.parts['tag'] else ''}  dir {_dir(d)}  "
+              f"n harmful {n.get('harmful')} harmless {n.get('harmless')} alpaca {n.get('alpaca')} pile {n.get('pile')} "
+              f"on-dist {n.get('on_distribution')}")
+        prefix = f"results/finetune/{x.model}-{x.parts['concept']}-"
+        rows = []
+        for name, sp in d["specs"].items():
+            dce = lambda k: _num(sp[k] - none[k], "+.3f") if k in sp and k in none else "–"
+            rows.append([name.replace(prefix, ""), sp.get("kind", ""), sp.get("n_blocks_edited", "–"),
+                         _rate(sp["harmful"]), _rate(sp["harmless"]), dce("ce_alpaca"), dce("ce_pile"), dce("ce_on_distribution")])
+        print(table(rows, ["spec", "kind", "blocks", "refusal", "false ref", "dCE alp", "dCE pile", "dCE on-dist"]))
+        print()
+
+
+def limbs_trajectory(ix, a):
+    rows = []
+    for x in ix.find_limbs("trajectory", a.model):
+        d = x.load()
+        for cond, c in d["conditions"].items():
+            p = c["proj_r_hat"]
+            hm, hl, au = p["harmful_mean"], p["harmless_mean"], p["auroc"]
+            peak = max(range(len(hm)), key=lambda i: hm[i])
+            first = next((i for i, v in enumerate(au) if v is not None and v >= 0.95), None)
+            rows.append([_short_model(x.model), cond, d["direction"]["layer"], len(hm), peak,
+                         f"{hm[peak]:+.2f}/{hl[peak]:+.2f}", f"{hm[-1]:+.2f}/{hl[-1]:+.2f}", "–" if first is None else first])
+    if rows:
+        print("== trajectory  projection onto r̂ by layer (harmful/harmless means)")
+        print(table(rows, ["model", "cond", "dir L", "layers", "peak L", "proj @peak", "proj @last", "AUROC≥.95 from L"]))
+        print()
+
+
+def limbs_jailbreak(ix, a):
+    for x in ix.find_limbs("jailbreak", a.model):
+        d = x.load()
+        has_last = any("proj_last_mean" in t for t in d["templates"].values())
+        rows = []
+        for name, t in d["templates"].items():
+            row = [name, pct(t["refusal_rate"]), _num(t["proj_mean"]), _num(t["auroc_proj_predicts_refusal"], ".2f")]
+            if has_last:
+                row += [_num(t.get("proj_last_mean")), _num(t.get("auroc_projlast_predicts_refusal"), ".2f")]
+            rows.append(row)
+        h = d.get("harmless", {})
+        rows.append(["(harmless)", pct(h.get("refusal_rate")), _num(h.get("proj_mean")), ""] + (["", ""] if has_last else []))
+        print(f"== jailbreak  {x.model} {x.parts['concept']}  dir {_dir(d)}  n {d.get('n')}  "
+              f"pooled AUROC(proj→refusal) {_num(d.get('pooled_auroc_proj_predicts_refusal'), '.3f')}")
+        print(table(rows, ["template", "refusal", "proj", "AUROC"] + (["proj last", "AUROC last"] if has_last else [])))
+        print()
+
+
+def limbs_categories(ix, a):
+    for x in ix.find_limbs("categories", a.model):
+        d = x.load()
+        causal = d.get("causal", {})
+        rows = []
+        for cat, cos in d["cos_with_r_hat"].items():
+            row = [cat, d.get("categories", {}).get(cat, "–"), f"{cos:+.3f}"]
+            if causal:
+                c = causal.get(cat, {})
+                row += [_rate(c[k]) if k in c else "–" for k in ("ablate_dk_own", "ablate_loo_own", "add_dk_harmless")]
+            rows.append(row)
+        print(f"== categories  {x.model} {x.parts['concept']}  dir {_dir(d)}  "
+              f"offdiag cos mean {_num(d.get('cos_offdiag_mean'), '.3f')} min {_num(d.get('cos_offdiag_min'), '.3f')}")
+        print(table(rows, ["category", "n", "cos r̂"] + (["abl d_k own", "abl LOO own", "+d_k harmless"] if causal else [])))
+        print()
+
+
+def limbs_identity(ix, a):
+    for x in ix.find_limbs("identity", a.model):
+        d = x.load()
+        ref_keys = list(dict.fromkeys(k for arm in d["arms"].values() for k in arm.get("refusal", {})))
+        rows = [[name, _num(arm.get("cos_r_hat"), "+.3f"), _num(arm.get("cos_u_perp"), "+.3f"),
+                 _num(arm.get("regrown_feature_auroc"), ".2f")] +
+                [_rate(arm["refusal"][k]) if k in arm.get("refusal", {}) else "–" for k in ref_keys]
+                for name, arm in d["arms"].items()]
+        short = lambda k: k.replace("ablate_", "abl ").replace("harmless_", "h:").replace("add_", "+")
+        print(f"== direction identity  {x.model}  dir {_dir(d)}  rank1 {d.get('rank1_tags')}  "
+              f"cos(û, r̂) {_num(d.get('cos_u_hat_r_hat'), '+.3f')}")
+        print(table(rows, ["arm", "cos r̂", "cos u⊥", "regrown AUROC"] + [short(k) for k in ref_keys]))
+        print()
+
+
+def limbs_regrow(ix, a):
+    by_model = {}
+    for x in ix.find_limbs("regrow", a.model):
+        by_model.setdefault((x.model, x.parts["concept"]), []).append(x)
+    for (model, concept), xs in by_model.items():
+        rows = []
+        for x in xs:
+            d = x.load()
+            h = [e for e in d.get("history", []) if "pos_rate" in e]
+            last = h[-1] if h else {}
+            rows.append((x.parts["arm"], int(x.parts["n"]), int(d.get("seed", x.parts["seed"] or 0)), x.parts["tag"] or "",
+                         last.get("step", "–"), pct(d.get("clean", {}).get("pos_rate")), pct(last.get("pos_rate")),
+                         _num(last.get("pos_log_odds")), pct(d.get("final_negative", {}).get("neg_rate"))))
+        rows.sort(key=lambda r: r[:4])
+        print(f"== regrow dose  {model} {concept}  (pos = refusal on harmful at the last eval step, neg = on harmless)")
+        print(table([list(r) for r in rows], ["arm", "n ref", "seed", "tag", "step", "clean", "pos", "log-odds", "neg"]))
+        print()
+
+
+def limbs_rank1(ix, a):
+    by_model = {}
+    for x in ix.find_limbs("rank1", a.model):
+        by_model.setdefault((x.model, x.parts["concept"]), []).append(x)
+    for (model, concept), xs in by_model.items():
+        rows = []
+        for x in xs:
+            d = x.load()
+            g = lambda k: pct(d[k]["pos_rate"]) if k in d else "–"
+            cos = [abs(ad["cos_u_rhat"]) for ad in d.get("adapters", []) if "cos_u_rhat" in ad]
+            rows.append([x.parts["tag"], d.get("objective", ""), ",".join(map(str, d.get("adapter_layers", []))),
+                         g("before"), g("after"), ",".join(f"{c:.2f}" for c in cos) or "–",
+                         g("after_u_minus_rhat"), g("after_u_rhat_only")])
+        print(f"== rank-1 adapters  {model} {concept}  (pos = refusal on harmful)")
+        print(table(rows, ["tag", "objective", "layer", "before", "after", "|cos u,r̂|", "u−r̂", "r̂ only"]))
+        print()
+
+
+def cmd_limbs(ix, a):
+    if not any(a.model.lower() in x.model.lower() for x in ix.limbs):
+        sys.exit("no side-experiment results (edit-cost/, trajectory/, jailbreak/, categories/, finetune/) match")
+    for f in (limbs_edit_cost, limbs_trajectory, limbs_jailbreak, limbs_categories, limbs_identity, limbs_regrow, limbs_rank1):
+        f(ix, a)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", action="append", help="results directory (repeatable; default results/)")
@@ -311,6 +461,7 @@ def main(argv=None):
     p.add_argument("--top", type=int, default=8); p.add_argument("--variant", default="")
     p = sub.add_parser("caa"); p.add_argument("model", nargs="?", default="")
     p = sub.add_parser("cross"); p.add_argument("model", nargs="?", default="")
+    p = sub.add_parser("limbs"); p.add_argument("model", nargs="?", default="")
     p = sub.add_parser("proj"); p.add_argument("file"); p.add_argument("--layer", type=int)
     p.add_argument("--item", type=int); p.add_argument("--tokens", type=int, default=24)
     a = ap.parse_args(argv)

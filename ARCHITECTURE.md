@@ -26,8 +26,8 @@ All code under `llm-refusal/`. Flat imports (`from formatting import ...`), set 
 | `framework.py` | `DirectionTestFramework` — orchestrator: model loading, mode dispatch, prompt filtering, pre-split val support |
 | `run_experiment.py` | CLI (argparse or `--json`) |
 | `caa.py` | CAA (Panickssery et al.) A/B replication: answer-letter contrast vectors at block *outputs* (CAA layer L = our layer L+1), per-layer normalization across behaviors, steering from the prompt boundary, p(matching) metric. `--mode caa`; data in `data/caa/` |
-| `tools/runs.py` | Index of saved artifacts (generations, logs, search CSVs, directions, CAA, cross-concept), Wilson CIs, run flags, current-detector rescoring. No model |
-| `tools/look.py` | Text views: `digest`, `run`, `gens` (flips/labels/grep/`--rescore`), `search` (layer×pos grid), `caa`, `cross`, `proj` |
+| `tools/runs.py` | Index of saved artifacts (generations, logs, search CSVs, directions, CAA, cross-concept, side-experiment JSONs as `Limb`s), Wilson CIs, run flags, current-detector rescoring. No model |
+| `tools/look.py` | Text views: `digest`, `run`, `gens` (flips/labels/grep/`--rescore`), `search` (layer×pos grid), `caa`, `cross`, `proj`, `limbs` (edit-cost, trajectory, jailbreak, categories, finetune identity/regrow dose/rank-1) |
 | `tools/report.py` | Self-contained HTML report (`results/report/index.html`): overview matrix, run detail + search heatmap + generations browser, CAA curves, cross-concept, token projections |
 | `probe.py` | Forward-pass helpers for the analysis scripts: `residuals_at` (per-prompt residual at a template position, every layer), `behaviour` (rate + log-odds under a context), `auroc`, `cos` |
 | `tools/project.py` | Per-token projections onto a direction at every layer (loads a model) → `results/proj/*.json` |

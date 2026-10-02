@@ -6,6 +6,9 @@ Discovers, under one or more roots (default `results/`):
 - searches: `<model>-<concept>-search-scores.csv` + `...-search.log` (selection tier)
 - directions: `<model>-<concept>-direction.json`
 - CAA sweeps: `caa/<model>-ab.json`; cross-concept: `<model>-cross_concept-*.json`
+- "limbs" (side experiments, one JSON each): `edit-cost/`, `trajectory/`, `jailbreak/`,
+  `categories/` (`<model>-<concept>[-<tag>].json`) and `finetune/` (direction-identity,
+  regrow arms, rank-1 adapters); see LIMB_RES
 
 A leading `filtered-` / `rerun-` / `prefix-` etc. on a file name is kept as the run's
 `variant`, so archived copies sit beside current ones instead of overwriting them.
@@ -29,6 +32,18 @@ _VARIANT_RE = r"(?:(?P<variant>[a-z][a-z0-9]*)-(?=[A-Z]))?"
 EVAL_RE = re.compile(rf"^{_VARIANT_RE}(?P<model>.+?)-(?P<concept>{_CONCEPT_RE})-evaluate-(?P<tag>.+)-generations\.json$")
 SEARCH_RE = re.compile(rf"^{_VARIANT_RE}(?P<model>.+?)-(?P<concept>{_CONCEPT_RE})-search-scores\.csv$")
 DIRECTION_RE = re.compile(rf"^(?P<model>.+?)-(?P<concept>{_CONCEPT_RE})-direction\.json$")
+# Side-experiment JSONs: kind -> (subdirectory, file-name pattern). Every pattern names `model`.
+_PLAIN = rf"^(?P<model>.+?)-(?P<concept>{_CONCEPT_RE})(?:-(?P<tag>.+))?\.json$"
+LIMB_RES = {
+    "edit_cost": ("edit-cost", re.compile(_PLAIN)),
+    "trajectory": ("trajectory", re.compile(_PLAIN)),
+    "jailbreak": ("jailbreak", re.compile(_PLAIN)),
+    "categories": ("categories", re.compile(_PLAIN)),
+    "identity": ("finetune", re.compile(r"^(?P<model>.+)-direction-identity\.json$")),
+    "regrow": ("finetune", re.compile(rf"^(?P<model>.+?)-(?P<concept>{_CONCEPT_RE})-regrow-(?P<arm>[a-z]+)-r(?P<n>\d+)"
+                                      r"(?:-s(?P<seed>\d+))?(?:-(?P<tag>.+))?\.json$")),
+    "rank1": ("finetune", re.compile(rf"^(?P<model>.+?)-(?P<concept>{_CONCEPT_RE})-rank1-(?P<tag>.+?)(?<!-examples)\.json$")),
+}
 TAG_RE = re.compile(r"^L(?P<layer>\d+)-P(?P<pos>-\d+)(?:-T(?P<tokens>\d+))?$")
 
 # condition -> which prompt set it runs on (mirrors evaluation.CONDITIONS, without importing torch)
@@ -164,6 +179,19 @@ class EvalRun:
 
 
 @dataclass
+class Limb:
+    """One side-experiment JSON; `parts` holds the file-name groups (concept, tag, arm, ...)."""
+    kind: str
+    model: str
+    path: str
+    parts: Dict[str, Optional[str]] = field(default_factory=dict)
+
+    def load(self) -> Dict:
+        with open(self.path) as f:
+            return json.load(f)
+
+
+@dataclass
 class SearchRun:
     root: str
     model: str
@@ -253,6 +281,10 @@ class Index:
     directions: Dict[Tuple[str, str], Dict]
     caa: Dict[str, str]                # model -> caa/<model>-ab.json path
     cross: Dict[str, List[str]]        # model -> cross_concept json paths
+    limbs: List[Limb] = field(default_factory=list)
+
+    def find_limbs(self, kind: str, model: str = "") -> List[Limb]:
+        return [x for x in self.limbs if x.kind == kind and model.lower() in x.model.lower()]
 
     def find_evals(self, model: str = "", concept: str = "", tag: str = "", variant: Optional[str] = None) -> List[EvalRun]:
         """Substring match on model and tag; an exact tag match wins over a substring one."""
@@ -270,7 +302,7 @@ class Index:
 
 def load_index(roots: Optional[List[str]] = None) -> Index:
     roots = roots or ["results"]
-    evals, searches, directions, caa, cross = [], [], {}, {}, {}
+    evals, searches, directions, caa, cross, limbs = [], [], {}, {}, {}, []
     for root in roots:
         for path in sorted(glob.glob(os.path.join(root, "*-generations.json"))):
             m = EVAL_RE.match(os.path.basename(path))
@@ -324,4 +356,10 @@ def load_index(roots: Optional[List[str]] = None) -> Index:
                 caa[stem.replace("-ab", "", 1)] = path
         for path in glob.glob(os.path.join(root, "*-cross_concept-*.json")):
             cross.setdefault(os.path.basename(path).split("-cross_concept-")[0], []).append(path)
-    return Index(evals, searches, directions, caa, cross)
+        for kind, (sub, rx) in LIMB_RES.items():
+            for path in sorted(glob.glob(os.path.join(root, sub, "*.json"))):
+                m = rx.match(os.path.basename(path))
+                if m:
+                    parts = {k: v for k, v in m.groupdict().items() if k != "model"}
+                    limbs.append(Limb(kind, m["model"], path, parts))
+    return Index(evals, searches, directions, caa, cross, limbs)
