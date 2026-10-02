@@ -39,12 +39,22 @@ def token_projections(model, fmt, block, unit, prompts, batch_size=16):
         enc = fmt.format_batch(prompts[i:i + batch_size])
         mask = enc["attention_mask"]
         captured = {}
-        h = block.register_forward_pre_hook(lambda m, a: captured.__setitem__("p", (a[0].float() @ unit.to(a[0].device)).cpu()))
+
+        def grab(m, a):
+            x = a[0].float()
+            captured["p"] = (x @ unit.to(x.device)).cpu()
+            captured["n"] = x.norm(dim=-1).cpu()
+        h = block.register_forward_pre_hook(grab)
         try:
             model(input_ids=enc["input_ids"].to(dev), attention_mask=mask.to(dev), position_ids=enc["position_ids"].to(dev))
         finally:
             h.remove()
-        proj = captured["p"].masked_fill(mask == 0, float("-inf"))
+        # Attention-sink tokens (BOS / the first template token) have residual norms 10-100x the
+        # rest and dominate any projection; drop tokens whose norm exceeds 4x the row's median.
+        norms = captured["n"].masked_fill(mask == 0, float("nan"))
+        med = t.nanmedian(norms, dim=1).values[:, None]
+        keep = (mask == 1) & (captured["n"] <= 4 * med)
+        proj = captured["p"].masked_fill(~keep, float("-inf"))
         mx += proj.max(dim=1).values.tolist()
         idx = last_real_token_indices(mask)
         last += proj[t.arange(len(idx)), idx].tolist()
