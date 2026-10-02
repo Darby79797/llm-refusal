@@ -49,3 +49,11 @@ Constraints:
 ---
 
 **Suggested order:** 1 → 2 → 3 → 4, with 5-7 as independent threads and 8 once the rest is stable.
+
+## 9. The edit up to r̂'s layer only — S/M (queued as tail jobs, 2026-10-02)
+
+The edit-cost sweeps already show that orthogonalising r̂ out of only the blocks *before* its layer (blocks 0..D−1, embedding irrelevant) removes refusal completely on Qwen2.5-0.5B, 3B and Llama-3-8B at 20-60% of the full edit's CE (RESULTS.md "Limb Experiments" §1-3). Open, in priority order:
+- the paper's safety score for that edit (JailbreakBench, 512 tokens, LlamaGuard 2) on Llama-3-8B, to confirm it is the same compliance as the full edit (queued: `600-safety-ltd-edit`);
+- `--mode capability` with `--edit-layers`, for ARC/GSM8K/TruthfulQA on the restricted edit (needs capability.py to pass edit_layers through, a few lines);
+- regrowth after the restricted edit: does leaving the late writers intact make refusal regrow faster or slower (`--mode regrow --orthogonalize-first --edit-layers …`, readers arm, 8 and 16 examples);
+- the hook-ablation analogue (ablate at layers ≤ D only) as a sanity check that the weight and hook versions still agree when restricted.
