@@ -67,6 +67,9 @@ examples:
     parser.add_argument("--objective", choices=["remove", "induce", "null"], default="remove",
                         help="rank1 mode: distil directional ablation (remove), layer addition (induce), or the "
                              "clean model itself (null: the self-distillation control)")
+    parser.add_argument("--rank1-examples-file", default=None,
+                        help="rank1 mode: train on a saved (prompt, completion) set (<stem>-examples.json from an "
+                             "earlier rank1 run) instead of generating targets from the current model")
     parser.add_argument("--adapter-layers", nargs="+", default=None,
                         help="rank1 mode: layers to adapt (default: the direction's layer - 1; 'all' = every "
                              "layer before it)")
@@ -203,6 +206,7 @@ def _namespace_to_config(args):
         "adapter_layers": ([int(x) for x in args.adapter_layers] if args.adapter_layers and args.adapter_layers != ["all"]
                            else args.adapter_layers and "all"),
         "adapter_modules": args.adapter_modules,
+        "rank1_examples_file": args.rank1_examples_file,
         "regrow_targets": args.regrow_targets,
         "n_refusal_examples": args.n_refusal_examples,
         "lora_rank": args.lora_rank,

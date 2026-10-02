@@ -332,8 +332,17 @@ def run_rank1(framework, direction, train_pos: List[str], train_neg: List[str],
     seed = config.get('seed', 0)
     r_hat = direction.unit.float().cpu()
 
-    # Targets: the model's own text under the intervention being distilled.
-    if objective == "remove":
+    # Targets: the model's own text under the intervention being distilled, or a saved
+    # set (`rank1_examples_file`, written by every rank1 run as <stem>-examples.json), so
+    # an adapter can be trained inside a model variant toward the *clean* model's targets.
+    examples_file = config.get('rank1_examples_file')
+    if examples_file:
+        with open(examples_file) as f:
+            saved = json.load(f)
+        examples = [(e["prompt"], e["completion"]) for e in saved["examples"]]
+        steered = [c for p, c in examples[:saved["n_steered"]]]
+        logger.info(f"rank1/{objective}: {len(examples)} examples loaded from {examples_file}")
+    elif objective == "remove":
         steered = _generate_with(framework, train_pos, ("ablate", list(range(n_layers))), direction)
         retain = _generate_with(framework, train_neg, None, direction)
         examples = list(zip(train_pos, steered)) + list(zip(train_neg, retain))
@@ -353,6 +362,14 @@ def run_rank1(framework, direction, train_pos: List[str], train_neg: List[str],
     ev = framework.evaluator
     target_rate = sum(map(ev._check_for_detection, steered)) / len(steered)
     logger.info(f"rank1/{objective}: {len(examples)} examples; steered targets detected {target_rate:.0%}")
+    if not examples_file:
+        out_dir = os.path.join("results", "finetune")
+        os.makedirs(out_dir, exist_ok=True)
+        ex_path = os.path.join(out_dir, f"{framework.model_short}-{framework.concept.name}-rank1-"
+                                        f"{config.get('run_tag') or objective}-examples.json")
+        with open(ex_path, "w") as f:
+            json.dump({"objective": objective, "n_steered": len(steered),
+                       "examples": [{"prompt": p, "completion": c} for p, c in examples]}, f, indent=1)
 
     def evaluate():
         return {**_behaviour(framework, eval_pos, "pos"), **_behaviour(framework, eval_neg, "neg")}
