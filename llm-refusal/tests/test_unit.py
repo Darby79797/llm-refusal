@@ -796,7 +796,7 @@ def test_run_all_evaluations_reports_harmless_baseline_and_saves_generations(mon
     import contextlib
     edit_active = []
     @contextlib.contextmanager
-    def fake_orthogonalized(model, vector):
+    def fake_orthogonalized(model, vector, **kwargs):
         edit_active.append(True)
         yield
         edit_active.pop()

@@ -3,6 +3,8 @@ from typing import List, Dict, Optional
 from transformers import AutoTokenizer
 import logging
 
+from prompts import COMPLETION_SEP
+
 logger = logging.getLogger(__name__)
 
 # ── Padding invariant ────────────────────────────────────────────────────────
@@ -204,7 +206,10 @@ class ChatPromptFormatter:
 
     def format_text(self, prompt: str) -> str:
         """The templated prompt string, ending at the generation boundary (no BOS:
-        callers that tokenize it themselves must prepend BOS when `prepend_bos`)."""
+        callers that tokenize it themselves must prepend BOS when `prepend_bos`).
+        A response-contrast string (prompt COMPLETION_SEP completion) is formatted as
+        its prompt alone; only ActivationExtractor reads the completion."""
+        prompt = prompt.split(COMPLETION_SEP, 1)[0]
         if self.template is not None:
             # Manual template (instruction-tuned) or pass-through ("{x}" for base models)
             return self.template.format(x=prompt)

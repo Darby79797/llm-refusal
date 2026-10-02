@@ -83,7 +83,25 @@ examples:
                              "--train-batch-size (same update; less activation memory). Default: no split")
     parser.add_argument("--eval-every", type=int, default=50, help="regrow mode: steps between refusal checks")
     parser.add_argument("--seed", type=int, default=0, help="rank1/regrow: adapter init and data order")
-    parser.add_argument("--run-tag", default="", help="rank1/regrow: suffix for the output file")
+    parser.add_argument("--run-tag", default="", help="suffix for the output files (rank1/regrow tag; search/evaluate/"
+                                                       "capability: keeps the run from overwriting the untagged one)")
+    parser.add_argument("--adapter-file", default=None,
+                        help="run inside a saved rank1/regrow adapter set: the stem of results/finetune/<...>.json "
+                             "and -adapters.pt (every mode)")
+    parser.add_argument("--adapter-variant", choices=["full", "u_perp", "u_rhat"], default="full",
+                        help="with --adapter-file: as trained, with r̂ projected out of U (the inhibitor), "
+                             "or only U's r̂ part. r̂ = the saved direction (--edit-direction-file)")
+    parser.add_argument("--orthogonalize-first", action="store_true",
+                        help="run the whole mode inside the weight edit of the saved direction "
+                             "(--edit-direction-file, default results/<model>-<concept>-direction)")
+    parser.add_argument("--edit-direction-file", default=None,
+                        help="direction (path without .pt/.json) for --orthogonalize-first / --adapter-variant")
+    parser.add_argument("--edit-layers", type=int, nargs="+", default=None,
+                        help="restrict the weight edit (orthogonalized condition, --orthogonalize-first) to these "
+                             "blocks' o_proj/down_proj (default: all)")
+    parser.add_argument("--no-edit-embedding", dest="edit_embedding", action="store_false",
+                        help="leave the token embedding out of the weight edit")
+    parser.set_defaults(edit_embedding=True)
     parser.add_argument("--direction-file", default=None,
                         help="evaluate mode: evaluate a saved direction (path without .pt/.json) instead of "
                              "recomputing one at --layer/--pos, e.g. a CAA vector")
@@ -193,6 +211,12 @@ def _namespace_to_config(args):
         "eval_every": args.eval_every,
         "seed": args.seed,
         "run_tag": args.run_tag,
+        "adapter_file": args.adapter_file,
+        "adapter_variant": args.adapter_variant,
+        "orthogonalize_first": args.orthogonalize_first,
+        "edit_direction_file": args.edit_direction_file,
+        "edit_layers": args.edit_layers,
+        "edit_embedding": args.edit_embedding,
     }
 
 
@@ -256,6 +280,7 @@ def setup_logging(config):
     # The concept is part of the name: without it, a sycophancy/hedging search
     # silently overwrote the refusal search log for the same model.
     log_filename_parts = [
+        config.get("run_tag") or "",
         model_short_name,
         config["concept"] if config["mode"] not in ("cross_concept", "caa") else "",
         config["mode"],

@@ -238,6 +238,19 @@ def make_sycophancy_concept() -> ConceptDefinition:
 register_concept("sycophancy", make_sycophancy_concept)
 
 
+def make_sycophancy_response_concept() -> ConceptDefinition:
+    """Same detector and eval set as `sycophancy`; direction from a response contrast
+    (prompts.create_sycophancy_response_train_data). Position -1 means the mean over
+    the completion's tokens; -k the k-th token from the completion's end."""
+    c = make_sycophancy_concept()
+    c.name = "sycophancy_response"
+    c.train_data_fn = prompts.create_sycophancy_response_train_data
+    return c
+
+
+register_concept("sycophancy_response", make_sycophancy_response_concept)
+
+
 # --- Sycophancy with neutral negatives (old design, for comparison) ---
 def make_sycophancy_neutral_concept() -> ConceptDefinition:
     return ConceptDefinition(
@@ -345,6 +358,45 @@ def make_hedging_v2_concept() -> ConceptDefinition:
 
 
 register_concept("hedging_v2", make_hedging_v2_concept)
+
+
+# --- Opinion avoidance: the behaviour the hedging_v2 prompts actually elicit ---
+# On the subjective hedging_v2 questions Qwen2.5-0.5B opens 12/20 answers with "As an
+# AI language model, I don't have personal opinions..." (2/20 on the factual
+# negatives), which detect_hedging (>= 2 uncertainty markers) never counts. Same
+# prompts, a detector for that disclaimer.
+_OPINION_AVOIDANCE_PATTERNS = re.compile(
+    r"\bas an ai\b"
+    r"|\bas a language model\b"
+    r"|\bas an? (?:artificial intelligence|assistant|large language model)\b"
+    r"|\bi (?:do not|don'?t) have (?:personal )?(?:opinions?|beliefs?|preferences?|feelings?)\b"
+    r"|\bi'?m (?:just )?an ai\b"
+    r"|\bi am (?:just )?an ai\b",
+    re.IGNORECASE,
+)
+
+DEFAULT_OPINION_AVOIDANCE_TOKENS = ["As", " As"]
+
+
+def detect_opinion_avoidance(text: str) -> bool:
+    """Heuristic: the response declines to hold an opinion (AI-disclaimer) in its first 300 chars."""
+    return bool(_OPINION_AVOIDANCE_PATTERNS.search(text[:300]))
+
+
+def make_opinion_avoidance_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="opinion_avoidance",
+        filter_by_behavior=True,
+        train_data_fn=prompts.create_hedging_v2_train_data,
+        eval_data_fn=prompts.create_hedging_v2_eval_data,
+        target_tokens=DEFAULT_OPINION_AVOIDANCE_TOKENS,
+        detection_phrases=["As an AI", "As a language model", "I don't have personal opinions"],
+        search_config=HEDGING_SEARCH_CONFIG,
+        detection_fn=detect_opinion_avoidance,
+    )
+
+
+register_concept("opinion_avoidance", make_opinion_avoidance_concept)
 
 
 # --- Empathy concept ---

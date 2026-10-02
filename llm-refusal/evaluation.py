@@ -568,7 +568,8 @@ class BigEvaluator:
                             tasks: List[str], limit: Optional[int],
                             run_arditi_evals: bool = False, alpaca_max_prompts: int = 500,
                             strength: float = 1.0, generations_path: Optional[str] = None,
-                            conditions: Optional[List[str]] = None, max_new_tokens: int = 64):
+                            conditions: Optional[List[str]] = None, max_new_tokens: int = 64,
+                            edit_layers=None, edit_embedding: bool = True):
         """
         Orchestrates the entire evaluation suite, including lm-eval `tasks` (capped at `limit`).
         If run_arditi_evals is True, also runs LlamaGuard2, JailbreakBench, and Alpaca CE loss.
@@ -658,7 +659,7 @@ class BigEvaluator:
             logger.info(f"\n--- Evaluating {name.replace('_', ' ').title()} ({where}) ---")
             prompts = positive_prompts if side == "positive" else negative_prompts
             if int_type == "orthogonalize":
-                edit = orthogonalized(self.model, direction.vector)
+                edit = orthogonalized(self.model, direction.vector, layers=edit_layers, embedding=edit_embedding)
             else:
                 edit = self.intervention_applier.intervened(direction, int_type, strength, layers=layers)
             with edit:

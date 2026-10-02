@@ -106,6 +106,52 @@ def adapted(model, sites: List[Tuple[nn.Module, str]], rank: int, seed: int) -> 
             setattr(parent, name, adapter.base)
 
 
+def load_adapters(stem: str) -> Tuple[Dict, List[Dict[str, t.Tensor]]]:
+    """A saved run's metadata (its .json) and adapter tensors (its -adapters.pt), from
+    the stem written by _save, e.g. results/finetune/<model>-refusal-rank1-remove-s0."""
+    with open(stem + ".json") as f:
+        meta = json.load(f)
+    weights = t.load(stem + "-adapters.pt", weights_only=True)
+    return meta, weights
+
+
+def saved_adapter_sites(model, meta: Dict) -> Tuple[List[Tuple[nn.Module, str]], int]:
+    """(sites, rank) of a saved rank1 or regrow run, in the order its tensors were saved."""
+    if "targets" in meta:   # regrow: every layer x its modules
+        n_layers = len(model.model.layers)
+        return adapter_sites(model, range(n_layers), meta["modules"]), meta["rank"]
+    return adapter_sites(model, meta["adapter_layers"], meta["adapter_modules"]), meta["rank"]
+
+
+@contextlib.contextmanager
+def installed(model, stem: str, variant: str = "full", r_hat: Optional[t.Tensor] = None) -> Iterator[List[LowRankAdapter]]:
+    """Install a saved adapter set (rank1 or regrow) for the duration.
+
+    variant: 'full' as trained; 'u_perp' with r̂ projected out of every U column (the
+    refusal *inhibitor* of a rank1 remove adapter); 'u_rhat' with only the r̂
+    component of U kept. A regrow adapter was trained inside the weight edit, so
+    install it inside `orthogonalized(model, r̂)` as well (framework: --orthogonalize-first).
+    """
+    meta, weights = load_adapters(stem)
+    sites, rank = saved_adapter_sites(model, meta)
+    if len(weights) != len(sites):
+        raise ValueError(f"{stem}: {len(weights)} saved adapters for {len(sites)} sites")
+    if variant != "full" and r_hat is None:
+        raise ValueError(f"variant {variant!r} needs r̂")
+    with adapted(model, sites, rank=rank, seed=0) as adapters:
+        for a, w in zip(adapters, weights):
+            U, V = w["U"].float(), w["V"].float()
+            if variant in ("u_perp", "u_rhat"):
+                r = r_hat.float().cpu()
+                along = t.outer(r, r @ U)
+                U = U - along if variant == "u_perp" else along
+            elif variant != "full":
+                raise ValueError(f"unknown adapter variant {variant!r}")
+            a.U.data, a.V.data = U.to(a.U.device), V.to(a.V.device)
+        logger.info(f"Installed {len(adapters)} saved adapter(s) from {stem} ({variant})")
+        yield adapters
+
+
 def train_adapters(model, prompt_formatter, adapters: List[LowRankAdapter], examples: List[Tuple[str, str]],
                    steps: int, lr: float, batch_size: int, seed: int, eval_fn=None, eval_every: int = 0,
                    micro_batch_size: Optional[int] = None) -> List[Dict]:

@@ -36,7 +36,7 @@ import contextlib
 import json
 import logging
 import os
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, Iterator, List, Optional, Sequence, Tuple
 
 import torch as t
 import torch.nn as nn
@@ -56,15 +56,25 @@ _LINEAR_CHUNK_COLS = 4096
 Writers = List[Tuple[nn.Module, str]]
 
 
-def residual_writers(model) -> Writers:
-    """The embedding and each layer's attention and MLP output projections."""
+def residual_writers(model, layers: Optional[Sequence[int]] = None, embedding: bool = True) -> Writers:
+    """The embedding and each layer's attention and MLP output projections.
+
+    `layers` restricts the edit to those blocks' o_proj/down_proj (default: every
+    block) and `embedding=False` leaves the token embedding alone: a partial edit,
+    which is *not* equivalent to hook ablation on those layers (the residual keeps
+    whatever r̂ the unedited writers put there). Used to ask how much of the edit
+    refusal removal actually needs (scripts/edit_cost_sweep.py).
+    """
     inner = getattr(model, "model", None)
     if inner is None or not hasattr(inner, "embed_tokens") or not hasattr(inner, "layers"):
         raise NotImplementedError(
             f"Weight orthogonalisation supports Llama/Qwen2-style models "
             f"(model.model.embed_tokens/layers), not {model.__class__.__name__}.")
-    writers: Writers = [(inner.embed_tokens, "embedding")]
+    writers: Writers = [(inner.embed_tokens, "embedding")] if embedding else []
+    chosen = set(range(len(inner.layers))) if layers is None else set(int(i) for i in layers)
     for i, block in enumerate(inner.layers):
+        if i not in chosen:
+            continue
         if hasattr(block, "post_feedforward_layernorm"):
             raise NotImplementedError(
                 f"Layer {i} normalises sublayer outputs before the residual add "
@@ -162,9 +172,12 @@ def _checkpoint_name(names: Dict[int, List[str]], files: Dict[str, str], p) -> s
 
 
 def _bits_checksum(x: t.Tensor) -> int:
-    """Exact fingerprint of a tensor's bits (sum of its raw integers)."""
+    """Exact fingerprint of a tensor's bits (sum of its raw integers), computed on the
+    CPU: the same int64 reduction on MPS gave a different answer for one tensor in
+    ~50 on about one call in three (2026-10-02), which made a correct restore look
+    like a failed one."""
     ints = {2: t.int16, 4: t.int32, 8: t.int64}[x.element_size()]
-    return int(x.detach().contiguous().view(ints).to(t.int64).sum())
+    return int(x.detach().cpu().contiguous().view(ints).to(t.int64).sum())
 
 
 def _synchronize() -> None:
@@ -203,7 +216,8 @@ def _orthogonalized_bias(bias: t.Tensor, basis: t.Tensor) -> t.Tensor:
     return (b - (q @ b) @ q).to(bias.dtype)
 
 
-def prepare_edit(model, direction: t.Tensor) -> List[Tuple[nn.Module, str, nn.Parameter]]:
+def prepare_edit(model, direction: t.Tensor, layers: Optional[Sequence[int]] = None,
+                 embedding: bool = True) -> List[Tuple[nn.Module, str, nn.Parameter]]:
     """The edited Parameters for `orthogonalized`, built once: (module, attr, new Parameter).
 
     Pass the result as `prepared=` to re-enter the edit without rebuilding it (1.9 s a
@@ -213,7 +227,7 @@ def prepare_edit(model, direction: t.Tensor) -> List[Tuple[nn.Module, str, nn.Pa
     basis = orthonormal_basis(direction)
     edits = []
     with t.no_grad():
-        for module, kind in residual_writers(model):
+        for module, kind in residual_writers(model, layers, embedding):
             edits.append((module, "weight", nn.Parameter(_orthogonalized_weight(module.weight, basis, kind),
                                                          requires_grad=False)))
             if kind == "linear" and getattr(module, "bias", None) is not None:
@@ -224,23 +238,28 @@ def prepare_edit(model, direction: t.Tensor) -> List[Tuple[nn.Module, str, nn.Pa
 
 
 @contextlib.contextmanager
-def orthogonalized(model, direction: t.Tensor, prepared=None) -> Iterator[None]:
+def orthogonalized(model, direction: t.Tensor, prepared=None, layers: Optional[Sequence[int]] = None,
+                   embedding: bool = True) -> Iterator[None]:
     """Run the model with `direction` ([d], or [k, d] for a subspace) orthogonalised
     out of every residual writer, restoring the original weights exactly on exit.
+    `layers`/`embedding` restrict the edit to some writers (see residual_writers).
 
     In place, restored from the model's checkpoint, when it has one on disk (see the
     module docstring); otherwise, or with `prepared` (from prepare_edit), by swapping
     in edited copies, which costs one extra copy of the edited matrices while active.
     """
     if prepared is None:
-        writers = residual_writers(model)
+        writers = residual_writers(model, layers, embedding)
+        if not writers:
+            yield
+            return
         files = checkpoint_tensor_files(model, writers)
         if files is not None:
             with _orthogonalized_in_place(model, direction, writers, files):
                 yield
             return
         logger.info("No local checkpoint to restore from: orthogonalising a copy of the weights")
-    edits = prepared if prepared is not None else prepare_edit(model, direction)
+    edits = prepared if prepared is not None else prepare_edit(model, direction, layers, embedding)
     saved = []  # (module, name, original Parameter)
     try:
         for module, name, param in edits:
@@ -262,9 +281,9 @@ def _orthogonalized_in_place(model, direction, writers: Writers, files: Dict[str
         if kind == "linear" and getattr(module, "bias", None) is not None:
             targets.append((module.bias, _checkpoint_name(names, files, module.bias), "bias"))
     before = {n: _bits_checksum(p) for p, n, _ in targets}
-    embed_module = writers[0][0]
+    embed_module = model.model.embed_tokens
     head = model.get_output_embeddings()
-    tied = _is_tied(model, embed_module.weight)
+    tied = embed_module is writers[0][0] and _is_tied(model, embed_module.weight)
     try:
         with t.no_grad():
             if tied:  # lm_head keeps the unedited matrix (ablation never touches it)

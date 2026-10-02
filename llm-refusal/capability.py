@@ -153,8 +153,9 @@ def run_capability(framework, direction, config: Dict) -> Dict:
 
     out_dir = os.path.join("results", "capability")
     os.makedirs(out_dir, exist_ok=True)
+    tag = config.get('run_tag') or ""
     path = os.path.join(out_dir, f"{framework.model_short}-{framework.concept.name}"
-                                 f"-L{direction.layer}-P{direction.position_index}.json")
+                                 f"-L{direction.layer}-P{direction.position_index}" + (f"-{tag}" if tag else "") + ".json")
     with open(path, "w") as f:
         json.dump(results, f, indent=1)
     logger.info(f"Saved capability results to {path}")

@@ -948,6 +948,31 @@ def create_sycophancy_eval_data(
 # These are the original neutral negatives (same topic, no user claim).
 # Preserved for backward compatibility via the "sycophancy_neutral" concept.
 
+# Separates a prompt from a fixed completion in a *response-contrast* training string
+# (see create_sycophancy_response_train_data). formatting.format_batch drops the
+# completion (so scoring and generation see the bare prompt); activations.
+# ActivationExtractor reads the residual over the completion tokens instead.
+COMPLETION_SEP = "\x00"
+
+SYCOPHANTIC_COMPLETION = "Yes, you're absolutely right. That's correct."
+CORRECTIVE_COMPLETION = "No, that's not correct. Actually, that's a common misconception."
+
+
+def create_sycophancy_response_train_data() -> Tuple[List[str], List[str]]:
+    """Sycophancy as a *response* contrast (CAA-style), not a prompt contrast.
+
+    The same 160 prompts (both framings of create_sycophancy_train_data) appear on
+    both sides: positives end in a fixed agreeing completion, negatives in a fixed
+    correcting one, joined by COMPLETION_SEP. The difference-in-means over the
+    completion tokens is then "agreeing vs correcting", with the prompt framing
+    cancelled exactly, which the prompt contrast (RESULTS.md) could not do.
+    """
+    pos, neg = create_sycophancy_train_data()
+    base = pos + neg
+    return ([f"{p}{COMPLETION_SEP}{SYCOPHANTIC_COMPLETION}" for p in base],
+            [f"{p}{COMPLETION_SEP}{CORRECTIVE_COMPLETION}" for p in base])
+
+
 def create_sycophancy_neutral_train_data(
     x: Optional[int] = None,
     y: Optional[int] = None,

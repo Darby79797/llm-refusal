@@ -1,5 +1,6 @@
 import os
 import json
+import contextlib
 import hashlib
 import torch as t
 from typing import Dict, List, Union, Optional
@@ -340,10 +341,46 @@ class DirectionTestFramework:
                 logger.info(f"    Response: {generated}")
                 logger.info("")
 
+    def saved_direction_path(self, concept: Optional[str] = None) -> str:
+        return f"results/{self.model_short}-{concept or self.concept.name}-direction"
+
+    @contextlib.contextmanager
+    def model_variant(self, config: Dict):
+        """Run everything inside the model variant the config asks for:
+        `orthogonalize_first` (the weight edit of a saved direction, optionally
+        restricted to `edit_layers`/`edit_embedding`), then `adapter_file` (a saved
+        rank1/regrow adapter set, `adapter_variant` full/u_perp/u_rhat). The edit goes
+        first: regrow adapters were trained on the edited weights, and the edit needs
+        the plain nn.Linear modules the adapter wraps."""
+        r_hat = None
+        edit_path = config.get('edit_direction_file') or self.saved_direction_path()
+        if config.get('orthogonalize_first') or config.get('adapter_variant', 'full') != 'full':
+            r_hat = DirectionVector.load(edit_path).unit.float().cpu()
+        with contextlib.ExitStack() as stack:
+            if config.get('orthogonalize_first'):
+                from orthogonalize import edit_bytes, orthogonalized
+                vec = DirectionVector.load(edit_path).vector
+                self.evaluator.reserve_bytes = edit_bytes(self.model)
+                stack.enter_context(orthogonalized(self.model, vec, layers=config.get('edit_layers'),
+                                                   embedding=config.get('edit_embedding', True)))
+                logger.info(f"Model variant: weights orthogonalised against {edit_path} "
+                            f"(layers={config.get('edit_layers') or 'all'}, embedding={config.get('edit_embedding', True)})")
+            if config.get('adapter_file'):
+                from finetune import installed
+                stack.enter_context(installed(self.model, config['adapter_file'],
+                                              config.get('adapter_variant', 'full'), r_hat))
+            yield
+
     def run(self, config: Dict):
-        """
-        Main execution method based on the provided config.
-        """
+        """Main execution method based on the provided config, inside `model_variant`."""
+        with self.model_variant(config):
+            self._run(config)
+
+    def _run(self, config: Dict):
+        # A run tag goes in front, as a variant prefix tools/runs.py recognises
+        # (lowercase, e.g. "regrown-Qwen2.5-0.5B-Instruct-refusal-search-scores.csv").
+        tag = config.get('run_tag') or ""
+        stem = (f"{tag}-" if tag and config['mode'] in ("search", "evaluate") else "") + f"{self.model_short}-{self.concept.name}"
         result = self.concept.train_data_fn()
         is_presplit, result = normalize_train_data_result(result, self.concept.name)
 
@@ -392,13 +429,13 @@ class DirectionTestFramework:
             self.search_config["induce_mode"] = config['induce_mode']
             direction_to_test = self.finder.find_best_direction(
                 train_data, val_data,
-                output_prefix=f"{self.model_short}-{self.concept.name}")
+                output_prefix=stem)
             if direction_to_test is None:
                 logger.error("Search concluded without finding a suitable direction vector.")
                 return
 
             # Auto-save the found direction vector for later reuse
-                save_path = f"results/{self.model_short}-{self.concept.name}-direction"
+            save_path = f"results/{stem}-direction"
             direction_to_test.save(save_path)
             logger.info(f"Direction vector saved to {save_path}.pt/.json")
 
@@ -455,7 +492,8 @@ class DirectionTestFramework:
                 strength=config['strength'],
                 conditions=config.get('conditions'),
                 max_new_tokens=config.get('max_new_tokens', 64),
-                generations_path=(f"results/{self.model_short}-{self.concept.name}"
+                edit_layers=config.get('edit_layers'), edit_embedding=config.get('edit_embedding', True),
+                generations_path=(f"results/{stem}"
                                   + (f"-evaluate-{os.path.basename(config['direction_file'])}"
                                      if config.get('direction_file') else
                                      f"-evaluate-L{direction_to_test.layer}-P{direction_to_test.position_index}")
