@@ -95,7 +95,8 @@ def main():
     bs = fw.evaluator.resolve_batch_size(["x" * 400] * 8, a.max_new_tokens)
 
     def best_layer(behavior):
-        for name in (f"results/caa/{short}-ab-mult.json", f"results/caa/{short}-ab.json"):
+        # The plain sweep covers every layer at x+-1; the "mult" file only a few layers at larger multipliers.
+        for name in (f"results/caa/{short}-ab.json", f"results/caa/{short}-ab-mult.json"):
             if not os.path.exists(name):
                 continue
             d = json.load(open(name))
@@ -113,7 +114,8 @@ def main():
 
     out = {"model": a.model, "judge": a.judge_model, "max_new_tokens": a.max_new_tokens, "n": a.n, "behaviors": {}}
     for behavior in a.behaviors.split(","):
-        items = caa.load_ab(behavior, "test_dataset_open_ended")[:a.n]
+        with open(os.path.join(caa.DATA_DIR, behavior, "test_dataset_open_ended.json")) as f:
+            items = json.load(f)[:a.n]
         questions = [it["question"] for it in items]
         layers = a.layers or [best_layer(behavior)]
         out["behaviors"][behavior] = {"layers": {}}
@@ -141,7 +143,10 @@ def main():
                 try:
                     for i in range(0, len(questions), bs):
                         chunk = questions[i:i + bs]
-                        state["boundary"] = last_real_token_indices(fmt.format_batch(chunk)["attention_mask"]).tolist()
+                        # CAA steers from the last template token before the answer; our Llama-2 template
+                        # ends in a space token after "]", so step one back there (caa.py's boundary).
+                        back = 1 if fmt.format_text("x").endswith(" ") else 0
+                        state["boundary"] = (last_real_token_indices(fmt.format_batch(chunk)["attention_mask"]) - back).tolist()
                         texts += generate_with_hooks(model, tok, fmt, chunk, max_new_tokens=a.max_new_tokens)
                 finally:
                     handle.remove()

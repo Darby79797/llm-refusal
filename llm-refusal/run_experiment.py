@@ -1,5 +1,6 @@
 """CLI runner for direction experiments."""
 import os
+import re
 import sys
 import json
 import logging
@@ -313,8 +314,23 @@ def setup_logging(config):
     return log_path
 
 
+def check_variant_tag(config):
+    """A model-variant run (saved adapter, edit-first, restricted edit) must carry a run tag,
+    or it overwrites the untagged results, including the direction file every variant
+    reads r̂ from. Tags must be lowercase [a-z][a-z0-9]* so tools/runs.py indexes them."""
+    variant = (config.get("adapter_file") or config.get("orthogonalize_first") or config.get("edit_layers")
+               or not config.get("edit_embedding", True))
+    tag = config.get("run_tag") or ""
+    if variant and config["mode"] in ("search", "evaluate", "capability", "rank1", "regrow") and not tag:
+        raise SystemExit("--run-tag is required with --adapter-file / --orthogonalize-first / --edit-layers / "
+                         "--no-edit-embedding (the run would overwrite the untagged results)")
+    if tag and not re.fullmatch(r"[a-z][a-z0-9]*", tag):
+        raise SystemExit(f"--run-tag {tag!r} must match [a-z][a-z0-9]* (tools/runs.py reads it as a variant prefix)")
+
+
 if __name__ == "__main__":
     config = parse_args()
+    check_variant_tag(config)
     log_path = setup_logging(config)
 
     logger.info(f"Logging to: {log_path}")

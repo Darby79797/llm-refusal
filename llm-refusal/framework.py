@@ -267,6 +267,11 @@ class DirectionTestFramework:
         # (and the cache key records the one actually used).
         batch_size = self.evaluator.resolve_batch_size(list(positive_prompts) + list(negative_prompts), 64)
         cache_path = self._filter_cache_path(positive_prompts, negative_prompts, batch_size)
+        if getattr(self, "_variant_active", False):
+            # A variant model (edited weights / saved adapter) behaves differently from the
+            # clean one, and the cache is keyed on the clean model: neither read nor write it.
+            use_cache = False
+            cache_path = None
         if use_cache and os.path.exists(cache_path):
             with open(cache_path) as f:
                 cached = json.load(f)
@@ -298,10 +303,11 @@ class DirectionTestFramework:
             raise ValueError("All negative prompts were filtered out — model refuses all of them. "
                              "Cannot compute contrastive direction.")
 
-        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-        with open(cache_path, "w") as f:
-            json.dump({"positive": filtered_pos, "negative": filtered_neg}, f, indent=1)
-        logger.info(f"Cached filtering result to {cache_path}")
+        if cache_path is not None:
+            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+            with open(cache_path, "w") as f:
+                json.dump({"positive": filtered_pos, "negative": filtered_neg}, f, indent=1)
+            logger.info(f"Cached filtering result to {cache_path}")
         return filtered_pos, filtered_neg
 
     def _filter_val_by_refusal_score(self, val_pos, val_neg, split_name="val"):
@@ -366,9 +372,18 @@ class DirectionTestFramework:
                 logger.info(f"Model variant: weights orthogonalised against {edit_path} "
                             f"(layers={config.get('edit_layers') or 'all'}, embedding={config.get('edit_embedding', True)})")
             if config.get('adapter_file'):
-                from finetune import installed
+                from finetune import installed, load_adapters
+                meta = load_adapters(config['adapter_file'])[0]
+                saved = meta.get("direction", {})
+                mine = json.load(open(edit_path + ".json"))
+                if saved and (saved.get("layer"), saved.get("position_index")) != (mine["layer"], mine["position_index"]):
+                    raise ValueError(f"{config['adapter_file']} was trained against a direction at L{saved.get('layer')}/"
+                                     f"P{saved.get('position_index')}, but {edit_path} is L{mine['layer']}/P{mine['position_index']}")
                 stack.enter_context(installed(self.model, config['adapter_file'],
                                               config.get('adapter_variant', 'full'), r_hat))
+            self._variant_active = bool(config.get('orthogonalize_first') or config.get('adapter_file'))
+            if self._variant_active and config.get('mode') == 'evaluate' and 'orthogonalized' in (config.get('conditions') or []):
+                raise ValueError("The 'orthogonalized' evaluate condition can't run inside --orthogonalize-first / --adapter-file")
             yield
 
     def run(self, config: Dict):
@@ -386,7 +401,9 @@ class DirectionTestFramework:
 
         if is_presplit:
             (positive_prompts, negative_prompts), (val_pos, val_neg) = result
-            if config['filter_prompts']:
+            if config['filter_prompts'] and not self.concept.filter_by_behavior:
+                logger.info(f"Concept '{self.concept.name}' disables filtering; using the pre-split sets as given.")
+            if config['filter_prompts'] and self.concept.filter_by_behavior:
                 # Pre-split data is the exact-replication path, so filter train the
                 # way Arditi's filter_train does: by refusal score, not by generating
                 # and phrase-matching as the default path does.
@@ -396,7 +413,7 @@ class DirectionTestFramework:
             # Use ALL train data for directions (no holdout)
             train_data = PromptData(positive_prompts + negative_prompts, [True]*len(positive_prompts) + [False]*len(negative_prompts))
             # Filter val set by refusal score (matching Arditi's filter_val=True)
-            if config['filter_prompts']:
+            if config['filter_prompts'] and self.concept.filter_by_behavior:
                 val_pos, val_neg = self._filter_val_by_refusal_score(val_pos, val_neg)
             val_data = PromptData(val_pos + val_neg, [True]*len(val_pos) + [False]*len(val_neg))
             logger.info(f"Using pre-split data: {len(positive_prompts)}+{len(negative_prompts)} train, {len(val_pos)}+{len(val_neg)} val")

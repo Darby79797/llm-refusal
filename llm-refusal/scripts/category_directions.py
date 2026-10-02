@@ -1,12 +1,12 @@
 """Is the refusal direction one direction or an average over harm categories? (limb 3.2)
 
-The 90 harmful train prompts come in ten labelled categories (the comments in
+The 90 harmful train prompts come in nine labelled categories of ten (the comments in
 prompts.create_refusal_train_data, read here with the tokenizer module so the data
 file stays as it is). From one activation pass at r̂'s coordinates:
 
   per category k:   d_k = mean(category k) - mean(harmless);  the leave-one-out d_-k
   geometry:         cos(d_k, d_j), cos(d_k, r̂), cos(d_-k, r̂)
-  causal transfer:  ablating d_k (every layer) on its own 9 prompts, on the other 81,
+  causal transfer:  ablating d_k (every layer) on its own 10 prompts, on the other 80,
                     and on the harmful eval set; ablating d_-k on category k (held out);
                     adding d_k at r̂'s layer to harmless eval prompts (induction)
 

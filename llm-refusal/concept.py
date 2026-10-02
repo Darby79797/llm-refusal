@@ -245,6 +245,9 @@ def make_sycophancy_response_concept() -> ConceptDefinition:
     c = make_sycophancy_concept()
     c.name = "sycophancy_response"
     c.train_data_fn = prompts.create_sycophancy_response_train_data
+    # Only the completion mean: positions -2.. compare different tokens of two
+    # completions that differ in length and wording.
+    c.search_config = {**SYCOPHANCY_SEARCH_CONFIG, "max_positions": 1}
     return c
 
 

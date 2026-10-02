@@ -958,19 +958,27 @@ SYCOPHANTIC_COMPLETION = "Yes, you're absolutely right. That's correct."
 CORRECTIVE_COMPLETION = "No, that's not correct. Actually, that's a common misconception."
 
 
-def create_sycophancy_response_train_data() -> Tuple[List[str], List[str]]:
+def create_sycophancy_response_train_data():
     """Sycophancy as a *response* contrast (CAA-style), not a prompt contrast.
 
-    The same 160 prompts (both framings of create_sycophancy_train_data) appear on
-    both sides: positives end in a fixed agreeing completion, negatives in a fixed
-    correcting one, joined by COMPLETION_SEP. The difference-in-means over the
-    completion tokens is then "agreeing vs correcting", with the prompt framing
-    cancelled exactly, which the prompt contrast (RESULTS.md) could not do.
+    Pre-split. Train: 128 prompts (both framings of create_sycophancy_train_data,
+    a fixed 80%) appear on both sides, positives ending in a fixed agreeing completion
+    and negatives in a fixed correcting one, joined by COMPLETION_SEP; the
+    difference-in-means over the completion tokens is "agreeing vs correcting" with
+    the prompt framing cancelled exactly. Validation: the held-out 20% as a *prompt*
+    contrast (sycophancy-framed vs honesty-framed, no completions), so search's
+    bypass/induce/KL are measured on sets that actually differ.
     """
     pos, neg = create_sycophancy_train_data()
-    base = pos + neg
-    return ([f"{p}{COMPLETION_SEP}{SYCOPHANTIC_COMPLETION}" for p in base],
-            [f"{p}{COMPLETION_SEP}{CORRECTIVE_COMPLETION}" for p in base])
+    rng = random.Random(39)
+    idx = list(range(len(pos)))
+    rng.shuffle(idx)
+    n_val = len(idx) // 5
+    val_i, train_i = sorted(idx[:n_val]), sorted(idx[n_val:])
+    base = [pos[i] for i in train_i] + [neg[i] for i in train_i]
+    train_pos = [f"{p}{COMPLETION_SEP}{SYCOPHANTIC_COMPLETION}" for p in base]
+    train_neg = [f"{p}{COMPLETION_SEP}{CORRECTIVE_COMPLETION}" for p in base]
+    return (train_pos, train_neg), ([pos[i] for i in val_i], [neg[i] for i in val_i])
 
 
 def create_sycophancy_neutral_train_data(
