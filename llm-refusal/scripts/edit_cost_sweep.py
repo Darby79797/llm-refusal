@@ -21,7 +21,6 @@ Writes results/edit-cost/<model>-<concept>[-<tag>].json, one entry per spec, sav
 """
 import argparse
 import contextlib
-import json
 import os
 import sys
 import time
@@ -30,15 +29,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
-import torch as t  # noqa: E402
-
 from batching import resolve_forward_batch_size  # noqa: E402
 from capability import MAX_TOKENS, completion_ce, load_alpaca, load_pile, random_direction  # noqa: E402
-from datatypes import DirectionVector  # noqa: E402
 from finetune import installed  # noqa: E402
-from framework import DirectionTestFramework  # noqa: E402
 from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
-from probe import behaviour  # noqa: E402
+from probe import behaviour, load_run, save_json  # noqa: E402
 
 
 def parse_spec(spec: str, D: int, n_layers: int):
@@ -89,13 +84,10 @@ def main():
     ap.add_argument("--tag", default="")
     ap.add_argument("--torch-dtype", default="auto")
     a = ap.parse_args()
-    short = a.model.split("/")[-1]
 
-    fw = DirectionTestFramework(model_name=a.model, concept=a.concept, torch_dtype=a.torch_dtype)
-    model, fmt, ev = fw.model, fw.prompt_formatter, fw.evaluator
-    n_layers = len(fw.intervention_applier.transformer_layers)
-    r = DirectionVector.load(a.direction or f"results/{short}-{a.concept}-direction")
-    r_hat = r.unit.float().cpu()
+    run = load_run(a.model, a.concept, direction=a.direction or True, torch_dtype=a.torch_dtype)
+    fw, model, fmt, ev, r, r_hat = run.fw, run.model, run.fmt, run.ev, run.r, run.r_hat
+    n_layers = len(run.blocks)
     harmful, harmless = fw.concept.eval_data_fn()
     harmful, harmless = harmful[:a.n_harmful], harmless[:a.n_harmless]
 
@@ -107,10 +99,8 @@ def main():
     od_completions = ev.generate_responses(od_prompts, max_new_tokens=MAX_TOKENS)
     rand = random_direction(r.vector.shape[-1])
 
-    out_dir = "results/edit-cost"
-    os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, f"{short}-{a.concept}" + (f"-{a.tag}" if a.tag else "") + ".json")
-    out = {"model": a.model, "concept": a.concept, "direction": {"layer": r.layer, "position_index": r.position_index},
+    path = run.path("edit-cost", a.concept, a.tag)
+    out = {"model": a.model, "concept": a.concept, "direction": run.coords,
            "n_layers": n_layers, "ce_batch_size": bs, "dtype": str(model.dtype),
            "n": {"alpaca": len(alpaca), "pile": len(pile), "on_distribution": len(od_prompts),
                  "harmful": len(harmful), "harmless": len(harmless)}, "specs": {}}
@@ -133,8 +123,8 @@ def main():
         t0 = time.time()
         with ctx():
             res = dict(meta)
-            res["harmful"] = behaviour(fw, harmful, contextlib.nullcontext)
-            res["harmless"] = behaviour(fw, harmless, contextlib.nullcontext)
+            res["harmful"] = behaviour(fw, harmful)
+            res["harmless"] = behaviour(fw, harmless)
             res["ce_alpaca"] = completion_ce(model, fmt, [x["instruction"] for x in alpaca], [x["output"] for x in alpaca],
                                              bs, on_split=ev._record_split)
             res["ce_pile"] = completion_ce(model, fmt, None, pile, bs, on_split=ev._record_split)
@@ -144,8 +134,7 @@ def main():
         print(f"{spec:40s} refusal {res['harmful']['rate']:6.1%} (lo {res['harmful']['log_odds']:+6.2f})  "
               f"false-refusal {res['harmless']['rate']:5.1%}  CE alpaca {res['ce_alpaca']:.4f} pile {res['ce_pile']:.4f} "
               f"on-dist {res['ce_on_distribution']:.4f}  [{res['seconds']}s]", flush=True)
-        with open(path, "w") as f:
-            json.dump(out, f, indent=1)
+        save_json(path, out)
     print("saved", path)
 
 

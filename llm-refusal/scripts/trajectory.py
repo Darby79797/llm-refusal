@@ -13,7 +13,6 @@ Writes results/trajectory/<model>-refusal.json and plots/trajectory/<model>-refu
 """
 import argparse
 import contextlib
-import json
 import os
 import sys
 
@@ -21,12 +20,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
-import torch as t  # noqa: E402
-
-from datatypes import DirectionVector  # noqa: E402
-from finetune import installed, load_adapters  # noqa: E402
-from framework import DirectionTestFramework  # noqa: E402
-from probe import auroc, cos, residuals_at, unit  # noqa: E402
+from finetune import installed  # noqa: E402
+from probe import auroc, cos, inhibitor_direction, load_run, residuals_at, save_json  # noqa: E402
 
 
 def main():
@@ -36,13 +31,9 @@ def main():
     ap.add_argument("--adapter", help="rank1 remove adapter stem (default: the model's remove-s0 or remove run, if any)")
     ap.add_argument("--no-plot", action="store_true")
     a = ap.parse_args()
-    short = a.model.split("/")[-1]
-    fw = DirectionTestFramework(model_name=a.model, concept=a.concept)
-    model, fmt, applier = fw.model, fw.prompt_formatter, fw.intervention_applier
-    blocks = applier.transformer_layers
-    r = DirectionVector.load(f"results/{short}-{a.concept}-direction")
-    r_hat = r.unit.float().cpu()
-    pos, neg = fw.concept.eval_data_fn()
+    run = load_run(a.model, a.concept)
+    model, fmt, blocks, r, r_hat, short = run.model, run.fmt, run.blocks, run.r, run.r_hat, run.short
+    pos, neg = run.fw.concept.eval_data_fn()
 
     adapter = a.adapter
     if adapter is None:
@@ -51,15 +42,12 @@ def main():
                 adapter = f"results/finetune/{short}-{a.concept}-rank1-{tag}"
                 break
     dirs = {"r_hat": r_hat}
+    conditions = {"plain": contextlib.nullcontext, "ablate_r_hat": run.ablate(r)}
     if adapter:
-        u = load_adapters(adapter)[1][0]["U"][:, 0].float()
-        dirs["u_perp"] = unit(u - (u @ r_hat) * r_hat)
-    conditions = {"plain": contextlib.nullcontext,
-                  "ablate_r_hat": lambda: applier.intervened(r, "ablate", layers=None)}
-    if adapter:
+        dirs["u_perp"] = inhibitor_direction([adapter], r_hat)[1]
         conditions["inhibitor"] = lambda: installed(model, adapter, "u_perp", r_hat)
 
-    out = {"model": a.model, "concept": a.concept, "direction": {"layer": r.layer, "position_index": r.position_index},
+    out = {"model": a.model, "concept": a.concept, "direction": run.coords,
            "n_layers": len(blocks), "adapter": adapter, "conditions": {}}
     for name, ctx in conditions.items():
         with ctx():
@@ -81,11 +69,7 @@ def main():
         print("  AUROC: " + " ".join(f"{x:.2f}" for x in pr["auroc"]))
         print("  cos(local diff, r̂): " + " ".join(f"{x:+.2f}" for x in res["cos_local_diff_r_hat"]), flush=True)
 
-    os.makedirs("results/trajectory", exist_ok=True)
-    path = f"results/trajectory/{short}-{a.concept}.json"
-    with open(path, "w") as f:
-        json.dump(out, f, indent=1)
-    print("saved", path)
+    print("saved", save_json(run.path("trajectory", a.concept), out))
     if not a.no_plot:
         plot(out, f"plots/trajectory/{short}-{a.concept}.png")
 

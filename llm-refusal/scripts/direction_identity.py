@@ -16,8 +16,6 @@ difference-in-means at r̂'s coordinates and reports:
 Writes results/finetune/<model>-direction-identity.json.
 """
 import argparse
-import contextlib
-import json
 import os
 import sys
 
@@ -27,11 +25,10 @@ from hf_offline import offline_for_script; offline_for_script()  # before transf
 
 import torch as t  # noqa: E402
 
-from datatypes import DirectionVector, PromptData  # noqa: E402
-from finetune import installed, load_adapters  # noqa: E402
-from framework import DirectionTestFramework  # noqa: E402
+from datatypes import PromptData  # noqa: E402
+from finetune import installed  # noqa: E402
 from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
-from probe import auroc, behaviour, cos, residuals_at, unit  # noqa: E402
+from probe import auroc, behaviour, cos, inhibitor_direction, load_run, residuals_at, save_json, unit  # noqa: E402
 
 
 def main():
@@ -41,17 +38,11 @@ def main():
     ap.add_argument("--arms", default="writers-r0,writers-r32,readers-r0,readers-r32")
     ap.add_argument("--n-eval", type=int, default=50)
     a = ap.parse_args()
-    short = a.model.split("/")[-1]
-    fw = DirectionTestFramework(model_name=a.model, concept="refusal")
-    model, fmt, applier = fw.model, fw.prompt_formatter, fw.intervention_applier
-    blocks = applier.transformer_layers
-    r = DirectionVector.load(f"results/{short}-refusal-direction")
-    r_hat = r.unit.float().cpu()
+    run = load_run(a.model)
+    fw, model, fmt, blocks, r, r_hat, short = run.fw, run.model, run.fmt, run.blocks, run.r, run.r_hat, run.short
 
-    us = [load_adapters(f"results/finetune/{short}-refusal-rank1-{tag}")[1][0]["U"][:, 0].float() for tag in a.rank1_tags.split(",")]
-    us = [u * t.sign(u @ us[0]) for u in us]
-    u_hat = unit(t.stack([unit(u) for u in us]).mean(0))
-    u_perp = unit(u_hat - (u_hat @ r_hat) * r_hat)
+    u_hat, u_perp = inhibitor_direction([f"results/finetune/{short}-refusal-rank1-{tag}" for tag in a.rank1_tags.split(",")],
+                                        r_hat)
     rand = unit(t.randn(len(r_hat), generator=t.Generator().manual_seed(0)))
 
     train_pos, train_neg = fw.concept.train_data_fn()
@@ -59,13 +50,13 @@ def main():
     eval_pos, eval_neg = eval_pos[:a.n_eval], eval_neg[:a.n_eval]
     fw.evaluator.reserve_bytes = edit_bytes(model)
 
-    out = {"model": a.model, "direction": {"layer": r.layer, "position_index": r.position_index},
+    out = {"model": a.model, "direction": run.coords,
            "rank1_tags": a.rank1_tags, "cos_u_hat_r_hat": cos(u_hat, r_hat), "arms": {}}
     regrown = {}
     for arm in a.arms.split(","):
         stem = f"results/finetune/{short}-refusal-regrow-{arm}"
         if not os.path.exists(stem + ".json"):
-            print(f"skip {arm}: no {stem}.json")
+            print(f"skip {arm}: no {stem}.json", flush=True)
             continue
         with orthogonalized(model, r.vector), installed(model, stem, "full"):
             data = PromptData(train_pos + train_neg, [True] * len(train_pos) + [False] * len(train_neg))
@@ -78,23 +69,18 @@ def main():
             # Per-layer: where does the regrown contrast align with û⊥ most?
             res["cos_u_perp_by_layer"] = [cos(vecs[(l, r.position_index)], u_perp) if (l, r.position_index) in vecs else None
                                           for l in range(len(blocks))]
-            # û⊥ as a feature in this model.
-            hp = residuals_at(model, fmt, blocks, eval_pos, r.position_index)[:, r.layer] @ u_perp
-            hn = residuals_at(model, fmt, blocks, eval_neg, r.position_index)[:, r.layer] @ u_perp
-            res["u_perp_feature_auroc"] = auroc(hp, hn)
-            hp = residuals_at(model, fmt, blocks, eval_pos, r.position_index)[:, r.layer] @ unit(d)
-            hn = residuals_at(model, fmt, blocks, eval_neg, r.position_index)[:, r.layer] @ unit(d)
-            res["regrown_feature_auroc"] = auroc(hp, hn)
+            # û⊥ and the regrown direction as features in this model.
+            hp = residuals_at(model, fmt, blocks, eval_pos, r.position_index)[:, r.layer]
+            hn = residuals_at(model, fmt, blocks, eval_neg, r.position_index)[:, r.layer]
+            res["u_perp_feature_auroc"] = auroc(hp @ u_perp, hn @ u_perp)
+            res["regrown_feature_auroc"] = auroc(hp @ unit(d), hn @ unit(d))
             if arm.endswith("r32"):
-                abl = lambda v: (lambda: applier.intervened(v, "ablate", layers=None))  # noqa: E731
-                res["refusal"] = {"none": behaviour(fw, eval_pos, contextlib.nullcontext),
-                                  "ablate_regrown": behaviour(fw, eval_pos, abl(unit(d))),
-                                  "ablate_u_perp": behaviour(fw, eval_pos, abl(u_perp)),
-                                  "ablate_random": behaviour(fw, eval_pos, abl(rand)),
-                                  "harmless_none": behaviour(fw, eval_neg, contextlib.nullcontext),
-                                  "harmless_add_regrown": behaviour(fw, eval_neg, lambda: applier.intervened(
-                                      DirectionVector(vector=d, layer=r.layer, position_index=r.position_index, score=0),
-                                      "add", layers=[r.layer]))}
+                res["refusal"] = {"none": behaviour(fw, eval_pos),
+                                  "ablate_regrown": behaviour(fw, eval_pos, run.ablate(unit(d))),
+                                  "ablate_u_perp": behaviour(fw, eval_pos, run.ablate(u_perp)),
+                                  "ablate_random": behaviour(fw, eval_pos, run.ablate(rand)),
+                                  "harmless_none": behaviour(fw, eval_neg),
+                                  "harmless_add_regrown": behaviour(fw, eval_neg, run.add(d))}
         out["arms"][arm] = res
         print(f"{arm:14s} norm {res['norm']:.2f} (clean {res['clean_norm']:.2f})  cos: r̂ {res['cos_r_hat']:+.3f}  "
               f"û {res['cos_u_hat']:+.3f}  û⊥ {res['cos_u_perp']:+.3f}  rand {res['cos_random']:+.3f} | "
@@ -102,11 +88,8 @@ def main():
               + (" | refusal " + " ".join(f"{k}={v['rate']:.0%}" for k, v in res["refusal"].items()) if "refusal" in res else ""),
               flush=True)
     out["cos_between_arms"] = {f"{x}|{y}": cos(regrown[x], regrown[y]) for x in regrown for y in regrown if x < y}
-    print("between arms:", {k: round(v, 3) for k, v in out["cos_between_arms"].items()})
-    path = f"results/finetune/{short}-direction-identity.json"
-    with open(path, "w") as f:
-        json.dump(out, f, indent=1)
-    print("saved", path)
+    print("between arms:", {k: round(v, 3) for k, v in out["cos_between_arms"].items()}, flush=True)
+    print("saved", save_json(run.path("finetune", "direction-identity"), out))
 
 
 if __name__ == "__main__":

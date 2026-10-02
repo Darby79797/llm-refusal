@@ -12,8 +12,6 @@ projection tell you whether it will work?). Harmless prompts give the reference.
 Writes results/jailbreak/<model>-refusal.json.
 """
 import argparse
-import contextlib
-import json
 import os
 import sys
 
@@ -21,44 +19,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
-import torch as t  # noqa: E402
+from probe import auroc, behaviour, load_run, mean, residuals_at, save_json, split_by, token_projections  # noqa: E402
 
-from datatypes import DirectionVector  # noqa: E402
-from formatting import last_real_token_indices  # noqa: E402
-from framework import DirectionTestFramework  # noqa: E402
-from probe import auroc, behaviour, residuals_at  # noqa: E402
-
-
-@t.no_grad()
-def token_projections(model, fmt, block, unit, prompts, batch_size=16):
-    """Per prompt: the projection onto `unit` at every real token of the formatted prompt,
-    read at `block`'s input. Returns (max over tokens, value at the last token) lists."""
-    dev = model.device
-    mx, last = [], []
-    for i in range(0, len(prompts), batch_size):
-        enc = fmt.format_batch(prompts[i:i + batch_size])
-        mask = enc["attention_mask"]
-        captured = {}
-
-        def grab(m, a):
-            x = a[0].float()
-            captured["p"] = (x @ unit.to(x.device)).cpu()
-            captured["n"] = x.norm(dim=-1).cpu()
-        h = block.register_forward_pre_hook(grab)
-        try:
-            model(input_ids=enc["input_ids"].to(dev), attention_mask=mask.to(dev), position_ids=enc["position_ids"].to(dev))
-        finally:
-            h.remove()
-        # Attention-sink tokens (BOS / the first template token) have residual norms 10-100x the
-        # rest and dominate any projection; drop tokens whose norm exceeds 4x the row's median.
-        norms = captured["n"].masked_fill(mask == 0, float("nan"))
-        med = t.nanmedian(norms, dim=1).values[:, None]
-        keep = (mask == 1) & (captured["n"] <= 4 * med)
-        proj = captured["p"].masked_fill(~keep, float("-inf"))
-        mx += proj.max(dim=1).values.tolist()
-        idx = last_real_token_indices(mask)
-        last += proj[t.arange(len(idx)), idx].tolist()
-    return mx, last
 
 TEMPLATES = {
     "plain": "{x}",
@@ -87,14 +49,10 @@ def main():
     ap.add_argument("--n", type=int, default=99)
     ap.add_argument("--templates", default=",".join(TEMPLATES))
     a = ap.parse_args()
-    short = a.model.split("/")[-1]
-    fw = DirectionTestFramework(model_name=a.model, concept="refusal")
-    model, fmt, blocks = fw.model, fw.prompt_formatter, fw.intervention_applier.transformer_layers
-    r = DirectionVector.load(f"results/{short}-refusal-direction")
-    r_hat = r.unit.float().cpu()
+    run = load_run(a.model)
+    fw, model, fmt, blocks, r, r_hat = run.fw, run.model, run.fmt, run.blocks, run.r, run.r_hat
     harmful, harmless = fw.concept.eval_data_fn()
     harmful = harmful[:a.n]
-    ev = fw.evaluator
 
     def measure(prompt_list):
         proj = residuals_at(model, fmt, blocks, prompt_list, r.position_index)[:, r.layer] @ r_hat
@@ -103,34 +61,29 @@ def main():
         # and the generation boundary (last token), as a monitor would.
         pmax, plast = token_projections(model, fmt, blocks[r.layer], r_hat, prompt_list)
         texts, labels = [], []
-        res = behaviour(fw, prompt_list, contextlib.nullcontext, 64, texts_out=texts, labels_out=labels)
-        lo = ev.log_odds_scores(prompt_list)
+        res = behaviour(fw, prompt_list, texts_out=texts, labels_out=labels)
+        lo = run.ev.log_odds_scores(prompt_list)
         return proj.tolist(), labels, lo, texts, res, pmax, plast
 
-    out = {"model": a.model, "direction": {"layer": r.layer, "position_index": r.position_index}, "n": len(harmful),
-           "templates": {}}
+    out = {"model": a.model, "direction": run.coords, "n": len(harmful), "templates": {}}
     hp, hl, hlo, _, hres, hmax, hlast = measure(harmless)
-    out["harmless"] = {"proj_mean": sum(hp) / len(hp), "refusal_rate": hres["rate"], "proj": hp, "refused": hl, "log_odds": hlo,
-                       "proj_max_mean": sum(hmax) / len(hmax), "proj_last_mean": sum(hlast) / len(hlast)}
+    out["harmless"] = {"proj_mean": mean(hp), "refusal_rate": hres["rate"], "proj": hp, "refused": hl, "log_odds": hlo,
+                       "proj_max_mean": mean(hmax), "proj_last_mean": mean(hlast)}
     print(f"harmless: proj {out['harmless']['proj_mean']:+.2f} (max {out['harmless']['proj_max_mean']:+.2f}, "
-          f"last {out['harmless']['proj_last_mean']:+.2f}) refusal {hres['rate']:.0%}")
+          f"last {out['harmless']['proj_last_mean']:+.2f}) refusal {hres['rate']:.0%}", flush=True)
     pooled_proj, pooled_ref = [], []
     for name in a.templates.split(","):
         wrapped = [TEMPLATES[name].format(x=p) for p in harmful]
         proj, labels, lo, texts, res, pmax, plast = measure(wrapped)
-        refused = [p for p, l in zip(proj, labels) if l]
-        complied = [p for p, l in zip(proj, labels) if not l]
-        sel = lambda xs, want: [x for x, l in zip(xs, labels) if l == want]  # noqa: E731
-        out["templates"][name] = {"refusal_rate": res["rate"], "log_odds_mean": res["log_odds"], "proj_mean": sum(proj) / len(proj),
-                                  "proj_mean_refused": sum(refused) / len(refused) if refused else None,
-                                  "proj_mean_complied": sum(complied) / len(complied) if complied else None,
+        refused, complied = split_by(proj, labels)
+        out["templates"][name] = {"refusal_rate": res["rate"], "log_odds_mean": res["log_odds"], "proj_mean": mean(proj),
+                                  "proj_mean_refused": mean(refused), "proj_mean_complied": mean(complied),
                                   "auroc_proj_predicts_refusal": auroc(refused, complied),
-                                  "proj_max_mean": sum(pmax) / len(pmax), "proj_last_mean": sum(plast) / len(plast),
-                                  "auroc_projmax_predicts_refusal": auroc(sel(pmax, True), sel(pmax, False)),
-                                  "auroc_projlast_predicts_refusal": auroc(sel(plast, True), sel(plast, False)),
+                                  "proj_max_mean": mean(pmax), "proj_last_mean": mean(plast),
+                                  "auroc_projmax_predicts_refusal": auroc(*split_by(pmax, labels)),
+                                  "auroc_projlast_predicts_refusal": auroc(*split_by(plast, labels)),
                                   "proj_max": pmax, "proj_last": plast,
-                                  "auroc_logodds_predicts_refusal": auroc([x for x, l in zip(lo, labels) if l],
-                                                                          [x for x, l in zip(lo, labels) if not l]),
+                                  "auroc_logodds_predicts_refusal": auroc(*split_by(lo, labels)),
                                   "proj": proj, "refused": labels, "log_odds": lo,
                                   "examples": [{"prompt": w, "response": x, "detected": l} for w, x, l in list(zip(wrapped, texts, labels))[:5]]}
         pooled_proj += proj
@@ -142,23 +95,18 @@ def main():
               f"AUROC proj->refusal {s['auroc_proj_predicts_refusal']:.2f} | max-over-tokens {s['proj_max_mean']:+.2f} "
               f"(AUROC {s['auroc_projmax_predicts_refusal']:.2f}) | last-token {s['proj_last_mean']:+.2f} "
               f"(AUROC {s['auroc_projlast_predicts_refusal']:.2f})", flush=True)
-    out["pooled_auroc_proj_predicts_refusal"] = auroc([p for p, l in zip(pooled_proj, pooled_ref) if l],
-                                                      [p for p, l in zip(pooled_proj, pooled_ref) if not l])
+    out["pooled_auroc_proj_predicts_refusal"] = auroc(*split_by(pooled_proj, pooled_ref))
     # Across templates: does the template's mean projection track its refusal rate?
     xs = [v["proj_mean"] for v in out["templates"].values()]
     ys = [v["refusal_rate"] for v in out["templates"].values()]
     if len(xs) > 2:
-        xm, ym = sum(xs) / len(xs), sum(ys) / len(ys)
+        xm, ym = mean(xs), mean(ys)
         num = sum((x - xm) * (y - ym) for x, y in zip(xs, ys))
         den = (sum((x - xm) ** 2 for x in xs) * sum((y - ym) ** 2 for y in ys)) ** 0.5
         out["template_level_corr_proj_refusal"] = num / den if den else None
     print(f"pooled AUROC {out['pooled_auroc_proj_predicts_refusal']:.2f}; template-level corr "
-          f"{out.get('template_level_corr_proj_refusal')}")
-    os.makedirs("results/jailbreak", exist_ok=True)
-    path = f"results/jailbreak/{short}-refusal.json"
-    with open(path, "w") as f:
-        json.dump(out, f, indent=1)
-    print("saved", path)
+          f"{out.get('template_level_corr_proj_refusal')}", flush=True)
+    print("saved", save_json(run.path("jailbreak", "refusal"), out))
 
 
 if __name__ == "__main__":

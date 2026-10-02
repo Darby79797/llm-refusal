@@ -15,10 +15,8 @@ file stays as it is). From one activation pass at r̂'s coordinates:
 Writes results/categories/<model>-refusal.json.
 """
 import argparse
-import contextlib
 import io
 import inspect
-import json
 import os
 import sys
 import tokenize
@@ -30,9 +28,7 @@ from hf_offline import offline_for_script; offline_for_script()  # before transf
 import torch as t  # noqa: E402
 
 import prompts  # noqa: E402
-from datatypes import DirectionVector  # noqa: E402
-from framework import DirectionTestFramework  # noqa: E402
-from probe import behaviour, cos, residuals_at, unit  # noqa: E402
+from probe import behaviour, cos, load_run, residuals_at, save_json, unit  # noqa: E402
 
 
 def categorised_train_prompts():
@@ -60,13 +56,9 @@ def main():
     ap.add_argument("--n-harmless", type=int, default=40, help="harmless eval prompts per induction test")
     ap.add_argument("--no-causal", action="store_true", help="geometry only (no generation)")
     a = ap.parse_args()
-    short = a.model.split("/")[-1]
-    fw = DirectionTestFramework(model_name=a.model, concept="refusal")
-    model, fmt, applier = fw.model, fw.prompt_formatter, fw.intervention_applier
-    blocks = applier.transformer_layers
-    r = DirectionVector.load(f"results/{short}-refusal-direction")
-    r_hat = r.unit.float().cpu()
-    L, P = r.layer, r.position_index
+    run = load_run(a.model)
+    fw, model, fmt, blocks, r_hat = run.fw, run.model, run.fmt, run.blocks, run.r_hat
+    L, P = run.r.layer, run.r.position_index
 
     labelled = categorised_train_prompts()
     cats = list(dict.fromkeys(c for c, _ in labelled))
@@ -74,7 +66,7 @@ def main():
     _, train_neg = fw.concept.train_data_fn()
     eval_pos, eval_neg = fw.concept.eval_data_fn()
     eval_pos, eval_neg = eval_pos[:a.n_eval], eval_neg[:a.n_harmless]
-    print("categories:", {c: len(v) for c, v in by_cat.items()})
+    print("categories:", {c: len(v) for c, v in by_cat.items()}, flush=True)
 
     h_pos = {c: residuals_at(model, fmt, blocks, by_cat[c], P)[:, L] for c in cats}      # [n_c, d]
     h_neg = residuals_at(model, fmt, blocks, train_neg, P)[:, L]
@@ -84,7 +76,7 @@ def main():
     d_all = all_pos.mean(0) - neg_mean
     loo = {c: t.cat([h_pos[k] for k in cats if k != c]).mean(0) - neg_mean for c in cats}
 
-    out = {"model": a.model, "direction": {"layer": L, "position_index": P}, "categories": {c: len(by_cat[c]) for c in cats},
+    out = {"model": a.model, "direction": run.coords, "categories": {c: len(by_cat[c]) for c in cats},
            "cos_r_hat_vs_unfiltered_all": cos(d_all, r_hat),
            "norm": {c: float(d[c].norm()) for c in cats}, "norm_all": float(d_all.norm()),
            "cos_with_r_hat": {c: cos(d[c], r_hat) for c in cats},
@@ -93,19 +85,17 @@ def main():
     # Within-category spread vs between: how much of each prompt's r̂ projection is category?
     out["proj_r_hat_by_category"] = {c: float((h_pos[c] @ r_hat).mean()) for c in cats}
     out["proj_r_hat_harmless"] = float((h_neg @ r_hat).mean())
-    print("cos(d_k, r̂):", {c[:12]: round(v, 2) for c, v in out["cos_with_r_hat"].items()})
-    print("cos(d_-k, r̂):", {c[:12]: round(v, 2) for c, v in out["cos_loo_with_r_hat"].items()})
+    print("cos(d_k, r̂):", {c[:12]: round(v, 2) for c, v in out["cos_with_r_hat"].items()}, flush=True)
+    print("cos(d_-k, r̂):", {c[:12]: round(v, 2) for c, v in out["cos_loo_with_r_hat"].items()}, flush=True)
     offdiag = [out["cos_matrix"][c][k] for c in cats for k in cats if c != k]
     out["cos_offdiag_mean"], out["cos_offdiag_min"] = sum(offdiag) / len(offdiag), min(offdiag)
-    print(f"pairwise cos: mean {out['cos_offdiag_mean']:.2f} min {out['cos_offdiag_min']:.2f}")
+    print(f"pairwise cos: mean {out['cos_offdiag_mean']:.2f} min {out['cos_offdiag_min']:.2f}", flush=True)
 
     if not a.no_causal:
-        abl = lambda v: (lambda: applier.intervened(unit(v), "ablate", layers=None))  # noqa: E731
-        add = lambda v: (lambda: applier.intervened(DirectionVector(vector=v, layer=L, position_index=P, score=0),  # noqa: E731
-                                                    "add", layers=[L]))
-        out["baseline"] = {"train_by_category": {c: behaviour(fw, by_cat[c], contextlib.nullcontext)["rate"] for c in cats},
-                           "eval": behaviour(fw, eval_pos, contextlib.nullcontext),
-                           "harmless": behaviour(fw, eval_neg, contextlib.nullcontext),
+        abl = lambda v: run.ablate(unit(v))  # noqa: E731
+        out["baseline"] = {"train_by_category": {c: behaviour(fw, by_cat[c])["rate"] for c in cats},
+                           "eval": behaviour(fw, eval_pos),
+                           "harmless": behaviour(fw, eval_neg),
                            "eval_ablate_r_hat": behaviour(fw, eval_pos, abl(r_hat))}
         out["causal"] = {}
         for c in cats:
@@ -115,16 +105,12 @@ def main():
                    "ablate_dk_eval": behaviour(fw, eval_pos, abl(d[c])),
                    "ablate_loo_own": behaviour(fw, by_cat[c], abl(loo[c]))["rate"],
                    "ablate_r_hat_own": behaviour(fw, by_cat[c], abl(r_hat))["rate"],
-                   "add_dk_harmless": behaviour(fw, eval_neg, add(d[c]))}
+                   "add_dk_harmless": behaviour(fw, eval_neg, run.add(d[c]))}
             out["causal"][c] = res
             print(f"{c[:28]:28s} base {out['baseline']['train_by_category'][c]:4.0%} | ablate own-dir: own {res['ablate_dk_own']:4.0%} "
                   f"others {res['ablate_dk_others']:4.0%} eval {res['ablate_dk_eval']['rate']:4.0%} | LOO on own {res['ablate_loo_own']:4.0%} "
                   f"| r̂ on own {res['ablate_r_hat_own']:4.0%} | induce {res['add_dk_harmless']['rate']:4.0%}", flush=True)
-    os.makedirs("results/categories", exist_ok=True)
-    path = f"results/categories/{short}-refusal.json"
-    with open(path, "w") as f:
-        json.dump(out, f, indent=1)
-    print("saved", path)
+    print("saved", save_json(run.path("categories", "refusal"), out))
 
 
 if __name__ == "__main__":

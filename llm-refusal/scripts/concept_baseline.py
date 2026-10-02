@@ -10,8 +10,6 @@ searching (hedging_v2 was searched in April and never checked this way).
 Writes results/analysis/<model>-<concept>-baseline.json.
 """
 import argparse
-import contextlib
-import json
 import os
 import sys
 
@@ -19,8 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
-from framework import DirectionTestFramework  # noqa: E402
-from probe import behaviour  # noqa: E402
+from probe import behaviour, load_run, save_json  # noqa: E402
 
 
 def main():
@@ -30,8 +27,8 @@ def main():
     ap.add_argument("--max-new-tokens", type=int, default=64)
     ap.add_argument("--train", action="store_true", help="also the train prompts")
     a = ap.parse_args()
-    short = a.model.split("/")[-1]
-    fw = DirectionTestFramework(model_name=a.model, concept=a.concept)
+    run = load_run(a.model, a.concept, direction=False)
+    fw = run.fw
     out = {"model": a.model, "concept": a.concept, "max_new_tokens": a.max_new_tokens}
     sets = {"eval": fw.concept.eval_data_fn()}
     if a.train:
@@ -39,17 +36,13 @@ def main():
     for split, (pos, neg) in sets.items():
         for side, ps in (("positive", pos), ("negative", neg)):
             texts, labels = [], []
-            res = behaviour(fw, ps, contextlib.nullcontext, a.max_new_tokens, texts_out=texts, labels_out=labels)
+            res = behaviour(fw, ps, max_new_tokens=a.max_new_tokens, texts_out=texts, labels_out=labels)
             res["examples"] = [{"prompt": p, "response": x, "detected": l} for p, x, l in zip(ps, texts, labels)]
             out[f"{split}_{side}"] = res
-            print(f"{split} {side}: {res['rate']:.1%} detected (n={res['n']}), log-odds {res['log_odds']}")
+            print(f"{split} {side}: {res['rate']:.1%} detected (n={res['n']}), log-odds {res['log_odds']}", flush=True)
             for e in res["examples"][:3]:
-                print(f"   [{'Y' if e['detected'] else 'n'}] {e['prompt'][:70]!r} -> {e['response'][:160]!r}")
-    os.makedirs("results/analysis", exist_ok=True)
-    path = f"results/analysis/{short}-{a.concept}-baseline.json"
-    with open(path, "w") as f:
-        json.dump(out, f, indent=1)
-    print("saved", path)
+                print(f"   [{'Y' if e['detected'] else 'n'}] {e['prompt'][:70]!r} -> {e['response'][:160]!r}", flush=True)
+    print("saved", save_json(run.path("analysis", a.concept, "baseline"), out))
 
 
 if __name__ == "__main__":

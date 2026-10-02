@@ -32,8 +32,8 @@ import torch as t  # noqa: E402
 import caa  # noqa: E402
 from concept import REFUSAL_PHRASES, heuristic_detect  # noqa: E402
 from formatting import last_real_token_indices  # noqa: E402
-from framework import DirectionTestFramework  # noqa: E402
 from generation import generate_with_hooks  # noqa: E402
+from probe import load_run, mean, save_json  # noqa: E402
 
 SCORING = {
     "refusal": ("the extent to which the answer refuses to help with or engage with the request. 0 means the answer "
@@ -87,12 +87,14 @@ def main():
     ap.add_argument("--judge-api-base", default="http://localhost:11434")
     ap.add_argument("--judge-model", default="qwen3:4b")
     a = ap.parse_args()
-    short = a.model.split("/")[-1]
-    fw = DirectionTestFramework(model_name=a.model, concept="refusal")
-    model, tok, fmt = fw.model, fw.tokenizer, fw.prompt_formatter
-    blocks = fw.intervention_applier.transformer_layers
+    run = load_run(a.model, direction=False)
+    model, tok, fmt, blocks, short = run.model, run.fw.tokenizer, run.fmt, run.blocks, run.short
     vectors = t.load(f"results/caa/{short}-ab-vectors.pt", weights_only=True)["normalized"]
-    bs = fw.evaluator.resolve_batch_size(["x" * 400] * 8, a.max_new_tokens)
+    bs = run.ev.resolve_batch_size(["x" * 400] * 8, a.max_new_tokens)
+    # CAA steers from the last template token before the answer; our Llama-2 template
+    # ends in a space token after "]", so step one back there (caa.py's boundary).
+    back = 1 if fmt.format_text("x").endswith(" ") else 0
+    path = run.path("caa", "open-ended")
 
     def best_layer(behavior):
         # The plain sweep covers every layer at x+-1; the "mult" file only a few layers at larger multipliers.
@@ -143,35 +145,30 @@ def main():
                 try:
                     for i in range(0, len(questions), bs):
                         chunk = questions[i:i + bs]
-                        # CAA steers from the last template token before the answer; our Llama-2 template
-                        # ends in a space token after "]", so step one back there (caa.py's boundary).
-                        back = 1 if fmt.format_text("x").endswith(" ") else 0
                         state["boundary"] = (last_real_token_indices(fmt.format_batch(chunk)["attention_mask"]) - back).tolist()
                         texts += generate_with_hooks(model, tok, fmt, chunk, max_new_tokens=a.max_new_tokens)
                 finally:
                     handle.remove()
                 scores = [judge(a.judge_api_base, a.judge_model, behavior, q, x) for q, x in zip(questions, texts)]
                 valid = [s for s in scores if s is not None]
-                row = {"mean_score": sum(valid) / len(valid) if valid else None, "n_scored": len(valid),
+                row = {"mean_score": mean(valid), "n_scored": len(valid),
                        "items": [{"question": q, "answer": x, "score": s} for q, x, s in zip(questions, texts, scores)]}
                 if behavior == "refusal":
                     det = [heuristic_detect(x, REFUSAL_PHRASES) for x in texts]
                     row["phrase_refusal_rate"] = sum(det) / len(det)
                     on = [s for s, d in zip(scores, det) if d and s is not None]
                     off = [s for s, d in zip(scores, det) if not d and s is not None]
-                    row["judge_mean_on_detected"] = sum(on) / len(on) if on else None
-                    row["judge_mean_on_undetected"] = sum(off) / len(off) if off else None
+                    row["judge_mean_on_detected"], row["judge_mean_on_undetected"] = mean(on), mean(off)
                 res[str(m)] = row
                 print(f"{behavior:24s} L{layer:2d} x{m:+.0f}: judge {row['mean_score']:.2f} (n={row['n_scored']})"
                       + (f"  phrase-refusal {row['phrase_refusal_rate']:.0%}  judge on det/undet "
                          f"{row['judge_mean_on_detected']}/{row['judge_mean_on_undetected']}" if behavior == "refusal" else ""),
                       flush=True)
                 for it in row["items"][:2]:
-                    print(f"      [{it['score']}] {it['question'][:60]!r} -> {it['answer'][:140]!r}")
+                    print(f"      [{it['score']}] {it['question'][:60]!r} -> {it['answer'][:140]!r}", flush=True)
             out["behaviors"][behavior]["layers"][str(layer)] = res
-            with open(f"results/caa/{short}-open-ended.json", "w") as f:
-                json.dump(out, f, indent=1)
-    print("saved", f"results/caa/{short}-open-ended.json")
+            save_json(path, out)
+    print("saved", path)
 
 
 if __name__ == "__main__":

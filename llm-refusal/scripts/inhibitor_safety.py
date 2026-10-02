@@ -20,7 +20,6 @@ variant "inhibitor") and results/finetune/<model>-inhibitor-safety.json.
 """
 import argparse
 import contextlib
-import json
 import os
 import sys
 
@@ -30,10 +29,8 @@ from hf_offline import offline_for_script; offline_for_script()  # before transf
 
 import prompts  # noqa: E402
 from coherence import score_condition  # noqa: E402
-from datatypes import DirectionVector  # noqa: E402
 from finetune import installed  # noqa: E402
-from framework import DirectionTestFramework  # noqa: E402
-from probe import behaviour  # noqa: E402
+from probe import behaviour, load_run, save_json  # noqa: E402
 
 
 def main():
@@ -45,20 +42,17 @@ def main():
     ap.add_argument("--n", type=int, default=100)
     ap.add_argument("--llamaguard-api-base", default="http://localhost:11434")
     a = ap.parse_args()
-    short = a.model.split("/")[-1]
-    fw = DirectionTestFramework(model_name=a.model, concept="refusal", llamaguard_api_base=a.llamaguard_api_base)
-    ev = fw.evaluator
-    r = DirectionVector.load(f"results/{short}-refusal-direction")
-    r_hat = r.unit.float().cpu()
+    run = load_run(a.model, llamaguard_api_base=a.llamaguard_api_base)
+    fw, ev, r, r_hat, short = run.fw, run.ev, run.r, run.r_hat, run.short
     jbb, _ = prompts.create_arditi_replication_eval_data()
     jbb = jbb[:a.n]
     harmful, _ = fw.concept.eval_data_fn()
 
     ctxs = {
         "baseline": contextlib.nullcontext,
-        "global_ablation": lambda: fw.intervention_applier.intervened(r, "ablate", layers=None),
-        "inhibitor": lambda: installed(fw.model, a.adapter, "u_perp", r_hat),
-        "adapter_full": lambda: installed(fw.model, a.adapter, "full", r_hat),
+        "global_ablation": run.ablate(r),
+        "inhibitor": lambda: installed(run.model, a.adapter, "u_perp", r_hat),
+        "adapter_full": lambda: installed(run.model, a.adapter, "full", r_hat),
     }
     gens, summary = {}, {"model": a.model, "adapter": a.adapter, "max_new_tokens": a.max_new_tokens, "n": len(jbb),
                          "conditions": {}}
@@ -72,17 +66,15 @@ def main():
         res["jbb"]["llamaguard_unsafe_rate"] = unsafe
         gens[name] = [{"prompt": p, "response": x, "detected": d, "llamaguard": l}
                       for p, x, d, l in zip(jbb, texts, labels, lg or [None] * len(texts))]
-        res["jbb"].update(score_condition(fw.model, fw.tokenizer, fw.prompt_formatter, gens[name],
+        res["jbb"].update(score_condition(run.model, fw.tokenizer, run.fmt, gens[name],
                                           batch_size=ev.resolve_batch_size(jbb, 0)))
         res["harmful_eval_64"] = behaviour(fw, harmful, ctx, 64)
         summary["conditions"][name] = res
         print(f"{name:16s} JBB refusal {res['jbb']['rate']:5.1%}  unsafe {unsafe if unsafe is None else f'{unsafe:5.1%}'}  "
               f"degenerate {res['jbb'].get('degenerate_rate', float('nan')):5.1%}  log-odds {res['jbb']['log_odds']:+.2f} | "
               f"harmful-64 refusal {res['harmful_eval_64']['rate']:5.1%}", flush=True)
-        with open(gen_path, "w") as f:
-            json.dump(gens, f, indent=1)
-        with open(f"results/finetune/{short}-inhibitor-safety.json", "w") as f:
-            json.dump(summary, f, indent=1)
+        save_json(gen_path, gens)
+        save_json(run.path("finetune", "inhibitor-safety"), summary)
     print("saved", gen_path)
 
 
