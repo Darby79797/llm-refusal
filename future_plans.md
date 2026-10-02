@@ -29,11 +29,20 @@ Two padding bugs have now been fixed: the April 2026 indexing bug in the scoring
 - ~~Cross-concept analysis~~ Done 2026-09-25 on all 7 models (4 concepts); the −63pp headline does not replicate.
 - ~~The paper's **safety score**~~ Done 2026-09-25 on all 7 models (ablation → 66-89% LlamaGuard-unsafe).
 
+## Done 2026-09-30 → 10-02 (see RESULTS.md)
+
+- Selection breaks bypass near-ties by induce; detection counts non-apologetic refusals.
+- Weight orthogonalisation (`orthogonalize.py`), equivalent to hook ablation on all 7 models, and the Llama-3-8B safety replication.
+- Capability cost with a random-direction control (`--mode capability`): CE on 7 models, benchmarks on 2.
+- Rank-one adapters (`--mode rank1`) and refusal regrowth after the edit (`--mode regrow`) on Qwen2.5-0.5B/7B and Llama-3-8B.
+
+Open questions from those runs are in PROPOSED_PLANS.md.
+
 ## Next (from the 2026-09-25 sweep)
 
 1. **Sycophancy from a response contrast.** Same prompts, activations when the model was vs wasn't sycophantic (CAA-style), instead of the prompt contrast (which encodes framing) or behavioral filtering (too few sycophantic responses on ≥1.5B models).
-2. **Selection rule:** break bypass near-ties by induce (Llama-3.1: L11/P-1 gives 100% induction vs 85% at the selected L12/P-2).
-3. **Detection:** widen the refusal phrase list for non-apologetic refusals ("I do not provide…", "I must strongly advise against…"), or lead with log-odds where phrasing can change (cross-concept).
+2. ~~**Selection rule:** break bypass near-ties by induce.~~ Done 2026-09-30: `bypass_tie_frac` (5%; 0 for `refusal_arditi_exact`). Moves Llama-3.1 to L11/P-1 and Qwen2.5-7B to L16/P-4; nothing else.
+3. ~~**Detection:** widen the refusal phrase list for non-apologetic refusals.~~ Done 2026-09-30 (`NON_APOLOGETIC_REFUSAL_PHRASES`, not applied to `refusal_arditi_exact`). The long tail ("I should note that…", "I must clarify…") is open-ended, so cross-concept cells still need log-odds or a judge.
 4. **CAA open-ended half** (LLM judge via OpenRouter, pending a key); check "ablating refusal raises sycophancy" against the text.
 5. `hedging_v2` (subjective questions); a larger empathy eval set (20 prompts now).
 
