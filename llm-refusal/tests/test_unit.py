@@ -1040,6 +1040,24 @@ def test_hf_offline_only_for_fully_cached_models(tmp_path, monkeypatch):
     assert not hf_offline.use_offline_if_cached("org/m")
 
 
+def test_hf_offline_for_run_needs_model_and_lm_eval_tasks_cached(tmp_path, monkeypatch):
+    """Runs with lm-eval tasks go offline too (Hub and datasets) once the tasks are cached."""
+    import hf_offline
+    snap = tmp_path / "models--org--m" / "snapshots" / "abc"
+    snap.mkdir(parents=True)
+    for f in ("config.json", "tokenizer_config.json", "model.safetensors"):
+        (snap / f).write_text("{}")
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path))
+    for var in ("HF_HUB_OFFLINE", "HF_DATASETS_OFFLINE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(hf_offline, "lm_eval_tasks_cached", lambda tasks: tasks != ["missing"])
+    assert not hf_offline.use_offline_for_run("org/m", ["missing"])   # task must download
+    assert "HF_HUB_OFFLINE" not in os.environ
+    assert not hf_offline.use_offline_for_run("org/other", [])        # model not cached
+    assert hf_offline.use_offline_for_run("org/m", ["arc_challenge"])
+    assert os.environ["HF_HUB_OFFLINE"] == "1" and os.environ["HF_DATASETS_OFFLINE"] == "1"
+
+
 def test_llamaguard_unloads_after_classification(monkeypatch):
     """LlamaGuard is unloaded (keep_alive=0) after each batch, even if calls fail, so its
     ~6 GB doesn't sit in memory through the next condition's generation."""
@@ -1066,3 +1084,22 @@ def test_llamaguard_unloads_after_classification(monkeypatch):
     assert rate == 0.5                                   # 1 unsafe of 2 classified
     assert labels == ["unsafe\nS2", "safe", None]
     assert calls[-1] == {"model": "llama-guard2", "keep_alive": 0}
+
+
+def test_offline_for_script(monkeypatch, tmp_path):
+    """Scripts go offline for a cached model in argv, or when the Hub is unreachable."""
+    import hf_offline
+    for var in ("HF_HUB_OFFLINE", "HF_DATASETS_OFFLINE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(hf_offline, "is_cached", lambda m: m == "org/cached")
+    monkeypatch.setattr(hf_offline, "hub_reachable", lambda timeout=2.0: True)
+    assert not hf_offline.offline_for_script(["--model", "org/uncached"])     # online: may download
+    assert not hf_offline.offline_for_script([str(tmp_path)])                 # a path is not a model ID
+    assert "HF_HUB_OFFLINE" not in os.environ
+    assert hf_offline.offline_for_script(["--model", "org/cached"])
+    assert os.environ["HF_HUB_OFFLINE"] == "1" and os.environ["HF_DATASETS_OFFLINE"] == "1"
+    monkeypatch.delenv("HF_HUB_OFFLINE"); monkeypatch.delenv("HF_DATASETS_OFFLINE")
+    monkeypatch.setattr(hf_offline, "hub_reachable", lambda timeout=2.0: False)
+    assert hf_offline.offline_for_script(["--model", "org/uncached"])          # no network: cache only
+    monkeypatch.setenv("HF_HUB_OFFLINE", "0")                                  # explicit setting wins
+    assert not hf_offline.offline_for_script(["--model", "org/cached"])

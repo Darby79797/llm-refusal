@@ -12,6 +12,9 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 # LOW must not exceed HIGH (PyTorch refuses to start), so derive it unless set.
 _high = os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
 os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", str(min(0.6, 0.75 * float(_high))))
+# Offline when the Hub is unreachable (cached test models then still load).
+from hf_offline import offline_for_script  # noqa: E402
+offline_for_script(argv=[])
 
 # Suppress Pydantic v1 validator warnings only for Hugging Face / Transformers libraries
 warnings.filterwarnings(

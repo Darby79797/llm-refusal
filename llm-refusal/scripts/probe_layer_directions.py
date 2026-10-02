@@ -11,6 +11,7 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import numpy as np
 import torch as t

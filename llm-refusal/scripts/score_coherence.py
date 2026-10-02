@@ -14,6 +14,7 @@ import argparse
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import torch as t
 from transformers import AutoModelForCausalLM, AutoTokenizer

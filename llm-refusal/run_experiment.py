@@ -16,13 +16,19 @@ os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", str(min(0.6, 0.75 * flo
 
 # Cached models run offline (transformers otherwise calls the Hub API on every
 # tokenizer load). Must precede the transformers import below.
-from hf_offline import use_offline_if_cached  # noqa: E402
-_argv = " ".join(sys.argv)
+from hf_offline import use_offline_for_run  # noqa: E402
 if "--json" not in sys.argv:
     _model = next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--model"), None)
-    # Only lm-eval tasks need the Hub (datasets). --arditi-evals is local: Alpaca prompts
-    # from data/, LlamaGuard via Ollama, JailbreakBench only with an API key.
-    _offline = use_offline_if_cached(_model, needs_network="--eval-tasks" in _argv)
+    # lm-eval tasks need their datasets; offline too once those are cached (checked).
+    # --arditi-evals is local: Alpaca prompts from data/, LlamaGuard via Ollama,
+    # JailbreakBench only with an API key.
+    _tasks = []
+    if "--eval-tasks" in sys.argv:
+        for a in sys.argv[sys.argv.index("--eval-tasks") + 1:]:
+            if a.startswith("--"):
+                break
+            _tasks.append(a)
+    _offline = use_offline_for_run(_model, _tasks)
 
 from framework import main
 from evaluation import CONDITIONS, DEFAULT_CONDITIONS
@@ -259,4 +265,6 @@ if __name__ == "__main__":
 
     logger.info(f"Logging to: {log_path}")
     logger.info(f"Config: {config}")
+    logger.info("Hugging Face offline mode: " + ", ".join(
+        f"{v}={os.environ.get(v, 'unset')}" for v in ("HF_HUB_OFFLINE", "HF_DATASETS_OFFLINE")))
     main(config)

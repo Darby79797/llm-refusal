@@ -1,4 +1,7 @@
 # --- Diagnostic Snippet: Discovering the Correct Template ---
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 from transformers import AutoTokenizer
 
 model_name = "Qwen/Qwen1.5-1.8B-Chat"
