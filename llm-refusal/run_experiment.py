@@ -227,6 +227,9 @@ def setup_logging(config):
         config["mode"],
         f"L{config['layer']}" if config.get("layer") is not None else "",
         f"P{config['pos']}" if config.get("pos") is not None else "",
+        # Same suffix as the generations file, so a 512-token run doesn't
+        # overwrite the 64-token log at the same coordinates.
+        f"T{config['max_new_tokens']}" if config.get("max_new_tokens", 64) != 64 else "",
     ]
     log_filename = "-".join(filter(None, log_filename_parts)) + ".log"
 

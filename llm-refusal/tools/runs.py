@@ -301,8 +301,9 @@ def load_index(roots: Optional[List[str]] = None) -> Index:
                     nll=sum(nll) / len(nll) if nll else None,
                     unsafe=sum(1 for x in lg if is_unsafe(x)) / len(lg) if lg else None)
             del run.__dict__["generations"]   # loaded again lazily when a viewer asks
-            log_name = f"{run.model}-{run.concept}-evaluate-{run.tag.split('-T')[0]}.log"
-            run.log_path = _sibling(path, variant, log_name)
+            # Logs carry the -T<n> suffix since 2026-09-30; older ones don't.
+            run.log_path = (_sibling(path, variant, f"{run.model}-{run.concept}-evaluate-{run.tag}.log")
+                            or _sibling(path, variant, f"{run.model}-{run.concept}-evaluate-{run.tag.split('-T')[0]}.log"))
             if run.log_path:
                 with open(run.log_path, errors="replace") as f:
                     _parse_eval_log(run, f.read())
