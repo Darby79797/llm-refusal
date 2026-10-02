@@ -68,8 +68,10 @@ class CircuitResult:
     num_heads: int
     layer_attributions: List[LayerAttribution] = field(default_factory=list)
     contrastive_layer_attributions: List[LayerAttribution] = field(default_factory=list)
+    neg_layer_attributions: List[LayerAttribution] = field(default_factory=list)  # harmless class
     head_attributions: List[HeadAttribution] = field(default_factory=list)
     contrastive_head_attributions: List[HeadAttribution] = field(default_factory=list)
+    neg_head_attributions: List[HeadAttribution] = field(default_factory=list)  # harmless class
     top_components: List[CircuitComponent] = field(default_factory=list)
     verified_components: List[CircuitComponent] = field(default_factory=list)
 
@@ -472,6 +474,7 @@ class AttributionAnalyzer:
             positive_prompts, negative_prompts, direction
         )
         result.layer_attributions = pos_layer
+        result.neg_layer_attributions = neg_layer
         result.contrastive_layer_attributions = contrast_layer
 
         # Identify top layers by absolute contrastive total projection
@@ -487,6 +490,7 @@ class AttributionAnalyzer:
             positive_prompts, negative_prompts, direction, layers=top_layer_idxs
         )
         result.head_attributions = pos_head
+        result.neg_head_attributions = neg_head
         result.contrastive_head_attributions = contrast_head
 
         # Collect all components (heads + MLPs) from top layers, rank by contrastive attribution

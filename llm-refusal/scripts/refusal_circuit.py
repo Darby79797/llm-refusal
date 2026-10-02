@@ -299,8 +299,8 @@ def plot_cross_model_comparison(all_results: dict, save_dir: str):
 
 # ── Serialization ───────────────────────────────────────────────────────────
 
-def save_result(result: CircuitResult, save_dir: str):
-    """Save CircuitResult as JSON for later analysis."""
+def save_result(result: CircuitResult, save_dir: str, out_tag: str = None):
+    """Save CircuitResult as JSON for later analysis (-circuit-<out_tag>.json if tagged)."""
     short = result.model_name.split("/")[-1]
 
     data = {
@@ -317,6 +317,23 @@ def save_result(result: CircuitResult, save_dir: str):
             {"layer": a.layer_idx, "heads": a.head_projections, "mlp": a.mlp_projection}
             for a in result.contrastive_head_attributions
         ],
+        # Per-class (harmful / harmless) projections, not just the contrastive difference
+        "harmful_layer_attributions": [
+            {"layer": a.layer_idx, "attn": a.attn_projection, "mlp": a.mlp_projection, "total": a.total_projection}
+            for a in result.layer_attributions
+        ],
+        "harmless_layer_attributions": [
+            {"layer": a.layer_idx, "attn": a.attn_projection, "mlp": a.mlp_projection, "total": a.total_projection}
+            for a in result.neg_layer_attributions
+        ],
+        "harmful_head_attributions": [
+            {"layer": a.layer_idx, "heads": a.head_projections, "mlp": a.mlp_projection}
+            for a in result.head_attributions
+        ],
+        "harmless_head_attributions": [
+            {"layer": a.layer_idx, "heads": a.head_projections, "mlp": a.mlp_projection}
+            for a in result.neg_head_attributions
+        ],
         "verified_components": [
             {
                 "layer": c.layer, "type": c.component_type, "head_idx": c.head_idx,
@@ -326,7 +343,8 @@ def save_result(result: CircuitResult, save_dir: str):
         ],
     }
 
-    path = os.path.join(save_dir, f"{short}-circuit.json")
+    suffix = f"-{out_tag}" if out_tag else ""
+    path = os.path.join(save_dir, f"{short}-circuit{suffix}.json")
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
     logger.info(f"Saved: {path}")
@@ -334,10 +352,10 @@ def save_result(result: CircuitResult, save_dir: str):
 
 # ── Main ────────────────────────────────────────────────────────────────────
 
-def run_model(model_id: str, torch_dtype="auto") -> CircuitResult:
+def run_model(model_id: str, torch_dtype="auto", concept="refusal", out_tag=None) -> CircuitResult:
     """Run full circuit analysis on one model."""
     short = model_id.split("/")[-1]
-    direction_path = f"results/{short}-refusal-direction"
+    direction_path = f"results/{short}-{concept}-direction"
 
     if not os.path.exists(f"{direction_path}.pt"):
         logger.warning(f"No saved direction for {short}, skipping. Run search first.")
@@ -397,7 +415,7 @@ def run_model(model_id: str, torch_dtype="auto") -> CircuitResult:
     plot_attribution_vs_causal(result, PLOTS_DIR)
 
     # Save JSON
-    save_result(result, RESULTS_DIR)
+    save_result(result, RESULTS_DIR, out_tag)
 
     # Cleanup
     del model, tokenizer, analyzer, applier, formatter
@@ -455,6 +473,10 @@ def main():
     parser.add_argument("--models", nargs="+", default=None,
                         help="Model IDs to analyze (default: all)")
     parser.add_argument("--torch-dtype", default="auto")
+    parser.add_argument("--concept", default="refusal",
+                        help="Load results/<model>-<concept>-direction.pt/.json (saved by search)")
+    parser.add_argument("--out-tag", default=None,
+                        help="Write results/circuit/<model>-circuit-<tag>.json instead of <model>-circuit.json")
     parser.add_argument("--top-layers", type=int, default=TOP_LAYERS_K)
     parser.add_argument("--top-components", type=int, default=TOP_COMPONENTS_K)
     parser.add_argument("--num-prompts", type=int, default=NUM_ATTRIBUTION_PROMPTS)
@@ -475,7 +497,8 @@ def main():
         logger.info(f"ANALYZING: {model_id}")
         logger.info(f"{'='*60}")
         try:
-            result = run_model(model_id, torch_dtype=args.torch_dtype)
+            result = run_model(model_id, torch_dtype=args.torch_dtype,
+                              concept=args.concept, out_tag=args.out_tag)
             if result is not None:
                 all_results[model_id] = result
         except Exception as e:

@@ -63,8 +63,9 @@ examples:
                         help="caa mode: load results/caa/<model>-ab-vectors.pt instead of recomputing vectors")
     parser.add_argument("--caa-tag", default="",
                         help="caa mode: suffix for the output (results/caa/<model>-ab-<tag>.json), e.g. 'mult'")
-    parser.add_argument("--objective", choices=["remove", "induce"], default="remove",
-                        help="rank1 mode: distil directional ablation (remove) or layer addition (induce)")
+    parser.add_argument("--objective", choices=["remove", "induce", "null"], default="remove",
+                        help="rank1 mode: distil directional ablation (remove), layer addition (induce), or the "
+                             "clean model itself (null: the self-distillation control)")
     parser.add_argument("--adapter-layers", nargs="+", default=None,
                         help="rank1 mode: layers to adapt (default: the direction's layer - 1; 'all' = every "
                              "layer before it)")

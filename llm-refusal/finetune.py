@@ -335,8 +335,15 @@ def run_rank1(framework, direction, train_pos: List[str], train_neg: List[str],
         steered = _generate_with(framework, train_neg, ("add", [direction.layer]), direction)
         retain = _generate_with(framework, train_pos, None, direction)
         examples = list(zip(train_neg, steered)) + list(zip(train_pos, retain))
+    elif objective == "null":
+        # Control for the self-distillation itself: the clean model's own completions on
+        # both sides, so the adapter learns no behaviour change. Its capability cost is the
+        # cost of distilling on greedy self-generated text, which the remove adapter also pays.
+        steered = _generate_with(framework, train_pos, None, direction)
+        retain = _generate_with(framework, train_neg, None, direction)
+        examples = list(zip(train_pos, steered)) + list(zip(train_neg, retain))
     else:
-        raise ValueError(f"objective must be 'remove' or 'induce', not {objective!r}")
+        raise ValueError(f"objective must be 'remove', 'induce' or 'null', not {objective!r}")
     ev = framework.evaluator
     target_rate = sum(map(ev._check_for_detection, steered)) / len(steered)
     logger.info(f"rank1/{objective}: {len(examples)} examples; steered targets detected {target_rate:.0%}")

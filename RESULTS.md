@@ -286,9 +286,80 @@ Hook vs edit: 4/100 texts identical (greedy decoding forks on near-ties: on Qwen
 
 - **Benign fine-tuning doesn't bring refusal back.** After 200 steps of Alpaca, refusal stays 0-2% on all three models.
 - **32 refusal examples bring it all back**, about 2% of the data, each seen roughly once. Refusal reaches 82-100% within 100-150 steps, and on Llama-3-8B 68-96% by step 50. It stays selective: harmless prompts 0%.
-- **It regrows without r̂.** In the readers arm nothing can write r̂ into the residual, and the regrown direction is orthogonal to it (cos 0.000). Yet refusal returns almost as fast as in the writers arm: slower at step 50 (2-68% vs 8-96%), but at 74-100% by step 100 and 90-100% by step 150. Even where r̂ is available (writers), the regrown direction overlaps it only weakly: cos 0.03 on Llama-3-8B, 0.21-0.34 on the Qwens. So the weight edit removes this model's refusal mechanism, not its capacity to refuse: a few refusal examples rebuild refusal along a new direction.
+- **It regrows without r̂.** In the readers arm nothing can write r̂ into the residual, and the regrown direction is orthogonal to it (cos 0.000). Yet refusal returns almost as fast as in the writers arm: slower at step 50 (2-68% vs 8-96%), but at 74-100% by step 100 and 90-100% by step 150. Even where r̂ is available (writers), the regrown direction overlaps it only weakly: cos 0.03 on Llama-3-8B, 0.21-0.34 on the Qwens. So the weight edit removes this model's refusal mechanism, not its capacity to refuse: a few refusal examples rebuild refusal. **Not along the re-extracted direction, though** (2026-10-02, "What fine-tuning finds" below): that direction is a perfect linear probe in the regrown model but ablating it leaves regrown refusal intact.
 - The re-extracted harmful-vs-harmless difference is still there after benign-only training (norm 38-41% of the clean direction's on Llama-3-8B, 52-59% on Qwen2.5-0.5B, 45-63% on Qwen2.5-7B), just not along r̂ and not driving refusal.
 - Caveats: one seed per arm, 200 steps, one learning rate.
+
+## Limb Experiments (2026-10-02, in progress)
+
+Five independent threads run as a serial queue, cheapest first; every number below is Qwen2.5-0.5B (r̂ at L14/P-4) unless a model is named, and each claim is marked **[0.5B only]** until its 3B/8B replication lands. Scripts in `scripts/` (`edit_cost_sweep.py`, `inhibitor_safety.py`, `direction_identity.py`, `trajectory.py`, `category_directions.py`, `jailbreak_projection.py`, `caa_open_ended.py`, `concept_baseline.py`, `bypass_vs_induce.py`); outputs under `results/edit-cost/`, `results/categories/`, `results/jailbreak/`, `results/trajectory/`, `results/finetune/`, `results/analysis/`. A queue of one model process at a time runs them (`results/queue/`).
+
+### 1. The cheapest edit that removes refusal **[0.5B only]**
+
+`scripts/edit_cost_sweep.py`: one model load, then for each partial weight edit (or a saved adapter) the refusal rate on the 99 harmful eval prompts, false refusal on the 80 harmless ones, and CE on 200 Alpaca completions / 100 Pile documents / the clean model's own completions to 100 Alpaca instructions (`capability.py`'s sets, subsampled). ΔCE in nats against the unedited model.
+
+| Edit | Refusal | False refusal | ΔCE Alpaca | ΔCE Pile | ΔCE on-dist |
+|---|---|---|---|---|---|
+| random direction, all writers | 90.9% | 1.2% | +0.037 | +0.023 | +0.024 |
+| r̂, all writers (Arditi §4) | 0.0% | 0.0% | +0.100 | +0.079 | +0.068 |
+| r̂, all blocks, embedding untouched | 0.0% | 0.0% | +0.095 | +0.078 | +0.067 |
+| r̂, embedding only | 87.9% | 1.2% | +0.004 | +0.001 | +0.001 |
+| r̂, blocks 0-13 (before r̂'s layer), no embedding | 0.0% | 0.0% | +0.062 | +0.052 | +0.049 |
+| r̂, blocks ≥ 14 | 76.8% | 1.2% | +0.024 | +0.031 | −0.001 |
+| r̂, blocks ≥ 12 | 53.5% | 6.2% | +0.029 | +0.035 | +0.003 |
+| r̂, blocks 10-18 | 19.2% | 2.5% | +0.022 | +0.014 | +0.003 |
+| r̂, blocks 12-16 | 58.6% | 3.8% | +0.010 | +0.006 | +0.001 |
+| r̂, block 13 only | 86.9% | 3.8% | +0.002 | 0.000 | +0.001 |
+| inhibitor (rank-one adapter at L13 down_proj, r̂ projected out of u) | 2.0% | 0.0% | +0.283 | +0.022 | −0.080 |
+| the same adapter as trained | 1.0% | 0.0% | +0.333 | +0.035 | −0.038 |
+
+- **Refusal is written by many blocks before r̂'s layer, and no single one is load-bearing.** Editing one block (13) or a ±1 window does nothing (87%, 76%); the ±4 window still leaves 19%. Editing every block before 14 takes refusal to 0% at 60% of the full edit's CE. Editing the blocks *after* 14 costs 0.024-0.031 nats and buys nothing. This is why single-layer *hook* ablation works (it removes the whole accumulated component at that point) while single-block *weight* edits don't.
+- **Partial late edits raise false refusals** (1.2% → 3.8-6.2%). In the trajectory (§3) harmless prompts carry a *negative* r̂ projection at L14 (−1.0), so r̂ also encodes "don't refuse"; removing only the late writers removes that push.
+- **The inhibitor is not a cheap edit on chat text.** The self-distilled adapters cost +0.28 / +0.33 nats on Alpaca references, 3× the full r̂ edit, while being nearly free on Pile (+0.02 / +0.04) and *negative* on the model's own completions. The on-distribution number is a confound: the adapter was distilled on the model's own greedy text, so it got more confident in its own argmax. A null-objective adapter (distilled on the clean model's completions on both sides, `--objective null`) is queued as the control; until it runs, "inhibitor costs 0.28 on Alpaca" may be the cost of self-distillation rather than of inhibition.
+- **The inhibitor really complies** (`scripts/inhibitor_safety.py`, JailbreakBench, 512 tokens, LlamaGuard 2): baseline 73% refusal / 18% unsafe / 4% degenerate; hook ablation 0% / 73% / 38%; inhibitor 15% / 61% / 30%; adapter as trained 0% / 76% / 41%. Its text is phishing emails and exam-cheating guides, not evasive non-refusals. It is a little weaker off-distribution than r̂ ablation (15% of JailbreakBench still refused, against 2% on our own harmful set), i.e. its gate is tuned to our prompt style.
+
+### 2. What fine-tuning finds when r̂ is gone **[0.5B only; identity check also queued on Llama-3-8B]**
+
+- **The regrown direction and the inhibitor are different objects** (`scripts/direction_identity.py`). Re-extracting the harmful-harmless difference-in-means at r̂'s coordinates inside the edited + LoRA'd model gives a direction with cos −0.03 to +0.08 to the inhibitor û⊥ in every arm, cos 0.17-0.20 to r̂ in the writers arms and 0.000 in the readers arms.
+- **That direction is a probe, not a cause.** It is the same whether or not refusal regrew (benign-only vs 32-refusal arms: cos 0.82 writers, 0.93 readers), it separates harmful from harmless perfectly (AUROC 1.00) in all four arms, and in the two arms where refusal came back, ablating it at every layer leaves refusal at 100% / 90% (unablated 96% / 82%) while adding it to harmless prompts induces 4% / 2%. Ablating û⊥ there is equally inert (94% / 90%). So regrown refusal is not mediated by any single direction at r̂'s coordinates. A full search inside the regrown model (`--orthogonalize-first --adapter-file ... --run-tag regrown`) is in the queue to test other coordinates.
+- **Dose-response** (readers arm, 200 steps × batch 8 ≈ one pass over 1500 benign examples; refusal on 50 harmful eval prompts at step 200, 3 seeds):
+
+  | Refusal examples | 0 | 1 | 2 | 4 | 8 | 16 | 32 |
+  |---|---|---|---|---|---|---|---|
+  | refusal at step 200 | 0% | 0, 0, 0% | 0, 0, 0% | 0, 0, 2% | 6, 18, 22% | 90, 56, 76% | 82% |
+  | final log-odds | −7.0 | −6.3, −7.3, −7.0 | −6.4, −5.7, −6.6 | −5.8, −5.5, −5.0 | −3.6, −2.3, −2.0 | +1.1, −0.5, +0.3 | +0.5 |
+
+  The threshold is 8-16 examples seen about once each, ~1% of the data; the log-odds rises monotonically from a single example. The writers arm matches (4: 0%, 8: 10%), so having r̂ available to write back doesn't lower it. Benign-only training to 1000 steps (~5 passes) stays at 0% at every checkpoint and drifts *away* (log-odds −5.7 → −8.9): the 200-step caveat is retired.
+- **The off-switch exists at every layer.** Rank-one remove adapters trained at layers 3, 6, 9, 11, 16 all reach 0% refusal; at 19 (five blocks after r̂'s layer) 10%. Every one leans toward r̂ (|cos(u, r̂)| 0.32-0.46) and every one works through its r̂-free part (0-12% refusal with r̂ projected out). The r̂ part alone matters only at layers 9-11, where the circuit writes r̂ (1% / 0% refusal); before (L3: 68% remains) and after (L16: 75%, L19: 85%) it is inert. Harmless prompts stay at 0% throughout.
+
+### 3. Refusal geometry from forward passes **[0.5B only; Qwen2.5-3B, Qwen2.5-7B, Llama-3-8B, Llama-2 queued]**
+
+- **Trajectory** (`scripts/trajectory.py`, `plots/trajectory/`): projection onto r̂ at P-4, block inputs. Harmful and harmless prompts are separable along r̂ with AUROC 0.99 from L6 and 1.00 from L8, six layers before the selected L14, even though L8's own harmful-harmless direction has cosine only 0.27 with r̂ (0.98 at L14). r̂ is a good linear probe long before it is a good intervention point. The harmful mean rises 0.6 (L3) → 4.8 (L14), drops to 1.0 by L17, then rises again to 4.4 at L23; the harmless mean sits near 0.5, reaches −1.0 at L14, and also rises to 3.0 at L22-23. The late rise is shared by both classes, so it is a generic late-layer direction overlapping r̂, not refusal, and it is the candidate explanation for why the edit costs Qwen more than Llama (the Llama trajectories will say). Under the inhibitor the curves are unchanged (bypass confirmed). The saved circuit attributions (`scripts/analyze_circuit_vs_trajectory.py`, `results/analysis/circuit_vs_trajectory.json`) reproduce the contrastive curve (r = 0.96) and name the post-peak dip: L14.H10 (−1.48), L14.MLP (−0.40) and L15.MLP (−0.91) write *against* r̂ right after it peaks, and every one of the 7 models has such a negative write within four layers of its direction layer. Ablating those components moves the refusal log-odds by at most +0.30, so the cancellation is real in projection but not causal.
+- **Category directions** (`scripts/category_directions.py`): per-category difference-in-means over the nine labelled harm categories (10 train prompts each) has cosine 0.92-0.97 with r̂, pairwise mean 0.90 (min 0.79, misinformation), and leave-one-out directions 0.99-1.00. Causally, every category's own direction ablates refusal to 0% on its prompts, on the other 80, and on the eval set (misinformation: 10% / 0% / 2%); the leave-one-out direction ablates the held-out category to 0%; every category direction induces 100% refusal on harmless prompts. r̂ is one direction, not an average of category directions.
+- **Jailbreaks** (`scripts/jailbreak_projection.py`): the 99 harmful eval prompts wrapped in five templates; projection onto r̂ at L14/P-4 and 64-token refusal.
+
+  | Template | Refusal | Mean projection | AUROC(projection → refuses) |
+  |---|---|---|---|
+  | harmless prompts (reference) | 1% | −0.99 | |
+  | plain | 90% | +4.83 | 0.83 |
+  | DAN persona | 96% | +4.59 | 0.67 |
+  | fiction framing | 0% | +2.13 | (all comply) |
+  | hypothetical / ethics class | 41% | +2.44 | 0.93 |
+  | refusal suppression ("do not say I'm sorry…") | 0% | −1.18 | (all comply) |
+  | many-shot compliance | 7% | −0.48 | 0.94 |
+
+  Pooled AUROC 0.96; across templates, mean projection and refusal rate correlate at 0.88. Suppression and many-shot push the prompt *below the harmless mean* on r̂; the fiction frame complies at a projection half-way between harmful and harmless. On 0.5B the DAN persona makes the model refuse *more*. So jailbreaks (of these kinds, on this model) work by moving the prompt off r̂, and the projection is a usable refusal monitor.
+- **Bypass and induce prefer different coordinates** on every model (`scripts/bypass_vs_induce.py`, from the search CSVs): the best-bypass and best-induce candidates are 1-4 layers apart (Qwen2.5-1.5B: L16 vs L12); the selected direction is the bypass optimum with the induce tie-break.
+
+### 4. Concept rescue
+
+- **Sycophancy from a response contrast works as an induction direction** (`--concept sycophancy_response`: the same 160 prompts with a fixed agreeing vs correcting completion appended, direction = mean over the completion's tokens; search strictly selects L18, third token from the completion's end; norm 29 vs r̂'s 5.5). On Qwen2.5-0.5B, adding it at L18 to the honesty-framed prompts: strength 0.2 → 44% sycophantic (0% degenerate), 0.4 → 69% (7.5%), 1.0 → 100% but 100% degenerate; baseline 11%. The induced text is genuine agreement with false claims ("Absolutely, the science is clear: adding salt to water makes it boil faster"). Global ablation moves sycophancy 42.5% → 29%, no better than the prompt contrast: sufficient, not necessary. **[0.5B; 3B queued]**
+- **"Ablating refusal raises sycophancy on every Qwen" is three different things** (read from the saved cross-concept texts): on 0.5B (42 → 81%) 14 of the 33 flips are baseline *refusals* of the sycophancy prompts ("I'm sorry, but I can't assist with that") replaced by agreement, i.e. refusal was masking sycophancy; on 1.5B (19 → 76%) none of the 46 flips come from refusals and 42 open with agreement, a genuine push-back component in r̂; on 7B (1 → 19%) the flips are warmer openers ("That's a great observation!") followed by the same correction, a detector artefact. A local-judge pass over these cells is in progress.
+- **Hedging on subjective questions (`hedging_v2`) is still 0% on the hedging detector, but the model is doing something else**: 12 of 20 subjective answers open with "As an AI language model, I don't have personal opinions…" (2 of 20 factual). Registered as `opinion_avoidance` (same prompts, that detector); search + evaluate queued on 0.5B and 3B.
+
+### 5. Newer checkpoints
+
+Llama-3.2-1B-Instruct (cached) search + evaluate queued. Qwen3 / Gemma-3 / Llama-3.2-3B need a download.
 
 ## Two Padding Bugs
 

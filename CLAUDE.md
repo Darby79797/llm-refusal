@@ -31,7 +31,9 @@ pytest llm-refusal/tests/ --run-smoke          # gemma-3-270m pipeline test
 .venv/bin/python3 llm-refusal/tools/report.py --root results --root results/sweep4   # → results/report/index.html
 ```
 
-- `--concept`: `refusal` (default), `refusal_arditi`, `refusal_arditi_exact`, `sycophancy`, `sycophancy_neutral`, `hedging`, `empathy`
+- `--concept`: `refusal` (default), `refusal_arditi`, `refusal_arditi_exact`, `sycophancy`, `sycophancy_response` (response contrast; evaluate it with `--direction-file`), `sycophancy_neutral`, `hedging`, `hedging_v2`, `opinion_avoidance`, `empathy`
+- Model variants for any mode: `--adapter-file STEM [--adapter-variant full|u_perp|u_rhat]` installs a saved rank1/regrow adapter set; `--orthogonalize-first` runs inside the weight edit of the saved direction (`--edit-layers`, `--no-edit-embedding` restrict it). `--run-tag TAG` prefixes search/evaluate outputs (`results/TAG-<model>-...`, lowercase) so they don't overwrite the untagged run.
+- Limb scripts (2026-10-02, each loads one model; `--help`): `scripts/edit_cost_sweep.py` (refusal + CE per partial edit / adapter), `inhibitor_safety.py` (LlamaGuard on the inhibitor), `direction_identity.py` (regrown vs inhibitor directions), `trajectory.py` (r̂ projection per layer), `category_directions.py`, `jailbreak_projection.py`, `caa_open_ended.py` (qwen3:4b judge via Ollama), `concept_baseline.py`; `bypass_vs_induce.py` needs no model. Queue pattern: `results/QUEUE-*.sh` (serial, resumable via the progress file).
 - Hardcoded: `max_positions=auto` (from assistant prefix tokens), val split 20% (`random_state=39`). Evaluate generation length is `--max-new-tokens` (default 64; the filtering pass always uses 64). Batch size is `--gen-batch-size` (default `auto`; see gotcha below). `layer_cutoff_frac` is per-concept (0.65 refusal/hedging/empathy, 0.80 sycophancy/arditi_exact)
 
 ## Gotchas
