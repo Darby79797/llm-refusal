@@ -507,33 +507,32 @@ class BigEvaluator:
         if self.model.device.type != 'meta':
             device_str = str(self.model.device)
 
-        # HFLM may not like the hooked models and their interaction with parallelism.
-        # options: (i) clone, (ii) single-GPU
-        lm_eval_model = HFLM(
-            pretrained=self.model,
-            tokenizer=self.tokenizer,
-            device=device_str, # Pass the corrected device string or None
-        )
-
-        # 3. Run the evaluation.
+        # Batch sizes are set on HFLM itself: simple_evaluate's batch_size only applies
+        # when lm-eval builds the model from a name, so a passed-in HFLM ran at its
+        # default of 1, on the slow side of MPS's bs >= 16 cliff (GSM8K: 18 s/question
+        # on Llama-3-8B). Fixed, not "auto": lm-eval's auto probes free memory, which
+        # differs with and without orthogonalized()'s weight copy, so variants being
+        # compared would run at different batch shapes. Generation at 16 rows of 5-shot
+        # GSM8K (~1000-token prompts) needs ~3 GB in flight on 8B (KV cache plus prefill
+        # activations; 32 rows ran out of memory); scoring tasks hold full-vocabulary
+        # log-probs for every token (~3 GB at 8 rows). The allocator's cache from earlier
+        # phases is emptied first: 11.6 GB of it was what pushed 32 rows over the cap.
         if limit is None:
             limit = 100 # a default
-        if limit != 'full':
-            results = lm_eval.simple_evaluate(
-                model=lm_eval_model,
-                tasks=eval_tasks,
-                batch_size="auto:4", # Automatically find best batch size, starting with 4
-                log_samples=False,
-                limit=limit
-            )
-        else: #limit == 'full'
-            results = lm_eval.simple_evaluate(
-                model=lm_eval_model,
-                tasks=eval_tasks,
-                batch_size="auto:4", # Automatically find best batch size, starting with 4
-                log_samples=False
-                # no limit of number of trials. Will be much slower.
-            )
+        groups = [(LM_EVAL_SCORING_BATCH_SIZE, [x for x in eval_tasks if x not in LM_EVAL_GENERATION_TASKS]),
+                  (LM_EVAL_GENERATION_BATCH_SIZE, [x for x in eval_tasks if x in LM_EVAL_GENERATION_TASKS])]
+        results = {"results": {}}
+        for batch_size, tasks in groups:
+            if not tasks:
+                continue
+            gc.collect()
+            _empty_cache()
+            lm_eval_model = HFLM(pretrained=self.model, tokenizer=self.tokenizer, device=device_str,
+                                 batch_size=batch_size)
+            out = lm_eval.simple_evaluate(model=lm_eval_model, tasks=tasks, log_samples=False,
+                                          **({} if limit == 'full' else {"limit": limit}))
+            results["results"].update(out.get("results", {}))
+            del lm_eval_model
 
         logger.info("Standard evaluations complete. Parsing results...")
 

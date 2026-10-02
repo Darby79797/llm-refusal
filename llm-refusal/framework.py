@@ -408,12 +408,12 @@ class DirectionTestFramework:
             direction_to_test.save(save_path)
             logger.info(f"Direction vector saved to {save_path}.pt/.json")
 
-        elif config['mode'] == "evaluate" and config.get('direction_file'):
+        elif config['mode'] in ("evaluate", "capability", "rank1", "regrow") and config.get('direction_file'):
             direction_to_test = DirectionVector.load(config['direction_file'])
             logger.info(f"Evaluating saved direction {config['direction_file']} "
                         f"(layer {direction_to_test.layer}, norm {direction_to_test.vector.norm():.3f})")
 
-        elif config['mode'] in ["eyeball", "evaluate"]:
+        elif config['mode'] in ["eyeball", "evaluate", "capability", "rank1", "regrow"]:
             layer, pos = config['layer'], config['pos']
             if layer is None or pos is None:
                 logger.error(f"Mode '{config['mode']}' requires 'layer' and 'pos' to be specified.")
@@ -468,6 +468,19 @@ class DirectionTestFramework:
                                   + (f"-T{config['max_new_tokens']}" if config.get('max_new_tokens', 64) != 64 else "")
                                   + "-generations.json"),
             )
+
+        elif config['mode'] == "capability":
+            import capability
+            capability.run_capability(self, direction_to_test, config)
+
+        elif config['mode'] in ("rank1", "regrow"):
+            import finetune
+            train_pos = [p for p, l in zip(train_data.prompts, train_data.labels) if l]
+            train_neg = [p for p, l in zip(train_data.prompts, train_data.labels) if not l]
+            if config['mode'] == "rank1":
+                finetune.run_rank1(self, direction_to_test, train_pos, train_neg, eval_pos, eval_neg, config)
+            else:
+                finetune.run_regrow(self, direction_to_test, train_pos, train_neg, eval_pos, eval_neg, config)
 
         logger.info("Framework execution finished.")
 

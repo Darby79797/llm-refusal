@@ -1,5 +1,5 @@
 import torch as t
-from typing import List, Dict
+from typing import List, Dict, Optional
 from transformers import AutoTokenizer
 import logging
 
@@ -248,3 +248,44 @@ class ChatPromptFormatter:
         position_ids.masked_fill_(attention_mask == 0, 1)
 
         return {'input_ids': input_ids, 'attention_mask': attention_mask, 'position_ids': position_ids}
+
+    def format_with_completions(self, prompts: Optional[List[str]], completions: List[str],
+                                max_completion_tokens: Optional[int] = None) -> Dict[str, t.Tensor]:
+        """Right-padded rows of [templated prompt | completion tokens], for scoring or
+        training on the completion only.
+
+        `labels` holds each row's token ids on the completion span and -100 on the
+        prompt and padding; token k is predicted by the logits at k-1, so compare
+        logits[:, :-1] with labels[:, 1:]. With prompts=None the rows are raw text
+        (BOS first where the model uses one), and every token after the first is
+        scored.
+        """
+        if prompts is not None and len(prompts) != len(completions):
+            raise ValueError(f"{len(prompts)} prompts vs {len(completions)} completions")
+        pad_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+        rows, starts = [], []
+        for i, completion in enumerate(completions):
+            if prompts is not None:
+                enc = self.format_batch([prompts[i]])
+                prefix = enc['input_ids'][0][enc['attention_mask'][0].bool()].tolist()
+            else:
+                bos = self.tokenizer.bos_token_id
+                prefix = [bos] if bos is not None and (self.prepend_bos or self.template is None) else []
+            c_ids = self.tokenizer.encode(completion, add_special_tokens=False)
+            if max_completion_tokens is not None:
+                c_ids = c_ids[:max_completion_tokens]
+            rows.append(prefix + c_ids)
+            # Raw text with no BOS: the first token has nothing predicting it.
+            starts.append(max(len(prefix), 1))
+        width = max(len(r) for r in rows)
+        input_ids = t.full((len(rows), width), pad_id, dtype=t.long)
+        attention_mask = t.zeros((len(rows), width), dtype=t.long)
+        labels = t.full((len(rows), width), -100, dtype=t.long)
+        for j, (row, start) in enumerate(zip(rows, starts)):
+            input_ids[j, :len(row)] = t.tensor(row)
+            attention_mask[j, :len(row)] = 1
+            labels[j, start:len(row)] = input_ids[j, start:len(row)]
+        position_ids = attention_mask.cumsum(-1) - 1
+        position_ids.masked_fill_(attention_mask == 0, 1)
+        return {'input_ids': input_ids, 'attention_mask': attention_mask,
+                'position_ids': position_ids, 'labels': labels}

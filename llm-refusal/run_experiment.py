@@ -53,7 +53,7 @@ examples:
     parser.add_argument("--model", dest="model_name", help="HuggingFace model ID")
     parser.add_argument(
         "--mode",
-        choices=["search", "evaluate", "eyeball", "cross_concept", "caa"],
+        choices=["search", "evaluate", "eyeball", "cross_concept", "caa", "capability", "rank1", "regrow"],
         help="Experiment mode",
     )
     parser.add_argument("--concept", default="refusal", help="Concept to study (default: refusal)")
@@ -70,6 +70,27 @@ examples:
                         help="caa mode: load results/caa/<model>-ab-vectors.pt instead of recomputing vectors")
     parser.add_argument("--caa-tag", default="",
                         help="caa mode: suffix for the output (results/caa/<model>-ab-<tag>.json), e.g. 'mult'")
+    parser.add_argument("--objective", choices=["remove", "induce"], default="remove",
+                        help="rank1 mode: distil directional ablation (remove) or layer addition (induce)")
+    parser.add_argument("--adapter-layers", nargs="+", default=None,
+                        help="rank1 mode: layers to adapt (default: the direction's layer - 1; 'all' = every "
+                             "layer before it)")
+    parser.add_argument("--adapter-modules", nargs="+", default=None,
+                        help="rank1 mode: projections to adapt (default: down_proj)")
+    parser.add_argument("--regrow-targets", choices=["writers", "readers"], default="writers",
+                        help="regrow mode: LoRA on residual writers (o_proj/down_proj) or readers (q/k/v/gate/up)")
+    parser.add_argument("--n-refusal-examples", type=int, default=0,
+                        help="regrow mode: harmful->refusal examples mixed into the benign Alpaca data")
+    parser.add_argument("--lora-rank", type=int, default=8, help="regrow mode: adapter rank")
+    parser.add_argument("--train-steps", type=int, default=200, help="rank1/regrow: optimizer steps")
+    parser.add_argument("--lr", type=float, default=1e-3, help="rank1/regrow: Adam learning rate")
+    parser.add_argument("--train-batch-size", type=int, default=8, help="rank1/regrow: examples per step")
+    parser.add_argument("--train-micro-batch-size", type=int, default=None,
+                        help="rank1/regrow: rows per forward/backward, gradients accumulated to "
+                             "--train-batch-size (same update; less activation memory). Default: no split")
+    parser.add_argument("--eval-every", type=int, default=50, help="regrow mode: steps between refusal checks")
+    parser.add_argument("--seed", type=int, default=0, help="rank1/regrow: adapter init and data order")
+    parser.add_argument("--run-tag", default="", help="rank1/regrow: suffix for the output file")
     parser.add_argument("--direction-file", default=None,
                         help="evaluate mode: evaluate a saved direction (path without .pt/.json) instead of "
                              "recomputing one at --layer/--pos, e.g. a CAA vector")
@@ -165,6 +186,20 @@ def _namespace_to_config(args):
         "direction_file": args.direction_file,
         "caa_reuse_vectors": args.caa_reuse_vectors,
         "caa_tag": args.caa_tag,
+        "objective": args.objective,
+        "adapter_layers": ([int(x) for x in args.adapter_layers] if args.adapter_layers and args.adapter_layers != ["all"]
+                           else args.adapter_layers and "all"),
+        "adapter_modules": args.adapter_modules,
+        "regrow_targets": args.regrow_targets,
+        "n_refusal_examples": args.n_refusal_examples,
+        "lora_rank": args.lora_rank,
+        "train_steps": args.train_steps,
+        "lr": args.lr,
+        "train_batch_size": args.train_batch_size,
+        "train_micro_batch_size": args.train_micro_batch_size,
+        "eval_every": args.eval_every,
+        "seed": args.seed,
+        "run_tag": args.run_tag,
     }
 
 
