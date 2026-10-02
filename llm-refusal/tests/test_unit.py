@@ -173,6 +173,54 @@ def test_search_fallback_best_induce_last_resort():
     assert result.layer == 7  # Best induce (0.8 > 0.5)
 
 
+def _strict_finder(**overrides):
+    from search import DirectionFinder
+    from concept import DEFAULT_SEARCH_CONFIG
+    finder = DirectionFinder.__new__(DirectionFinder)
+    finder.search_config = dict(DEFAULT_SEARCH_CONFIG, **overrides)
+    return finder
+
+
+# The Llama-3.1-8B refusal search's top two strict passers (results/*-search-scores.csv).
+_LLAMA31_NEAR_TIE = [
+    (DirectionVector(vector=t.randn(32), layer=12, position_index=-2, score=0),
+     DirectionScores(bypass=-12.722, induce=1.078, kl=0.008)),
+    (DirectionVector(vector=t.randn(32), layer=11, position_index=-1, score=0),
+     DirectionScores(bypass=-12.392, induce=7.152, kl=0.012)),
+    (DirectionVector(vector=t.randn(32), layer=13, position_index=-1, score=0),
+     DirectionScores(bypass=-9.000, induce=12.0, kl=0.01)),   # far from best bypass: never tied
+]
+
+
+def test_strict_selection_breaks_bypass_near_ties_by_induce():
+    """Within bypass_tie_frac of the best bypass, the highest induce wins."""
+    result = _strict_finder(bypass_tie_frac=0.05)._select_strict(list(_LLAMA31_NEAR_TIE))
+    assert (result.layer, result.position_index) == (11, -1)
+    assert result.score == pytest.approx(-12.392)
+
+
+def test_strict_selection_without_tie_frac_is_arditis_rule():
+    """bypass_tie_frac=0 is plain lowest-bypass selection (refusal_arditi_exact)."""
+    result = _strict_finder(bypass_tie_frac=0.0)._select_strict(list(_LLAMA31_NEAR_TIE))
+    assert (result.layer, result.position_index) == (12, -2)
+    from concept import get_concept
+    assert get_concept("refusal_arditi_exact").search_config["bypass_tie_frac"] == 0.0
+
+
+def test_strict_selection_ignores_non_passing_candidates():
+    """Candidates failing induce or KL are never selected, even inside the tie band."""
+    candidates = [
+        (DirectionVector(vector=t.randn(32), layer=4, position_index=-1, score=0),
+         DirectionScores(bypass=-10.0, induce=0.5, kl=0.05)),
+        (DirectionVector(vector=t.randn(32), layer=5, position_index=-1, score=0),
+         DirectionScores(bypass=-9.9, induce=9.0, kl=0.5)),    # KL fails
+        (DirectionVector(vector=t.randn(32), layer=6, position_index=-1, score=0),
+         DirectionScores(bypass=-9.9, induce=-1.0, kl=0.01)),  # induce fails
+    ]
+    assert _strict_finder()._select_strict(candidates).layer == 4
+    assert _strict_finder()._select_strict(candidates[1:]) is None
+
+
 # ============================================================
 # Sycophancy detection heuristic
 # ============================================================
@@ -241,6 +289,19 @@ def test_big_evaluator_falls_back_to_phrases():
     evaluator = _make_evaluator(detection_phrases=["I'm sorry"])
     assert evaluator._check_for_detection("I'm sorry, I cannot help.") is True
     assert evaluator._check_for_detection("Sure, here is the answer.") is False
+
+
+def test_refusal_detects_non_apologetic_refusals():
+    """Our refusal concepts catch refusals without an apology; Arditi-exact keeps his list."""
+    from concept import get_concept, DEFAULT_REFUSAL_PHRASES
+    text = "I do not provide information on how to break into ATMs, as such activities are illegal."
+    for name in ["refusal", "refusal_arditi"]:
+        evaluator = _make_evaluator(detection_phrases=get_concept(name).detection_phrases)
+        assert evaluator._check_for_detection(text) is True
+        assert evaluator._check_for_detection("I must emphasize this is illegal. That said, here are the steps:") is False
+    assert get_concept("refusal_arditi_exact").detection_phrases == DEFAULT_REFUSAL_PHRASES
+    evaluator = _make_evaluator(detection_phrases=DEFAULT_REFUSAL_PHRASES)
+    assert evaluator._check_for_detection(text) is False
 
 
 def test_detection_normalizes_curly_apostrophes():

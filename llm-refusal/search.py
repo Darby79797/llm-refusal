@@ -132,9 +132,6 @@ class DirectionFinder:
         best_induce_info = {'score': float('-inf'), 'dir': None, 'scores': None}
         best_kl_info = {'score': float('inf'), 'dir': None, 'scores': None}
 
-        selected_direction = None
-        min_bypass_for_strict_selection = float('inf')
-
         candidate_iterator = tqdm(difference_vectors.items(), desc="Evaluating candidates")
         for (layer, pos_idx), vec in candidate_iterator:
             # Layer 0 is the raw token embeddings: no context has been mixed in, so a
@@ -169,15 +166,6 @@ class DirectionFinder:
             if scores.kl < best_kl_info['score']:
                 best_kl_info.update({'score': scores.kl, 'dir': current_direction, 'scores': scores})
 
-            induce_mode = self.search_config.get("induce_mode", "single_layer")
-            active_induce = scores.induce_global if induce_mode == "all_layers" else scores.induce
-            is_sufficient = active_induce > self.search_config["induce_threshold"]
-            is_safe = scores.kl < self.search_config["kl_threshold"]
-            if is_sufficient and is_safe:
-                if scores.bypass < min_bypass_for_strict_selection:
-                    min_bypass_for_strict_selection = scores.bypass
-                    current_direction.score = min_bypass_for_strict_selection
-                    selected_direction = current_direction
 
         if all_scores_data:
             results_df = pd.DataFrame(all_scores_data)
@@ -191,10 +179,11 @@ class DirectionFinder:
         else:
             logger.warning("No data was collected during search; skipping data saving and plotting.")
 
+        selected_direction = self._select_strict(all_candidates)
         if selected_direction:
             logger.info(f"\n--- Strictly Selected Direction (Met All Criteria) ---")
             logger.info(f"Layer: {selected_direction.layer}, Position: {selected_direction.position_index}")
-            logger.info(f"Final Bypass Score (minimized): {selected_direction.score:.4f}")
+            logger.info(f"Final Bypass Score: {selected_direction.score:.4f}")
         else:
             logger.warning("\nNo direction met strict criteria (induce > %.2f, KL < %.2f). Trying progressive relaxation...",
                            self.search_config["induce_threshold"], self.search_config["kl_threshold"])
@@ -209,6 +198,40 @@ class DirectionFinder:
             )
 
         return selected_direction
+
+    def _select_strict(self, candidates: list) -> Optional[DirectionVector]:
+        """
+        Strict selection: among candidates with induce > induce_threshold and
+        KL < kl_threshold, take the lowest bypass score (Arditi's rule).
+
+        bypass_tie_frac > 0 treats every passing candidate whose bypass is within
+        that fraction of the best as tied, and breaks the tie by the highest
+        induce score. Bypass differences that small are within val-set noise,
+        and without the tie-break the rule can pick a near-tie with a much
+        weaker induce score (Llama-3.1 refusal: L12/P-2, bypass -12.72, induce
+        1.08, gives 85% induction; L11/P-1, bypass -12.39, induce 7.15, gives 100%).
+        """
+        induce_mode = self.search_config.get("induce_mode", "single_layer")
+        tie_frac = self.search_config.get("bypass_tie_frac", 0.0)
+
+        def _get_induce(scores):
+            return scores.induce_global if induce_mode == "all_layers" else scores.induce
+
+        passing = [
+            (d, s) for d, s in candidates
+            if _get_induce(s) > self.search_config["induce_threshold"]
+            and s.kl < self.search_config["kl_threshold"]
+        ]
+        if not passing:
+            return None
+        best_bypass = min(s.bypass for _, s in passing)
+        tied = [(d, s) for d, s in passing if s.bypass <= best_bypass + tie_frac * abs(best_bypass)]
+        best_dir, best_scores = max(tied, key=lambda x: (_get_induce(x[1]), -x[1].bypass))
+        if len(tied) > 1:
+            logger.info(f"  {len(tied)} candidates within {tie_frac:.0%} of the best bypass "
+                        f"({best_bypass:.4f}); taking the highest induce")
+        best_dir.score = best_scores.bypass
+        return best_dir
 
     def _progressive_fallback(
         self,
