@@ -216,7 +216,7 @@ Hook vs edit: 4/100 texts identical (greedy decoding forks on near-ties: on Qwen
   | Qwen2.5-7B: unedited / r̂ edit / random edit | 0.47 / 0.52 / 0.48 | 0.76 / 0.78 / 0.81 | 0.624 / 0.583 / 0.627 |
 
   TruthfulQA falls 0.03-0.04 under the r̂ edit on both models and not under the random edit, which is suggestive at this sample size, not established. MMLU was dropped: 57 subjects × 100 questions is about a day per model on MPS.
-- **Caveat: GSM8K depends on lm-eval's batch size.** These runs use batch 8 for scoring tasks and 16 for generation, fixed so the three variants share a batch shape. A Llama-3-8B baseline at batch 1 scored GSM8K 0.53 against 0.73 here; ARC and TruthfulQA agree across batch sizes. Published 5-shot GSM8K for Llama-3-8B-Instruct is in the mid-70s, so batch 16 looks right, but the batch-1 result is unexplained.
+- **GSM8K is consistent across lm-eval batch sizes.** These runs use batch 8 for scoring tasks and 16 for generation, fixed so that the three variants share a batch shape. On Llama-3-8B's first 30 GSM8K questions, batch 1, batch 16 and a single three-task `simple_evaluate` call at batch 1 all score 0.60 with identical prompts (`scripts/gsm8k_batch_diff.py`). Batch shape changes the wording of about a third of the generations, but not the accuracy. An earlier crashed run had scored 0.53 over 100 questions at batch 1; that doesn't reproduce on these questions, and its cause is unknown. The 0.73 above is in line with published 5-shot figures (mid-70s).
 
 ## Does Fine-Tuning Rediscover r̂? Rank-One Adapters (2026-10-01)
 

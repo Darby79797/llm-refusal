@@ -49,10 +49,6 @@ Constraints:
 - `orthogonalize.py` refuses Gemma-2/3: they normalise each sublayer's output before the residual add, so editing `o_proj`/`down_proj` doesn't remove r̂. Gemma needs hook ablation or a norm-aware edit.
 - 12B-class models are borderline in bf16 on the M4 Pro; one model per process.
 
-## 9. GSM8K depends on lm-eval's batch size — S
-
-Llama-3-8B scored GSM8K 0.53 at lm-eval batch 1 and 0.73 at batch 16; ARC and TruthfulQA agree across batch sizes. The published figure (mid-70s) suggests batch 1 is wrong. Diff the per-question generations at both batch sizes on a few dozen questions to find where they diverge (padding, stop sequences, or `generation_config` handling) before trusting any batch-1 lm-eval generation result.
-
 ---
 
-**Suggested order:** 9 and 2 first (cheap, and 2 decides how to frame the rank-one result) → 1 → 3 → 4, with 5-7 as independent threads and 8 once the rest is stable.
+**Suggested order:** 2 first (cheap: mostly saved adapters plus a few forward passes) → 1 → 3 → 4, with 5-7 as independent threads and 8 once the rest is stable.
