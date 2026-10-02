@@ -30,8 +30,10 @@ def main():
     ap.add_argument("--concept", default="refusal")
     ap.add_argument("--adapter", help="rank1 remove adapter stem (default: the model's remove-s0 or remove run, if any)")
     ap.add_argument("--no-plot", action="store_true")
+    ap.add_argument("--direction", help="direction stem to use instead of the saved one (e.g. a masked copy)")
+    ap.add_argument("--tag", default="", help="suffix for the output files")
     a = ap.parse_args()
-    run = load_run(a.model, a.concept)
+    run = load_run(a.model, a.concept, direction=a.direction or True)
     model, fmt, blocks, r, r_hat, short = run.model, run.fmt, run.blocks, run.r, run.r_hat, run.short
     pos, neg = run.fw.concept.eval_data_fn()
 
