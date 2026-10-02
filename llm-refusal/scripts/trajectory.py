@@ -71,7 +71,7 @@ def main():
         print("  AUROC: " + " ".join(f"{x:.2f}" for x in pr["auroc"]))
         print("  cos(local diff, r̂): " + " ".join(f"{x:+.2f}" for x in res["cos_local_diff_r_hat"]), flush=True)
 
-    print("saved", save_json(run.path("trajectory", a.concept), out))
+    print("saved", save_json(run.path("trajectory", a.concept, a.tag), out))
     if not a.no_plot:
         plot(out, f"plots/trajectory/{short}-{a.concept}.png")
 
