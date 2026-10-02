@@ -29,7 +29,7 @@ All code under `llm-refusal/`. Flat imports (`from formatting import ...`), set 
 | `tools/runs.py` | Index of saved artifacts (generations, logs, search CSVs, directions, CAA, cross-concept, side-experiment JSONs as `Limb`s), Wilson CIs, run flags, current-detector rescoring. No model |
 | `tools/look.py` | Text views: `digest`, `run`, `gens` (flips/labels/grep/`--rescore`), `search` (layer×pos grid), `caa`, `cross`, `proj`, `limbs` (edit-cost, trajectory, jailbreak, categories, finetune identity/regrow dose/rank-1) |
 | `tools/report.py` | Self-contained HTML report (`results/report/index.html`): overview matrix, run detail + search heatmap + generations browser, CAA curves, cross-concept, token projections |
-| `probe.py` | Forward-pass helpers for the analysis scripts: `residuals_at` (per-prompt residual at a template position, every layer), `behaviour` (rate + log-odds under a context), `auroc`, `cos` |
+| `probe.py` | Shared layer for the analysis scripts: `load_run` (framework + saved direction as a `Run` with `ablate`/`add` context factories and result paths), `inhibitor_direction` (û, û⊥ from saved rank1 adapters), `save_json`; forward-pass probes `residuals_at` (per-prompt residual at a template position, every layer), `token_projections` (attention-sink-masked per-token projection), `behaviour` (rate + log-odds under a context); `auroc`, `cos`, `unit` |
 | `tools/project.py` | Per-token projections onto a direction at every layer (loads a model) → `results/proj/*.json` |
 
 ## Adding a Concept
