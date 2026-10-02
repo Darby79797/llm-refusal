@@ -1,91 +1,35 @@
 # Future Plans
 
-## Priority 0: Pipeline Throughput (biggest wall-clock wins for sweeps)
+Open work lives in [PROPOSED_PLANS.md](PROPOSED_PLANS.md); this file only tracks what is done and what is not planned there.
 
-Serial evaluate sweeps are generation-bound, not load-bound (model load is ~2 min of a 1.5-2h run on 7-8B MPS). Two cheap structural wins, in order:
+## Where things stand (2026-10-02)
 
-1. ~~**Cache the prompt-filtering pass per (model, concept).**~~ Done (2026-09): `results/filter-cache/`, keyed on model/dtype/batch size/detector/prompt set. Default evaluate also dropped the two uninformative conditions (global addition, subtraction), for ~40% less evaluate time in total.
-2. ~~**Better batch size selection.**~~ Done (2026-09): `--gen-batch-size auto` is the default (`batching.py`). Key measurement: on MPS bf16 there's a throughput cliff. bs 2/4/8 are equally slow (~15 tok/s on Llama-3-8B), bs 16/32/64 give 7-10×. The MPS caching allocator also had to be bounded with watermarks, or 512-token runs swapped (38 GB of retained KV-cache buffers at bs=16).
+The refusal direction r̂ controls refusal on all 7 models, and the safety half of Arditi replicates. Weight orthogonalisation is the ablated model, baked in: nearly free on Llama, 5-20x a random edit on Qwen. Fine-tuning finds a separate rank-one off-switch rather than r̂, and 8-16 refusal examples (~1% of the data) regrow refusal after the edit, along a new axis. Editing only the blocks before r̂'s layer removes refusal; on Qwen the later blocks carry much of the edit's cost. r̂ is a probe from L1-L8, is one direction across harm categories, and jailbreaks on the small Qwens work by lowering it. Empathy works on 6/7 models, hedging on factual questions is a negative, sycophancy needs a response-contrast direction, and ablating refusal raises sycophancy on every Qwen. The Limb Experiments section of RESULTS.md is still in progress (3B/8B replications and the open-ended CAA half are queued or running). Numbers: the Summary at the top of [RESULTS.md](RESULTS.md).
 
-   **Correction to the original premise: results are _not_ batch-invariant, so "verify once against a known run as an exact comparison" does not work.** bf16 reduction order depends on batch shape and greedy argmax amplifies it — one flipped token forks the trajectory. On Qwen2.5-0.5B the divergence is small and flat (95% of texts identical to bs=1 at every bs from 2 to 32, rate unchanged), but on Qwen2.5-3B it is not: text identity falls 57.5% → 52.5% and the refusal rate moves 97.5% → 90% going from bs=2 to bs=8. Practical rule: raise it freely for ≤1.5B models, keep it fixed within any set of runs being compared, and re-run a whole comparison (baseline + all intervention conditions) if you change it.
+## Done, see RESULTS.md
 
-   Further win, not yet done: sort prompts by length before batching. `generate_with_hooks` runs until every row in a batch finishes, so a batch costs as much as its longest generation.
+- Re-runs after the two padding bugs (search, evaluate, non-refusal concepts, cross-concept, safety score): Best Layers, Safety Score, Non-Refusal Concepts, Cross-Concept, "Two Padding Bugs".
+- Sycophancy from a response contrast: Limb Experiments section 4 (`sycophancy_response`, up to 83% induced).
+- Selection tie-break by induce; non-apologetic refusal phrases: Best Layers / Key Findings.
+- Arditi weight orthogonalisation and capability cost: "Weight Orthogonalisation", "What the Edit Costs".
+- Rank-one adapters and regrowth (including the dose-response threshold): "Does Fine-Tuning Rediscover r̂?", "Does Refusal Regrow After the Edit?", Limb section 2.
+- Per-layer trajectory, category-specific directions, jailbreak projection, separate bypass/induce coordinates: Limb section 3.
+- Cheapest edit that removes refusal (layer-restricted edits): Limb section 1.
+- Hedging on subjective prompts (`hedging_v2`): Limb section 4 (0% on the hedging detector; models deflect instead, `opinion_avoidance` queued).
+- Strength curves for sycophancy: Limb section 4 table. Refusal strength curves were not done as a systematic sweep.
+- Pipeline throughput: filter cache and `--gen-batch-size auto` (see below).
 
-Related, larger refactor: a **per-model experiment queue** — load a model once, then run all pending concepts/modes against it, sharing baseline generations and filtering across concepts before unloading.
+## Still open and not in PROPOSED_PLANS.md
 
-## Current State (Post Generation-Path Fix, 2026-08-11)
+- Larger models (13B+) for sycophancy, which may need more capacity than refusal.
+- Direction transfer across model families (e.g. Qwen-3B r̂ into Llama-3-8B via an alignment): is refusal architecturally universal?
+- Arditi full evaluation with `refusal_arditi_exact` on Llama-3-8B, with JailbreakBench numbers compared to the paper's.
+- A larger empathy eval set (20 prompts now).
+- Part 4 current checkpoints (Qwen3, Gemma-3, Llama-3.2-3B) need a download; only Llama-3.2-1B is cached (PROPOSED_PLANS item 8).
+- Sort prompts by length before batching: `generate_with_hooks` runs until every row finishes, so a batch costs its longest generation.
+- Per-model experiment queue: load a model once and run all pending concepts/modes, sharing baseline generations and filtering. A file-based job queue exists (`results/queue/runner.sh`) but runs one job per load.
 
-Two padding bugs have now been fixed: the April 2026 indexing bug in the scoring path, and the August 2026 generation bug where evaluation decoded from a pad slot. All 7 refusal `evaluate` runs were regenerated (`results/rerun3-MANIFEST.md`). Refusal direction finding works universally: **83.8-100% induction and 87.9-100pp global ablation**. The "single direction" hypothesis is confirmed, and more strongly than pre-fix numbers showed — the artifact was suppressing the effect.
+## Throughput notes
 
-**What's solid:**
-- Refusal `evaluate`: re-run post-fix on all 7 models (Qwen 0.5B-7B, Llama-2/3/3.1), with the continuous log-odds metric alongside every rate
-- Arditi replication of *direction selection*: L12/pos-5 on Llama-3, bypass=-10.7 (paper: -9.7)
-- Multi-position search: auto-derived from assistant_prefix_tokens
-- Padding invariant is now asserted, not assumed (`formatting.last_real_token_indices`), with unit + per-model tests
-
-**What needs re-running** (all used at least one of the two broken paths):
-- ~~Refusal **search** on all models~~ Done 2026-09-23: all 7 pass strictly; 6/7 re-select the old coordinates (Qwen2.5-0.5B: L13→L14). Evaluate re-run at the selected coordinates reproduces 2026-08 exactly. See RESULTS.md.
-- ~~Sycophancy, hedging, empathy: search + evaluation on all models~~ Done 2026-09-24 (RESULTS.md "Non-Refusal Concepts"): empathy works on 6/7, hedging is a real negative, sycophancy needs a response-contrast direction.
-- ~~Cross-concept analysis~~ Done 2026-09-25 on all 7 models (4 concepts); the −63pp headline does not replicate.
-- ~~The paper's **safety score**~~ Done 2026-09-25 on all 7 models (ablation → 66-89% LlamaGuard-unsafe).
-
-## Done 2026-09-30 → 10-02 (see RESULTS.md)
-
-- Selection breaks bypass near-ties by induce; detection counts non-apologetic refusals.
-- Weight orthogonalisation (`orthogonalize.py`), equivalent to hook ablation on all 7 models, and the Llama-3-8B safety replication.
-- Capability cost with a random-direction control (`--mode capability`): CE on 7 models, benchmarks on 2.
-- Rank-one adapters (`--mode rank1`) and refusal regrowth after the edit (`--mode regrow`) on Qwen2.5-0.5B/7B and Llama-3-8B.
-
-Open questions from those runs are in PROPOSED_PLANS.md.
-
-## Next (from the 2026-09-25 sweep)
-
-1. **Sycophancy from a response contrast.** Same prompts, activations when the model was vs wasn't sycophantic (CAA-style), instead of the prompt contrast (which encodes framing) or behavioral filtering (too few sycophantic responses on ≥1.5B models).
-2. ~~**Selection rule:** break bypass near-ties by induce.~~ Done 2026-09-30: `bypass_tie_frac` (5%; 0 for `refusal_arditi_exact`). Moves Llama-3.1 to L11/P-1 and Qwen2.5-7B to L16/P-4; nothing else.
-3. ~~**Detection:** widen the refusal phrase list for non-apologetic refusals.~~ Done 2026-09-30 (`NON_APOLOGETIC_REFUSAL_PHRASES`, not applied to `refusal_arditi_exact`). The long tail ("I should note that…", "I must clarify…") is open-ended, so cross-concept cells still need log-odds or a judge.
-4. **CAA open-ended half** (LLM judge via OpenRouter, pending a key); check "ablating refusal raises sycophancy" against the text.
-5. `hedging_v2` (subjective questions); a larger empathy eval set (20 prompts now).
-
-## Priority 1: Re-run Non-Refusal Concepts (DONE 2026-09-24, see RESULTS.md)
-
-All sycophancy, hedging, and empathy results were produced through the broken generation path on Qwen2.5 models — the family that bug hit hardest. The directions may be wrong and every evaluation is unreliable. Note in particular that the hedging "0% detection" negative result is exactly what a corrupted generation path also produces, so it is currently uninterpretable in either direction.
-
-**Action**: Re-run `--mode search` then `--mode evaluate` for each concept on each model. Start with sycophancy (most developed) on Qwen2.5-3B (best prior results).
-
-The sycophancy "low induction rates (2-12%)" finding may be an artifact of the broken generation path (detection rates measured from text decoded off a pad slot). With both padding bugs fixed, we might find a much stronger sycophancy direction — the refusal numbers all moved in that direction.
-
-## Priority 2: Cross-Concept Re-analysis
-
-The cross-concept findings (refusal × sycophancy interference, 2D subspace) were computed with corrupted directions. Re-run after Priority 1 produces new directions.
-
-Key question: does ablating sycophancy still reduce refusal by 57pp? This was the most surprising finding and needs verification with correct directions.
-
-## Priority 3: Arditi Full Evaluation
-
-Run `--mode evaluate` with `--concept refusal_arditi_exact` on Llama-3-8B to get full detection rates, then compare to paper's numbers. Consider adding LlamaGuard2 evaluation and JailbreakBench for apples-to-apples comparison.
-
-## Priority 4: New Research Directions
-
-### Hedging on subjective prompts
-Hedging on factual questions was a negative result (0% detection). But models may hedge more on opinion/subjective/ambiguous topics. Design a new hedging prompt set with opinion questions and re-test.
-
-### Larger models
-Test on 13B+ models for sycophancy (which is harder than refusal at small scale). The refusal direction is already clean at all sizes — sycophancy may need more capacity.
-
-### Jailbreak direction analysis
-Grab 50+ known jailbreak prompts (DAN, AIM, roleplay prefixes, multi-turn escalation). Compute the refusal direction's projection magnitude on these prompts and compare to normal harmful prompts. If successful jailbreaks suppress the direction below a threshold, we have a mechanistic jailbreak detector. Test whether: (a) jailbreaks work by suppressing the refusal direction or by a different mechanism, (b) the direction's projection predicts jailbreak success, (c) monitoring the direction at inference time can flag jailbreak attempts. Connects mechanistic interpretability to the safety/red-teaming literature.
-
-### Category-specific refusal directions
-Compute difference-in-means separately for each harm category (weapons, hacking, bioweapons, fraud, self-harm, violence). Measure pairwise cosine similarity between category-specific directions. If parallel → refusal is truly unified. If divergent → the "single direction" is an average, and targeted editing becomes possible. Test cross-category transfer (does the weapons direction induce refusal on hacking prompts?).
-
-### Per-layer refusal direction trajectory
-For each prompt, project every layer's residual stream onto the refusal direction → trajectory across depth. Compare harmful vs. benign prompts — divergence point localizes where the refusal decision happens. Nearly free (one forward pass), produces a key figure, validates circuit analysis findings.
-
-### Separate bypass vs induction directions
-The current pipeline uses one direction for both. But bypass (ablation) and induction (addition) may have different optimal directions. Search separately and compare cosine similarity.
-
-### Direction transfer across model families
-Do directions transfer? Take the Qwen-3B refusal direction, project it into the Llama-3-8B residual stream (via alignment), and test if it still ablates/induces refusal. Would establish whether refusal is architecturally universal or model-specific.
-
-### Strength curves
-Now that scoring is correct, systematically map induction rate vs strength for each model. Find the minimum strength needed for >90% induction and the maximum strength before coherence degrades.
+- On MPS bf16 there is a throughput cliff: bs 2/4/8 are equally slow (~15 tok/s on Llama-3-8B), bs 16/32/64 are 7-10x faster. `--gen-batch-size auto` picks from this; the MPS allocator needs watermarks (`env.py`) or 512-token runs swap.
+- Results are not batch-invariant in bf16 (Qwen2.5-3B: refusal 97.5% to 90% from bs 2 to 8). Compare conditions within one run, or re-run both sides at auto.
