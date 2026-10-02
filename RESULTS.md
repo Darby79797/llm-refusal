@@ -220,7 +220,7 @@ Hook vs edit: 4/100 texts identical (greedy decoding forks on near-ties: on Qwen
 
 ## Does Fine-Tuning Rediscover r̂? Rank-One Adapters (2026-10-01)
 
-**Summary:** a rank-one adapter trained to reproduce ablation removes refusal completely, and every seed converges on the same adapter (|cos| 0.97-0.99). Its direction leans toward r̂ (|cos| 0.24-0.41) but doesn't need it: with r̂ removed from the adapter, refusal stays at 0%. That r̂-free direction is an inhibitor. Writing along it switches refusal off, but ablating it from the model leaves refusal intact, whereas ablating r̂ removes it. Refusal runs through r̂; fine-tuning finds a separate off-switch.
+**Summary:** a rank-one adapter trained to reproduce ablation removes refusal completely, and every seed converges on the same adapter (|cos| 0.97-0.99). Its direction leans toward r̂ (|cos| 0.24-0.41) but doesn't need it: with r̂ removed from the adapter, refusal stays at 0%. That r̂-free direction is an inhibitor. Writing along it switches refusal off, but ablating it from the model leaves refusal intact, whereas ablating r̂ removes it. The off-switch is refusal-specific (empathy unaffected), isn't a harmfulness feature, and mostly bypasses r̂ rather than suppressing it. Refusal runs through r̂; fine-tuning finds a separate off-switch.
 
 
 `--mode rank1` trains a rank-one adapter ΔW = u vᵀ (u = 0 at init, so it isn't pointed at r̂) on the `down_proj` of the layer before r̂'s, which writes straight into the residual r̂ is read from. It is trained by self-distillation to reproduce directional ablation: harmful train prompts → the hook-ablated model's own 64-token completions, and harmless prompts → the clean model's completions as a retain set. 200 Adam steps, lr 1e-3, batch 8. Evaluated on the eval sets (99 harmful / 80 harmless), refusal rate / log-odds. `results/finetune/`.
@@ -247,6 +247,18 @@ Hook vs edit: 4/100 texts identical (greedy decoding forks on near-ties: on Qwen
   | r̂ | 0% / -10.61 | 0% / -14.33 |
 
   Ablating û suppresses refusal only through its r̂ component: ablate the r̂-free part and refusal is barely touched. Yet *writing* along that r̂-free part, as the adapter with r̂ removed from u does, removes refusal completely. So the model's refusal doesn't run through û⊥ (not necessary), but a write along it switches refusal off downstream (sufficient). û⊥ isn't any difference-in-means candidate either: over every (layer, position) the search scores, the closest to û is r̂ itself, at the same |cos| (0.24 / 0.33).
+- **How the inhibitor works** (`scripts/inhibitor.py`: the seed-0 remove adapter with r̂ removed from u, harmful eval prompts, residual projections at r̂'s position):
+
+  | | Llama-3-8B log-odds | r̂ projection, r̂'s layer → +2 → +4 → +8 → last | Qwen2.5-7B log-odds | r̂ projection, same layers |
+  |---|---|---|---|---|
+  | plain | +9.79 | 3.09, 2.36, 1.89, 1.54, 1.04 | +4.20 | 35.2, 35.9, 31.7, 29.6, 41.6 |
+  | inhibitor (r̂-free adapter) | -12.53 | 3.09, 1.62, 1.26, 1.01, -0.27 | -15.31 | 35.2, 24.3, 18.6, 18.8, 34.0 |
+  | r̂ ablated | -10.61 | 0 at every layer | -14.33 | 0 at every layer |
+
+  - *It mostly bypasses r̂.* r̂'s projection at r̂'s layer is untouched, as it must be. Later layers' r̂ falls by 18-41% on the 8B models (not at all on Qwen2.5-0.5B), yet refusal log-odds fall further than under complete r̂ ablation. A one-third reduction of r̂ can't account for that, so most of the effect runs around r̂, downstream.
+  - *It isn't a harmfulness feature.* In the plain model, the inhibitor direction doesn't separate harmful from harmless prompts (AUROC 0.58 / 0.46, vs 1.0 for r̂). The adapter's gate v·x fires on every prompt, 1.7-2.4× more strongly on harmful ones.
+  - *It is refusal-specific.* With it installed, refusal drops to 0% while empathy stays at 90% / 85% (plain 95% / 80%, 20 prompts each).
+  - *Installing refusal is not the same axis reversed.* Signed by their gates, the remove adapter writes slightly against r̂ (cos -0.24 / -0.33) and the induce adapter slightly along it (+0.17 / +0.42), but the two writes are mostly different directions (cos -0.19 / -0.17).
 - **What it means.** Arditi's direction is the one refusal runs through: ablating it is necessary and sufficient to remove refusal, and nothing else tested is necessary. But it isn't the only lever. Fine-tuning reliably finds a different, canonical direction that switches refusal off when written to, by inhibiting it downstream rather than by removing r̂.
 - **Caveats.** The remove objective also pushes harmless prompts' refusal log-odds lower (Llama-3-8B -14.4 → -18.0; their rate is already 0%), so part of what the adapter learned is "don't open with a refusal token" in general. The induce adapter on Qwen2.5-7B also raises harmful-prompt refusal (89 → 100%). One layer and one module were adapted; 200 steps.
 

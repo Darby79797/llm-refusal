@@ -10,12 +10,9 @@ Cost key: **S** = hours, no new heavy runs; **M** = a day or a 7-model sweep; **
 
 32 refusal examples (~2% of the fine-tuning data) restore 82-100% refusal on every model and in both LoRA arms. Find the threshold: `--mode regrow --n-refusal-examples` 1, 2, 4, 8, 16, with 3 seeds each, on Llama-3-8B and Qwen2.5-7B (readers arm, where r̂ is unavailable). Also run benign-only to 1000 steps, to check that "benign fine-tuning doesn't bring refusal back" isn't just a 200-step artefact. This turns the durability finding into a number: how much refusal data undoes an abliteration.
 
-## 2. What is the refusal inhibitor? — S/M
+## 2. What reads the refusal inhibitor? — M
 
-Rank-one fine-tuning reliably finds one write direction (the same on every seed) whose r̂-free part switches refusal off when written to. Ablating it from the model leaves refusal intact (RESULTS.md "Does Fine-Tuning Rediscover r̂?"). So it acts downstream of, or in parallel with, r̂. Questions:
-- **What reads it?** Attribute the drop in refusal log-odds when writing along û⊥ to downstream heads and MLPs (`attribution.py`, as in the refusal-circuit analysis). Does the inhibition go through the components that write r̂, i.e. does writing û⊥ shrink r̂'s projection at later layers?
-- **What is it?** Project harmful vs harmless prompts (and compliant vs refusing completions) onto û⊥ with `tools/project.py`. Is it a "this request is fine" feature that the model already uses, at low magnitude, on harmless prompts?
-- **Is it general?** Does adding û⊥ also suppress the other concepts (empathy, hedging), or only refusal? Does the induce adapter's direction (|cos| 0.16-0.20 with the remove one) have the same structure in reverse?
+Rank-one fine-tuning finds a canonical direction û⊥, orthogonal to r̂, that switches refusal off when written to. It isn't a harmfulness feature, it's refusal-specific (empathy unaffected), and it mostly bypasses r̂: later layers' r̂ falls by only a third, while refusal log-odds drop further than under r̂ ablation (RESULTS.md "Does Fine-Tuning Rediscover r̂?"). Open: what carries the effect from û⊥ to the refusal-token logits? Attribute the drop in refusal log-odds when writing û⊥ to downstream heads and MLPs (`attribution.py`, as in the refusal-circuit analysis). Do these overlap the components that write r̂, or form a separate path straight to the output?
 
 ## 3. Why does the edit cost Qwen 5-20× more than Llama? — M
 
@@ -51,4 +48,4 @@ Constraints:
 
 ---
 
-**Suggested order:** 2 first (cheap: mostly saved adapters plus a few forward passes) → 1 → 3 → 4, with 5-7 as independent threads and 8 once the rest is stable.
+**Suggested order:** 1 → 2 → 3 → 4, with 5-7 as independent threads and 8 once the rest is stable.
