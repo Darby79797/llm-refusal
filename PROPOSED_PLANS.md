@@ -1,6 +1,6 @@
 # Proposed Plans (2026-10-02)
 
-Open next steps, roughly in priority order. Where things stand (RESULTS.md Summary): the refusal direction r̂ controls refusal on all 7 models, and the safety score replicates. Weight orthogonalisation is equivalent to ablation; it is nearly free on Llama and costs 5-20× a random edit on Qwen. A rank-one adapter removes refusal without using r̂, and 32 refusal examples restore refusal after the edit. Empathy works on 6/7 models, hedging is a real negative, and sycophancy needs a response contrast.
+Open next steps, roughly in priority order. Where things stand (RESULTS.md Summary): the refusal direction r̂ controls refusal on all 7 models, and the safety score replicates. Weight orthogonalisation is equivalent to ablation; it is nearly free on Llama and costs 5-20× a random edit on Qwen. Fine-tuning finds a separate, canonical off-switch for refusal (a direction that inhibits it without carrying it), and 32 refusal examples restore refusal after the edit. Empathy works on 6/7 models, hedging is a real negative, and sycophancy needs a response contrast.
 
 Cost key: **S** = hours, no new heavy runs; **M** = a day or a 7-model sweep; **L** = new module + multi-day sweeps.
 
@@ -10,12 +10,12 @@ Cost key: **S** = hours, no new heavy runs; **M** = a day or a 7-model sweep; **
 
 32 refusal examples (~2% of the fine-tuning data) restore 82-100% refusal on every model and in both LoRA arms. Find the threshold: `--mode regrow --n-refusal-examples` 1, 2, 4, 8, 16, with 3 seeds each, on Llama-3-8B and Qwen2.5-7B (readers arm, where r̂ is unavailable). Also run benign-only to 1000 steps, to check that "benign fine-tuning doesn't bring refusal back" isn't just a 200-step artefact. This turns the durability finding into a number: how much refusal data undoes an abliteration.
 
-## 2. What direction does the rank-one adapter use? — S/M
+## 2. What is the refusal inhibitor? — S/M
 
-The rank-one adapters remove refusal through a write direction u that is mostly orthogonal to r̂ (|cos| 0.24-0.41), and r̂'s share of u does little. Questions, most answerable from the saved adapters (`results/finetune/*-adapters.pt`) without new training:
-- Do the 3 seeds' u's agree with each other (|cos| between seeds)? If yes, there is a second canonical refusal direction.
-- Does ablating u (as a direction, with hooks, at all layers) remove refusal the way ablating r̂ does? Does adding it induce refusal?
-- Where does u sit relative to the per-layer difference-in-means candidates from search (`results/*-search-scores.csv` coordinates)?
+Rank-one fine-tuning reliably finds one write direction (the same on every seed) whose r̂-free part switches refusal off when written to. Ablating it from the model leaves refusal intact (RESULTS.md "Does Fine-Tuning Rediscover r̂?"). So it acts downstream of, or in parallel with, r̂. Questions:
+- **What reads it?** Attribute the drop in refusal log-odds when writing along û⊥ to downstream heads and MLPs (`attribution.py`, as in the refusal-circuit analysis). Does the inhibition go through the components that write r̂, i.e. does writing û⊥ shrink r̂'s projection at later layers?
+- **What is it?** Project harmful vs harmless prompts (and compliant vs refusing completions) onto û⊥ with `tools/project.py`. Is it a "this request is fine" feature that the model already uses, at low magnitude, on harmless prompts?
+- **Is it general?** Does adding û⊥ also suppress the other concepts (empathy, hedging), or only refusal? Does the induce adapter's direction (|cos| 0.16-0.20 with the remove one) have the same structure in reverse?
 
 ## 3. Why does the edit cost Qwen 5-20× more than Llama? — M
 
