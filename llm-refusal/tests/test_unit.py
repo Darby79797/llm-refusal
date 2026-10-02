@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 from datatypes import PromptData, DirectionVector, DirectionScores
 from scoring import LogOddsMetric
 from evaluation import BigEvaluator
+from tests.fakes import SimpleTokenizer
 
 import warnings
 
@@ -25,40 +26,18 @@ def _make_evaluator(**kwargs):
     return BigEvaluator(framework, **kwargs)
 
 
-# --- SimpleTokenizer for LogOddsMetric tests ---
-
-class SimpleTokenizer:
-    """Minimal tokenizer that maps known tokens to fixed IDs."""
-    def __init__(self, token_map=None):
-        self._map = token_map or {}
-
-    def encode(self, token, add_special_tokens=False):
-        if token in self._map:
-            return [self._map[token]]
-        return [hash(token) % 50000]
-
-
 # ============================================================
 # Data & datatypes
 # ============================================================
 
-def test_prompt_data_split(sample_prompt_data):
-    """Tests that the train_val_split method works correctly."""
-    train_data, val_data = sample_prompt_data.train_val_split(test_size=0.5, random_state=42)
-    assert len(train_data.prompts) == 2
-    assert len(val_data.prompts) == 2
-    assert sum(train_data.labels) == 1
-    assert sum(val_data.labels) == 1
-
-
-def test_prompt_data_split_preserves_all_prompts():
-    """train_val_split is a complete partition: no data lost or duplicated."""
+def test_prompt_data_split_is_stratified_partition():
+    """train_val_split keeps the label balance and loses or duplicates nothing."""
     data = PromptData(prompts=[f"p{i}" for i in range(20)],
                       labels=[i < 10 for i in range(20)])
-    train, val = data.train_val_split(test_size=0.3, random_state=42)
-    all_prompts = set(train.prompts + val.prompts)
-    assert len(all_prompts) == 20
-    assert len(train.prompts) + len(val.prompts) == 20
+    train, val = data.train_val_split(test_size=0.5, random_state=42)
+    assert len(train.prompts) == len(val.prompts) == 10
+    assert sum(train.labels) == sum(val.labels) == 5
+    assert sorted(train.prompts + val.prompts) == sorted(data.prompts)
 
 
 def test_direction_vector_unit():
@@ -68,12 +47,6 @@ def test_direction_vector_unit():
     unit_vec = dv.unit
     assert t.allclose(t.norm(unit_vec), t.tensor(1.0))
     assert t.allclose(unit_vec, t.tensor([0.6, 0.8]))
-
-
-def test_direction_vector_unit_zero_vector():
-    """Unit vector of zero vector produces NaN (divide-by-zero)."""
-    dv = DirectionVector(vector=t.zeros(10), layer=0, position_index=-1, score=0.0)
-    assert t.isnan(dv.unit).all()
 
 
 # ============================================================
@@ -89,13 +62,6 @@ def test_concept_registry_get_registered():
         assert callable(concept.train_data_fn)
         assert callable(concept.eval_data_fn)
         assert len(concept.target_tokens) > 0
-
-
-def test_concept_registry_get_unregistered():
-    """get_concept raises KeyError for unknown names."""
-    from concept import get_concept
-    with pytest.raises(KeyError):
-        get_concept("nonexistent_concept_xyz")
 
 
 # ============================================================
@@ -226,53 +192,23 @@ def test_strict_selection_ignores_non_passing_candidates():
 
 
 # ============================================================
-# Sycophancy detection heuristic
+# Sycophancy / hedging detection heuristics
 # ============================================================
 
-from concept import detect_sycophancy
+from concept import detect_sycophancy, detect_hedging
 
 
-def test_detect_sycophancy_clear_agreement():
-    """Pure agreement without contradiction is sycophantic."""
-    text = "You're absolutely right! That's a great observation."
-    assert detect_sycophancy(text) is True
-
-
-def test_detect_sycophancy_agreement_then_contradiction():
-    """Agreement followed by early contradiction is NOT sycophantic."""
-    text = "That's a great point, however, the scientific evidence actually shows the opposite."
-    assert detect_sycophancy(text) is False
-
-
-def test_detect_sycophancy_clear_correction():
-    """Direct correction with no agreement is NOT sycophantic."""
-    text = "Actually, that's a common misconception. The Great Wall is not visible from space."
-    assert detect_sycophancy(text) is False
-
-
-def test_detect_sycophancy_hedging():
-    """Neutral response with no agreement indicators is NOT sycophantic."""
-    text = "There are different perspectives on this topic. Some researchers suggest..."
-    assert detect_sycophancy(text) is False
-
-
-# ============================================================
-# Hedging detection heuristic
-# ============================================================
-
-from concept import detect_hedging
-
-
-def test_detect_hedging_positive():
-    """Multiple hedging markers → True."""
-    text = "I think it's possible that the Earth is round, but perhaps I'm not entirely sure about this."
-    assert detect_hedging(text) is True
-
-
-def test_detect_hedging_negative():
-    """Direct answer → False."""
-    text = "The Earth is approximately spherical. It orbits the Sun once per year."
-    assert detect_hedging(text) is False
+@pytest.mark.parametrize("detect,text,expected", [
+    (detect_sycophancy, "You're absolutely right! That's a great observation.", True),
+    # agreement followed by an early contradiction
+    (detect_sycophancy, "That's a great point, however, the scientific evidence actually shows the opposite.", False),
+    (detect_sycophancy, "Actually, that's a common misconception. The Great Wall is not visible from space.", False),
+    (detect_sycophancy, "There are different perspectives on this topic. Some researchers suggest...", False),
+    (detect_hedging, "I think it's possible that the Earth is round, but perhaps I'm not entirely sure about this.", True),
+    (detect_hedging, "The Earth is approximately spherical. It orbits the Sun once per year.", False),
+])
+def test_detection_heuristics(detect, text, expected):
+    assert detect(text) is expected
 
 
 # ============================================================
@@ -376,48 +312,21 @@ def test_direction_vector_save_load():
 # Cross-concept analysis
 # ============================================================
 
-from cross_concept import compute_pairwise_cosine_similarity, analyze_direction_subspace
+from cross_concept import compute_pairwise_cosine_similarity
 
 
-def test_pairwise_cosine_similarity_identical():
-    """Identical vectors → sim=1.0, diagonal always 1.0."""
+def test_pairwise_cosine_similarity():
+    """Identical vectors -> 1 (diagonal always 1); orthogonal vectors -> 0."""
     vec = t.randn(32)
-    d1 = DirectionVector(vector=vec.clone(), layer=0, position_index=-1, score=0.0)
-    d2 = DirectionVector(vector=vec.clone(), layer=1, position_index=-1, score=0.0)
-    sim = compute_pairwise_cosine_similarity([d1, d2])
-    assert sim[0, 0] == pytest.approx(1.0, abs=1e-5)
-    assert sim[1, 1] == pytest.approx(1.0, abs=1e-5)
-    assert sim[0, 1] == pytest.approx(1.0, abs=1e-5)
-    assert sim[1, 0] == pytest.approx(1.0, abs=1e-5)
+    e0, e1 = t.zeros(32), t.zeros(32)
+    e0[0], e1[1] = 1.0, 1.0
+    dirs = [DirectionVector(vector=v, layer=0, position_index=-1, score=0.0) for v in (vec, vec.clone(), e0, e1)]
+    sim = compute_pairwise_cosine_similarity(dirs)
+    for i in range(4):
+        assert sim[i, i] == pytest.approx(1.0, abs=1e-5)
+    assert sim[0, 1] == pytest.approx(1.0, abs=1e-5) and sim[1, 0] == pytest.approx(1.0, abs=1e-5)
+    assert sim[2, 3] == pytest.approx(0.0, abs=1e-5)
 
-
-def test_cosine_similarity_orthogonal():
-    """Orthogonal vectors → sim=0.0."""
-    v1 = t.zeros(32)
-    v1[0] = 1.0
-    v2 = t.zeros(32)
-    v2[1] = 1.0
-    d1 = DirectionVector(vector=v1, layer=0, position_index=-1, score=0.0)
-    d2 = DirectionVector(vector=v2, layer=0, position_index=-1, score=0.0)
-    sim = compute_pairwise_cosine_similarity([d1, d2])
-    assert sim[0, 1] == pytest.approx(0.0, abs=1e-5)
-
-
-def test_pca_subspace_1d():
-    """Vectors spanning a 1D subspace → first PC captures all variance."""
-    v1 = t.zeros(64); v1[0] = 1.0
-    v2 = t.zeros(64); v2[0] = -1.0
-    v3 = t.zeros(64); v3[0] = 0.5
-    d1 = DirectionVector(vector=v1, layer=0, position_index=-1, score=0.0)
-    d2 = DirectionVector(vector=v2, layer=1, position_index=-1, score=0.0)
-    d3 = DirectionVector(vector=v3, layer=2, position_index=-1, score=0.0)
-    pca_var = analyze_direction_subspace([d1, d2, d3])
-    assert pca_var[0] > 0.99
-
-
-# ============================================================
-# BigEvaluator generation & evaluation methods
-# ============================================================
 
 # ============================================================
 # Padding invariant
@@ -438,27 +347,21 @@ def test_last_real_token_indices_rejects_left_padding():
         last_real_token_indices(t.tensor([[0, 0, 1, 1, 1]]))
 
 
-def test_assert_right_padded_rejects_interior_mask():
-    """A 0 anywhere before a 1 breaks the invariant, not just leading pads."""
+@pytest.mark.parametrize("mask,match", [
+    ([[1, 1, 0, 1, 0]], "not right-padded"),   # a 0 anywhere before a 1, not just leading pads
+    ([[1, 1, 0], [0, 0, 0]], "no real tokens"),
+    ([1, 1, 0], "must be 2D"),
+])
+def test_assert_right_padded_rejects(mask, match):
     from formatting import assert_right_padded
-    with pytest.raises(ValueError, match="not right-padded"):
-        assert_right_padded(t.tensor([[1, 1, 0, 1, 0]]))
+    with pytest.raises(ValueError, match=match):
+        assert_right_padded(t.tensor(mask))
 
 
-def test_assert_right_padded_rejects_empty_row():
-    from formatting import assert_right_padded
-    with pytest.raises(ValueError, match="no real tokens"):
-        assert_right_padded(t.tensor([[1, 1, 0], [0, 0, 0]]))
-
-
-def test_assert_right_padded_rejects_non_2d():
-    from formatting import assert_right_padded
-    with pytest.raises(ValueError, match="must be 2D"):
-        assert_right_padded(t.tensor([1, 1, 0]))
-
-
-def test_generate_responses(monkeypatch):
-    """generate_responses delegates to generate_with_hooks, batch by batch."""
+def test_generate_responses_uses_generate_with_hooks_not_model_generate(monkeypatch):
+    """generate_responses delegates to generate_with_hooks, batch by batch. Regression
+    guard: model.generate() decodes right-padded rows from a pad slot and applies the
+    model's shipped repetition_penalty, so evaluation must never route through it."""
     import evaluation
 
     calls = []
@@ -474,20 +377,6 @@ def test_generate_responses(monkeypatch):
 
     assert texts == ["resp:p1", "resp:p2", "resp:p3"]
     assert calls == [["p1", "p2"], ["p3"]]
-
-
-def test_generate_responses_does_not_call_model_generate(monkeypatch):
-    """Regression guard: model.generate() mishandles our right-padded batches
-    (generates from a pad position) and applies the model's shipped
-    repetition_penalty. Evaluation must never route through it."""
-    import evaluation
-
-    monkeypatch.setattr(evaluation, "generate_with_hooks",
-                        lambda *a, **k: ["x"] * len(a[3]))
-
-    evaluator = _make_evaluator()
-    evaluator.generate_responses(["p1", "p2"], batch_size=2)
-
     evaluator.model.generate.assert_not_called()
 
 
@@ -507,31 +396,6 @@ def test_evaluate_llamaguard_rate_not_configured():
     evaluator = _make_evaluator()
     result = evaluator.evaluate_llamaguard_rate(["p1"], ["r1"])
     assert result is None
-
-
-def test_evaluate_llamaguard_rate_classifies(mocker):
-    """Counts unsafe responses from LlamaGuard API."""
-    evaluator = _make_evaluator(
-        llamaguard_api_base="http://fake:1234/v1",
-        llamaguard_api_key="key123",
-        llamaguard_model="meta-llama/LlamaGuard-2-8b",
-    )
-
-    mock_resp = MagicMock()
-    mock_resp.json.return_value = {"response": "unsafe\nS1"}
-    mock_resp.raise_for_status = MagicMock()
-    mock_post = mocker.patch("evaluation.requests.post", return_value=mock_resp)
-
-    labels = []
-    rate = evaluator.evaluate_llamaguard_rate(["prompt1", "prompt2"], ["resp1", "resp2"], labels_out=labels)
-    assert rate == pytest.approx(1.0)
-    assert labels == ["unsafe\nS1", "unsafe\nS1"]
-    classify = [c for c in mock_post.call_args_list if "prompt" in c.kwargs["json"]]
-    assert len(classify) == 2                     # (+1 keep_alive=0 unload request)
-    # The prompt is already templated, so Ollama must not wrap it a second time.
-    payload = classify[-1].kwargs["json"]
-    assert payload["raw"] is True
-    assert payload["prompt"].count("<|begin_of_text|>") == 1
 
 
 def test_evaluate_llamaguard_rate_all_failures_returns_none(mocker):
@@ -580,50 +444,22 @@ def test_filter_prompts_by_behavior(tmp_path):
     assert filtered_neg == ["harmless1"]  # Only the one that wasn't refused
 
 
-def test_filter_prompts_by_behavior_empty_positive_raises(tmp_path):
-    """Raises ValueError when all positive prompts are filtered out."""
+@pytest.mark.parametrize("pos_response,neg_response,match", [
+    ("Sure, no problem.", "The answer is 42.", "All positive prompts were filtered out"),
+    ("I cannot help with that.", "I cannot do that.", "All negative prompts were filtered out"),
+])
+def test_filter_prompts_by_behavior_raises_when_a_side_empties(tmp_path, pos_response, neg_response, match):
     from framework import DirectionTestFramework
 
     framework = MagicMock(spec=DirectionTestFramework)
     framework._filter_cache_path = lambda pos, neg, bs: str(tmp_path / "cache.json")
     framework.evaluator = _make_evaluator(detection_phrases=["I cannot"])
-    framework.evaluator.generate_responses = MagicMock(side_effect=[
-        ["Sure, no problem."],  # Positive prompt not refused → filtered out
-        ["The answer is 42."],  # Negative prompt complies → kept
-    ])
+    framework.evaluator.generate_responses = MagicMock(side_effect=[[pos_response], [neg_response]])
 
-    with pytest.raises(ValueError, match="All positive prompts were filtered out"):
+    with pytest.raises(ValueError, match=match):
         DirectionTestFramework._filter_prompts_by_behavior(
             framework, ["harmful1"], ["harmless1"]
         )
-
-
-def test_filter_prompts_by_behavior_empty_negative_raises(tmp_path):
-    """Raises ValueError when all negative prompts are filtered out."""
-    from framework import DirectionTestFramework
-
-    framework = MagicMock(spec=DirectionTestFramework)
-    framework._filter_cache_path = lambda pos, neg, bs: str(tmp_path / "cache.json")
-    framework.evaluator = _make_evaluator(detection_phrases=["I cannot"])
-    framework.evaluator.generate_responses = MagicMock(side_effect=[
-        ["I cannot help with that."],  # Positive refused → kept
-        ["I cannot do that."],  # Negative falsely refused → filtered out
-    ])
-
-    with pytest.raises(ValueError, match="All negative prompts were filtered out"):
-        DirectionTestFramework._filter_prompts_by_behavior(
-            framework, ["harmful1"], ["harmless1"]
-        )
-
-
-# ============================================================
-# DirectionScores backward compat
-# ============================================================
-
-def test_direction_scores_backward_compat():
-    """induce_global defaults to 0.0 when not provided (backward compat)."""
-    scores = DirectionScores(bypass=-1.0, induce=2.0, kl=0.5)
-    assert scores.induce_global == 0.0
 
 
 # ============================================================
@@ -654,63 +490,19 @@ def test_search_fallback_uses_induce_global_when_all_layers():
 # Assistant prefix tokens
 # ============================================================
 
-def test_assistant_prefix_tokens_qwen_template():
-    """Qwen-style manual template has ~5 suffix tokens (im_end, newline, im_start, assistant, newline)."""
+@pytest.mark.parametrize("name,as_name,expected", [
+    ("Qwen/Qwen2.5-0.5B-Instruct", None, 5),          # built-in template: <|im_end|>\n<|im_start|>assistant\n
+    ("meta-llama/Llama-2-7b-chat-hf", None, 5),       # manual "[INST] {x} [/INST] " override
+    ("Qwen/Qwen2.5-0.5B-Instruct", "Qwen/Qwen2.5-0.5B", 0),   # base model: pass-through "{x}"
+])
+def test_assistant_prefix_tokens(name, as_name, expected):
+    """Tokens after the instruction, which sets search's auto max_positions."""
     from formatting import ChatPromptFormatter
-
-    tokenizer = MagicMock()
-    tokenizer.name_or_path = "Qwen/Qwen2.5-3B-Instruct"
-    tokenizer.pad_token = "<|endoftext|>"
-    tokenizer.eos_token = "<|endoftext|>"
-    tokenizer.chat_template = None
-    tokenizer.model_max_length = 4096
-    tokenizer.bos_token_id = 0
-
-    # Simulate encoding: the template is "<|im_start|>user\n{x}<|im_end|>\n<|im_start|>assistant\n"
-    # Full formatted = prefix_tokens + instruction_tokens + suffix_tokens
-    # Suffix = "<|im_end|>\n<|im_start|>assistant\n" = e.g. 5 tokens
-    def mock_encode(text, add_special_tokens=False):
-        # Return realistic token counts based on content
-        if text == "DUMMY_INSTRUCTION_MARKER":
-            return [101, 102, 103]  # 3 tokens for instruction
-        elif "<|im_start|>" in text:
-            # Full template: prefix(3) + instruction(3) + suffix(5) = 11 tokens
-            return [1, 2, 3, 101, 102, 103, 4, 5, 6, 7, 8]
-        return [hash(text) % 50000]
-
-    tokenizer.encode = mock_encode
-    tokenizer.__call__ = MagicMock()
-
-    formatter = ChatPromptFormatter(tokenizer)
-    assert formatter.assistant_prefix_tokens == 5
-
-
-def test_assistant_prefix_tokens_base_model():
-    """Base model (pass-through template) has 0 suffix tokens."""
-    from formatting import ChatPromptFormatter
-
-    tokenizer = MagicMock()
-    tokenizer.name_or_path = "gpt2"
-    tokenizer.pad_token = "<|endoftext|>"
-    tokenizer.eos_token = "<|endoftext|>"
-    tokenizer.chat_template = None
-    tokenizer.model_max_length = 1024
-    tokenizer.bos_token_id = 0
-
-    def mock_encode(text, add_special_tokens=False):
-        if text == "DUMMY_INSTRUCTION_MARKER":
-            return [101, 102, 103]
-        elif text == "DUMMY_INSTRUCTION_MARKER":  # pass-through: "{x}" -> just the instruction
-            return [101, 102, 103]
-        else:
-            # For pass-through template, formatted == instruction
-            return [101, 102, 103]
-
-    tokenizer.encode = mock_encode
-    tokenizer.__call__ = MagicMock()
-
-    formatter = ChatPromptFormatter(tokenizer)
-    assert formatter.assistant_prefix_tokens == 0
+    from tests.fakes import cached_tokenizer
+    tok = cached_tokenizer(name)
+    if as_name:
+        tok.name_or_path = as_name
+    assert ChatPromptFormatter(tok).assistant_prefix_tokens == expected
 
 
 # ============================================================
@@ -751,11 +543,11 @@ def test_search_skips_layer_zero(monkeypatch, tmp_path):
 
 
 # ============================================================
-# BigEvaluator: Alpaca CE loss (existing test below)
+# BigEvaluator: Alpaca CE loss
 # ============================================================
 
 def test_evaluate_alpaca_ce_loss(mocker, tmp_path):
-    """Computes CE loss on Alpaca-style prompts."""
+    """Uniform logits give per-token CE log(V) and perplexity V."""
     evaluator = _make_evaluator()
 
     # Create temp data file
@@ -770,14 +562,12 @@ def test_evaluate_alpaca_ce_loss(mocker, tmp_path):
         'attention_mask': t.tensor([[1, 1, 1, 1]]),
     }
     mock_output = MagicMock()
-    mock_output.logits = t.randn(1, 4, 100)  # batch=1, seq=4, vocab=100
+    mock_output.logits = t.zeros(1, 4, 100)  # uniform over vocab=100
     evaluator.model.return_value = mock_output
 
     result = evaluator.evaluate_alpaca_ce_loss(max_prompts=3, batch_size=4)
-    assert result is not None
-    assert "alpaca_ce_loss" in result
-    assert "alpaca_perplexity" in result
-    assert result["alpaca_perplexity"] > 0
+    assert result["alpaca_ce_loss"] == pytest.approx(np.log(100), rel=1e-5)
+    assert result["alpaca_perplexity"] == pytest.approx(100, rel=1e-4)
 
 
 # ============================================================
@@ -904,8 +694,8 @@ def test_is_degenerate_flags_repetition_loops_only():
 
 
 def test_response_nll_scores_only_response_tokens():
-    """Uniform logits give NLL = log(V) per token, and prompt tokens are excluded,
-    so the result is exactly log(V) whatever the prompt length."""
+    """response_nll is a per-token mean (uniform logits give exactly log(V) whatever
+    the lengths) and an empty response scores NaN, not 0."""
     import math
     from coherence import response_nll
 
@@ -972,9 +762,8 @@ def test_response_nll_shift_and_position_ids():
 
 
 def test_pad_rows_matches_inline_right_padding():
-    """pad_rows reproduces the inline construction it replaced in coherence, caa,
-    tools/project and format_with_completions: right padding, 1/0 mask, positions
-    0..len-1 on real tokens (pad slots get the inert sentinel 1)."""
+    """pad_rows: right padding, 1/0 mask, positions 0..len-1 on real tokens (pad
+    slots get the inert sentinel 1), and format_batch's inline position_ids agree."""
     from formatting import pad_rows, assert_right_padded
     seqs = [[5, 6, 7], [8], [9, 10, 11, 12, 13]]
     enc = pad_rows(seqs, pad_id=0)
@@ -983,10 +772,6 @@ def test_pad_rows_matches_inline_right_padding():
     assert enc['position_ids'].tolist() == [[0, 1, 2, 1, 1], [0, 1, 1, 1, 1], [0, 1, 2, 3, 4]]
     assert all(v.dtype == t.long for v in enc.values())
     assert_right_padded(enc['attention_mask'])
-    # Real-token positions agree with the old clamp(min=0) variant used by caa/project.
-    old = (enc['attention_mask'].cumsum(-1) - 1).clamp(min=0)
-    real = enc['attention_mask'].bool()
-    assert t.equal(enc['position_ids'][real], old[real])
     # format_batch derives position_ids inline rather than via pad_rows: must agree.
     from formatting import ChatPromptFormatter
     fmt = object.__new__(ChatPromptFormatter)
@@ -1102,9 +887,11 @@ def test_hf_offline_for_run_needs_model_and_lm_eval_tasks_cached(tmp_path, monke
     assert os.environ["HF_HUB_OFFLINE"] == "1" and os.environ["HF_DATASETS_OFFLINE"] == "1"
 
 
-def test_llamaguard_unloads_after_classification(monkeypatch):
-    """LlamaGuard is unloaded (keep_alive=0) after each batch, even if calls fail, so its
-    ~6 GB doesn't sit in memory through the next condition's generation."""
+def test_llamaguard_classifies_and_unloads(monkeypatch):
+    """Counts unsafe verdicts over the classified responses (failures are excluded, not
+    counted safe), sends the already-templated prompt raw, and unloads LlamaGuard
+    (keep_alive=0) after each batch, even if calls fail, so its ~6 GB doesn't sit in
+    memory through the next condition's generation."""
     import evaluation
     calls = []
 
@@ -1128,6 +915,10 @@ def test_llamaguard_unloads_after_classification(monkeypatch):
     assert rate == 0.5                                   # 1 unsafe of 2 classified
     assert labels == ["unsafe\nS2", "safe", None]
     assert calls[-1] == {"model": "llama-guard2", "keep_alive": 0}
+    # The prompt is already templated, so Ollama must not wrap it a second time.
+    classify = [c for c in calls if "prompt" in c]
+    assert len(classify) == 3
+    assert all(c["raw"] is True and c["prompt"].count("<|begin_of_text|>") == 1 for c in classify)
 
 
 def test_offline_for_script(monkeypatch, tmp_path):

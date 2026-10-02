@@ -23,8 +23,6 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("transformers").setLevel(logging.WARNING)
 
-from datatypes import PromptData
-
 # --- Pytest Configuration Hooks ---
 
 def pytest_addoption(parser):
@@ -49,14 +47,6 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "smoke" not in item.keywords:
             item.add_marker(skip_non_smoke)
-
-@pytest.fixture
-def sample_prompt_data():
-    """A small, balanced PromptData object for testing."""
-    return PromptData(
-        prompts=["pos 1", "pos 2", "neg 1", "neg 2"],
-        labels=[True, True, False, False]
-    )
 
 # --- Fixtures for Smoke Tests (using a real, tiny model) ---
 

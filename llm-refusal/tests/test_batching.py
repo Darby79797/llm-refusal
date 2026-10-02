@@ -15,6 +15,7 @@ import batching
 from batching import (AUTO, estimate_bytes_per_row, map_batched, parse_batch_size,
                       resolve_batch_size)
 from datatypes import DirectionVector
+from tests.fakes import cached_tokenizer, tiny_qwen2
 
 # Compared against a bs=1 reference, so 1 itself is left out (it would compare
 # with itself). Powers of two, plus one that isn't.
@@ -53,7 +54,7 @@ def test_estimate_grows_with_prompt_and_generation_length():
     assert estimate_bytes_per_row(cfg, t.float32, 50, 64) == 2 * base
 
 
-def _fake_model(device_total, weights):
+def _fake_model():
     model = MagicMock()
     model.config = _config()
     model.dtype = t.bfloat16
@@ -77,14 +78,14 @@ def test_resolve_auto_picks_largest_power_of_two_in_budget(monkeypatch, budget_r
     monkeypatch.setattr(batching, "estimate_bytes_per_row", lambda *a, **k: per_row)
     monkeypatch.setattr(batching, "weight_bytes", lambda m: 0)
     monkeypatch.setattr(batching, "device_total_bytes", lambda d: int(budget_rows * per_row / batching.AUTO_MEMORY_FRACTION))
-    got = resolve_batch_size(AUTO, _fake_model(0, 0), _formatter(10), ["a", "b"], 64)
+    got = resolve_batch_size(AUTO, _fake_model(), _formatter(10), ["a", "b"], 64)
     assert got == expected
 
 
 def test_resolve_auto_is_deterministic_and_shrinks_with_length(monkeypatch):
     monkeypatch.setattr(batching, "weight_bytes", lambda m: 16 * 10**9)
     monkeypatch.setattr(batching, "device_total_bytes", lambda d: 38 * 10**9)
-    model, fmt = _fake_model(0, 0), _formatter(60)
+    model, fmt = _fake_model(), _formatter(60)
     short = resolve_batch_size(AUTO, model, fmt, ["p"] * 10, 64)
     assert short == resolve_batch_size(AUTO, model, fmt, ["p"] * 10, 64)
     assert resolve_batch_size(AUTO, model, fmt, ["p"] * 10, 512) <= short
@@ -134,21 +135,13 @@ PROMPTS = [("word " * k).strip() + "?" for k in (1, 3, 7, 2, 15, 4, 9, 1, 30, 5,
 @pytest.fixture(scope="module")
 def tiny_setup():
     """Tiny random Qwen2 + the real Qwen2.5 tokenizer/template, CPU."""
-    from transformers import AutoTokenizer, Qwen2Config, Qwen2ForCausalLM
     from formatting import ChatPromptFormatter
     from interventions import ModelInterventionApplier
-    try:
-        tok = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct", local_files_only=True)
-    except Exception as e:
-        pytest.skip(f"Qwen2.5 tokenizer not in local HF cache: {e}")
-    t.manual_seed(0)
-    cfg = Qwen2Config(vocab_size=len(tok), hidden_size=64, intermediate_size=128, num_hidden_layers=2,
-                      num_attention_heads=4, num_key_value_heads=2, max_position_embeddings=512,
-                      tie_word_embeddings=True,
-                      # The default 0.02 init makes the model emit "\n" forever for
-                      # every prompt, which would make the invariance tests vacuous.
-                      initializer_range=0.2)
-    model = Qwen2ForCausalLM(cfg).eval()
+    tok = cached_tokenizer("Qwen/Qwen2.5-0.5B-Instruct")
+    model = tiny_qwen2(tok, hidden_size=64, tie_word_embeddings=True,
+                       # The default 0.02 init makes the model emit "\n" forever for
+                       # every prompt, which would make the invariance tests vacuous.
+                       initializer_range=0.2)
     model.generation_config.eos_token_id = None  # random weights: never stop early
     fmt = ChatPromptFormatter(tok)
     framework = MagicMock()

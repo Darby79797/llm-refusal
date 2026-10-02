@@ -5,27 +5,21 @@ checkpoint weights are loaded.
 """
 import pytest
 import torch as t
-from transformers import AutoTokenizer, Qwen2Config, Qwen2ForCausalLM
 
 from capability import completion_ce
 from finetune import adapted, adapter_sites, train_adapters
 from formatting import ChatPromptFormatter
+from tests.fakes import cached_tokenizer, tiny_qwen2
 
 
 @pytest.fixture(scope="module")
 def tokenizer():
-    try:
-        return AutoTokenizer.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct", local_files_only=True)
-    except OSError:
-        pytest.skip("Qwen2.5 tokenizer not cached")
+    return cached_tokenizer("Qwen/Qwen2.5-0.5B-Instruct")
 
 
 @pytest.fixture
 def model(tokenizer):
-    t.manual_seed(0)
-    cfg = Qwen2Config(vocab_size=len(tokenizer), hidden_size=32, intermediate_size=64, num_hidden_layers=2,
-                      num_attention_heads=4, num_key_value_heads=2, max_position_embeddings=512)
-    return Qwen2ForCausalLM(cfg).float().eval()
+    return tiny_qwen2(tokenizer)
 
 
 PROMPTS = ["Give three tips for staying healthy.", "Name a colour."]

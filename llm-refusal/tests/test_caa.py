@@ -2,29 +2,19 @@
 batching don't change results, and steering touches only positions from the boundary."""
 import pytest
 import torch as t
-from transformers import AutoTokenizer, Qwen2Config, Qwen2ForCausalLM
 
 import caa
 from formatting import ChatPromptFormatter
+from tests.fakes import cached_tokenizer, tiny_qwen2
 
 QUESTION = "Is the sky blue?\n\nChoices:\n (A) Yes\n (B) No"
-
-
-def _tokenizer(name):
-    try:
-        return AutoTokenizer.from_pretrained(name, local_files_only=True)
-    except Exception as e:
-        pytest.skip(f"{name} tokenizer not cached: {e}")
 
 
 @pytest.fixture(scope="module")
 def tiny():
     """Random 3-layer Qwen2 with the real Qwen2.5 tokenizer (fp32, CPU)."""
-    tok = _tokenizer("Qwen/Qwen2.5-0.5B-Instruct")
-    t.manual_seed(0)
-    cfg = Qwen2Config(vocab_size=len(tok), hidden_size=32, intermediate_size=64, num_hidden_layers=3,
-                      num_attention_heads=4, num_key_value_heads=2, max_position_embeddings=512)
-    model = Qwen2ForCausalLM(cfg).eval()
+    tok = cached_tokenizer("Qwen/Qwen2.5-0.5B-Instruct")
+    model = tiny_qwen2(tok, num_hidden_layers=3)
     fmt = ChatPromptFormatter(tok)
     return model, tok, fmt
 
@@ -46,7 +36,7 @@ class TestEncoder:
     def test_llama2_matches_reference_tokenization(self):
         """Reference: tokenizer.encode(f"[INST] {q.strip()} [/INST] {answer}") with BOS,
         vector read at index -2, steering from the last token of "[/INST]"."""
-        tok = _tokenizer("meta-llama/Llama-2-7b-chat-hf")
+        tok = cached_tokenizer("meta-llama/Llama-2-7b-chat-hf")
         enc = caa.CAAEncoder(tok, ChatPromptFormatter(tok)).encode(QUESTION, "A")
         reference = tok.encode(f"[INST] {QUESTION.strip()} [/INST] (A)")
         assert enc.ids == reference
@@ -56,7 +46,7 @@ class TestEncoder:
 
     @pytest.mark.parametrize("name", ["Qwen/Qwen2.5-0.5B-Instruct", "meta-llama/Meta-Llama-3-8B-Instruct"])
     def test_letter_is_own_token_after_template(self, name):
-        tok = _tokenizer(name)
+        tok = cached_tokenizer(name)
         encoder = caa.CAAEncoder(tok, ChatPromptFormatter(tok))
         for letter in "AB":
             enc = encoder.encode(QUESTION, letter)

@@ -1,16 +1,14 @@
-"""Tests for cross_concept.py bug fixes:
+"""cross_concept.py and the multi-direction ablation it relies on:
 
 1. Hook-lifecycle safety: clear_interventions() must run even if evaluation raises.
 2. Joint (order-independent) multi-direction ablation via interventions.py's
-   [k, d] ablate path, replacing sequential per-direction projection removal.
+   [k, d] ablate path, not sequential per-direction projection removal.
 3. Uncentered-SVD subspace analysis (no NaN for near-identical vectors, measures the
    subspace spanned from the origin rather than variance around the centroid).
 """
 import numpy as np
 import pytest
 import torch as t
-import torch.nn as nn
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from datatypes import DirectionVector
@@ -21,34 +19,11 @@ from cross_concept import (
     measure_interference,
     run_multi_ablation,
 )
+from tests.fakes import ResidualModel, no_hooks
 
 
 def _make_direction(vec, layer=0):
     return DirectionVector(vector=vec, layer=layer, position_index=-1, score=0.0)
-
-
-class _ResidualBlock(nn.Module):
-    """Block whose output is x + attn(x) + mlp(x), so the pre-hook and both sublayer
-    post-hooks of an ablation all fire and all matter."""
-    def __init__(self, dim):
-        super().__init__()
-        self.self_attn = nn.Linear(dim, dim).double()
-        self.mlp = nn.Linear(dim, dim).double()
-
-    def forward(self, x):
-        return x + self.self_attn(x) + self.mlp(x)
-
-
-class _ResidualModel:
-    def __init__(self, dim, n_layers=2, seed=0):
-        t.manual_seed(seed)
-        self.model = SimpleNamespace(layers=nn.ModuleList([_ResidualBlock(dim) for _ in range(n_layers)]))
-        self.dtype = t.float64
-
-    def __call__(self, x):
-        for layer in self.model.layers:
-            x = layer(x)
-        return x
 
 
 def _ablated_output(model, direction, x):
@@ -78,7 +53,7 @@ class TestJointAblationOrderIndependence:
         dA, dB = _make_direction(a), _make_direction(b)
         assert (dA.unit @ dB.unit).item() == pytest.approx(0.6, abs=1e-6)
 
-        model = _ResidualModel(dim)
+        model = ResidualModel(dim, dtype=t.float64)
         x = t.randn(5, dim, dtype=t.float64)
         out_ab = _ablated_output(model, t.stack([a, b]), x)
         out_ba = _ablated_output(model, t.stack([b, a]), x)
@@ -107,10 +82,7 @@ class TestStackedAblate:
     @pytest.mark.parametrize("dtype", [t.float64, t.float32, t.bfloat16])
     def test_k1_stack_matches_vector_exactly(self, dtype):
         dim = 12
-        model = _ResidualModel(dim, seed=1)
-        for layer in model.model.layers:
-            layer.to(dtype)
-        model.dtype = dtype
+        model = ResidualModel(dim, dtype=dtype, seed=1)
         v = t.randn(dim)
         x = t.randn(4, dim).to(dtype)
         out_vec = _ablated_output(model, _make_direction(v), x)
@@ -121,13 +93,13 @@ class TestStackedAblate:
 
     def test_linearly_dependent_stack_raises(self):
         a = t.randn(10, dtype=t.float64)
-        applier = ModelInterventionApplier(_ResidualModel(10))
+        applier = ModelInterventionApplier(ResidualModel(10, dtype=t.float64))
         with pytest.raises(ValueError, match="linearly dependent"):
             applier.apply_direction_intervention(t.stack([a, 3.0 * a]), "ablate")
         assert applier.intervention_hooks == []
 
     def test_stack_only_supports_ablate(self):
-        applier = ModelInterventionApplier(_ResidualModel(10))
+        applier = ModelInterventionApplier(ResidualModel(10, dtype=t.float64))
         with pytest.raises(ValueError, match="only supports 'ablate'"):
             applier.apply_direction_intervention(t.randn(2, 10, dtype=t.float64), "add")
         assert applier.intervention_hooks == []
@@ -166,24 +138,12 @@ class TestSubspaceAnalysis:
 # ============================================================
 
 class TestHookSafety:
-    def _make_stub_model(self, n_layers=3):
-        model = MagicMock()
-        model.dtype = t.float32
-        model.model.layers = [MagicMock() for _ in range(n_layers)]
-        for layer in model.model.layers:
-            layer.self_attn = MagicMock()
-            layer.mlp = MagicMock()
-            layer.register_forward_pre_hook = MagicMock(return_value=MagicMock())
-            layer.self_attn.register_forward_hook = MagicMock(return_value=MagicMock())
-            layer.mlp.register_forward_hook = MagicMock(return_value=MagicMock())
-        return model
-
     def _make_runner(self, monkeypatch, n_concepts=1, fail_after=None):
         """CellRunner over a stub model, with _measure stubbed (no generation). Returns
         (runner, applier, calls) where calls counts _measure invocations."""
         from interventions import ModelInterventionApplier
 
-        model = self._make_stub_model()
+        model = ResidualModel(8, n_layers=3)
         applier = ModelInterventionApplier(model)
         concepts, directions = [], []
         for i in range(n_concepts):
@@ -217,14 +177,13 @@ class TestHookSafety:
         with pytest.raises(RuntimeError, match="simulated evaluation failure"):
             measure_interference(runner, ["c0"])
         assert applier.intervention_hooks == []
+        assert no_hooks(applier.transformer_layers)
 
     def test_joint_ablation_hooks_cleared_after_exception(self, monkeypatch):
         runner, _, _ = self._make_runner(monkeypatch, n_concepts=3, fail_after=0)
-        layer = runner.intervention_applier.transformer_layers[0]
         with pytest.raises(RuntimeError, match="simulated evaluation failure"):
             runner.run(["c0", "c1"], "c2")
-        handle = layer.register_forward_pre_hook.return_value
-        assert handle.remove.called
+        assert no_hooks(runner.intervention_applier.transformer_layers)
 
     def test_run_multi_ablation_reuses_interference_cells(self, monkeypatch):
         """3 concepts: 3 baselines + 9 single ablations + 3 joint ablations = 15 cells.

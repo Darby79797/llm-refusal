@@ -1,5 +1,5 @@
-"""Tests for config-plumbing fixes: --json defaults merge, pre-split data
-shape detection, and ConceptDefinition's search_config default.
+"""Config plumbing: --json defaults merge, pre-split data shape detection, and
+ConceptDefinition's search_config default.
 
 Pure config/data-shape tests — no model is loaded.
 """
@@ -13,27 +13,11 @@ from framework import normalize_train_data_result
 from concept import ConceptDefinition, DEFAULT_SEARCH_CONFIG
 
 
-# --- FIX 1: --json defaults merge ---
+# --- --json defaults merge ---
 
 def test_minimal_json_config_gets_all_defaults():
-    """The docs' own minimal example must produce a fully-populated config."""
+    """The docs' own minimal example, through parse_args(), gets every argparse default."""
     defaults = build_default_config()
-    config = apply_config_defaults({"model_name": "x", "mode": "search"})
-
-    assert config["model_name"] == "x"
-    assert config["mode"] == "search"
-    assert config["torch_dtype"] == "auto"
-    assert config["force_cpu"] is False
-    assert config["filter_prompts"] is True
-    assert config["concept"] == "refusal"
-
-    # Every argparse-derived default key must be present.
-    for key in defaults:
-        assert key in config, f"missing default key: {key}"
-
-
-def test_minimal_json_config_via_parse_args():
-    """End-to-end through parse_args() (no model loading occurs here)."""
     config = parse_args(["--json", json.dumps({"model_name": "x", "mode": "search"})])
     assert config["model_name"] == "x"
     assert config["mode"] == "search"
@@ -43,14 +27,13 @@ def test_minimal_json_config_via_parse_args():
     assert config["concept"] == "refusal"
     assert config["induce_mode"] == "single_layer"
     assert config["alpaca_max_prompts"] == 500
+    for key in defaults:
+        assert key in config, f"missing default key: {key}"
 
 
 def test_unknown_json_key_raises():
     with pytest.raises(ValueError, match="Unknown config key"):
         apply_config_defaults({"model_name": "x", "mode": "search", "bogus_typo_key": 1})
-
-
-def test_unknown_json_key_via_parse_args_exits():
     with pytest.raises(SystemExit):
         parse_args(["--json", json.dumps({"model_name": "x", "mode": "search", "bogus_typo_key": 1})])
 
@@ -63,7 +46,7 @@ def test_json_override_wins_over_default():
     assert config2["concept"] == "sycophancy"
 
 
-# --- FIX 2: pre-split data shape detection ---
+# --- pre-split data shape detection ---
 
 def test_normalize_simple_shape_lists():
     result = (["p1", "p2"], ["n1", "n2"])
@@ -91,54 +74,34 @@ def test_normalize_presplit_shape_tuples():
     assert val_neg == ["vn1", "vn2"]
 
 
-def test_normalize_malformed_shape_raises():
-    with pytest.raises(ValueError, match="unrecognized shape"):
-        normalize_train_data_result({"positive": ["p1"], "negative": ["n1"]}, "my_concept")
+@pytest.mark.parametrize("result,match", [
+    ({"positive": ["p1"], "negative": ["n1"]}, "unrecognized shape"),
+    (12345, "my_concept"),                                    # the error names the concept
+    (((["tp1"], ["tn1"]), (1, 2)), None),                     # nested non-strings aren't pre-split
+])
+def test_normalize_malformed_shape_raises(result, match):
+    with pytest.raises(ValueError, match=match):
+        normalize_train_data_result(result, "my_concept")
 
 
-def test_normalize_malformed_shape_names_concept():
-    with pytest.raises(ValueError, match="my_concept"):
-        normalize_train_data_result(12345, "my_concept")
+# --- ConceptDefinition default search_config ---
 
-
-def test_normalize_mixed_nested_non_strings_raises():
-    """Nested but non-string elements shouldn't be silently treated as pre-split."""
-    result = ((["tp1"], ["tn1"]), (1, 2))
-    with pytest.raises(ValueError):
-        normalize_train_data_result(result, "dummy")
-
-
-# --- FIX 3: ConceptDefinition default search_config ---
-
-def test_concept_definition_default_search_config_matches_module_default():
-    concept = ConceptDefinition(
-        name="test_concept",
+def _concept(name):
+    return ConceptDefinition(
+        name=name,
         train_data_fn=lambda: (["p"], ["n"]),
         eval_data_fn=lambda: (["p"], ["n"]),
         target_tokens=["I"],
         detection_phrases=["I cannot"],
     )
-    assert concept.search_config == DEFAULT_SEARCH_CONFIG
 
 
 def test_concept_definition_default_search_config_is_independent_copy():
-    concept = ConceptDefinition(
-        name="test_concept",
-        train_data_fn=lambda: (["p"], ["n"]),
-        eval_data_fn=lambda: (["p"], ["n"]),
-        target_tokens=["I"],
-        detection_phrases=["I cannot"],
-    )
+    """Defaults to DEFAULT_SEARCH_CONFIG, as a fresh copy per concept (a shared
+    mutable default would let one concept's override leak into every other)."""
+    concept = _concept("test_concept")
+    assert concept.search_config == DEFAULT_SEARCH_CONFIG
     original = copy.deepcopy(DEFAULT_SEARCH_CONFIG)
     concept.search_config["layer_cutoff_frac"] = 0.1234
     assert DEFAULT_SEARCH_CONFIG == original
-
-    # A second concept built without an explicit search_config gets a fresh copy too.
-    concept2 = ConceptDefinition(
-        name="test_concept_2",
-        train_data_fn=lambda: (["p"], ["n"]),
-        eval_data_fn=lambda: (["p"], ["n"]),
-        target_tokens=["I"],
-        detection_phrases=["I cannot"],
-    )
-    assert concept2.search_config["layer_cutoff_frac"] == DEFAULT_SEARCH_CONFIG["layer_cutoff_frac"]
+    assert _concept("test_concept_2").search_config == original
