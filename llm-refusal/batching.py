@@ -137,13 +137,14 @@ def forward_token_budget(model, memory_fraction: float = AUTO_MEMORY_FRACTION) -
 
 
 def resolve_forward_batch_size(requested: Union[str, int], model, max_tokens: int,
-                               cap: int = MAX_AUTO_BATCH_SIZE, memory_fraction: float = AUTO_MEMORY_FRACTION) -> int:
+                               cap: int = MAX_AUTO_BATCH_SIZE, memory_fraction: float = AUTO_MEMORY_FRACTION,
+                               reserve_bytes: int = 0) -> int:
     """resolve_batch_size for forward-only passes (CAA vectors / A/B probabilities)."""
     requested = parse_batch_size(requested)
     if requested != AUTO:
         return requested
     per_row = estimate_forward_bytes_per_row(model.config, model.dtype, max_tokens)
-    budget = memory_fraction * (device_total_bytes(model.device) - weight_bytes(model))
+    budget = memory_fraction * (device_total_bytes(model.device) - weight_bytes(model) - reserve_bytes)
     bs = 1
     while bs * 2 <= cap and bs * 2 * per_row <= budget:
         bs *= 2
@@ -154,9 +155,14 @@ def resolve_forward_batch_size(requested: Union[str, int], model, max_tokens: in
 
 def resolve_batch_size(requested: Union[str, int], model, prompt_formatter, prompts: Sequence[str],
                        max_new_tokens: int, cap: int = MAX_AUTO_BATCH_SIZE,
-                       memory_fraction: float = AUTO_MEMORY_FRACTION) -> int:
+                       memory_fraction: float = AUTO_MEMORY_FRACTION, reserve_bytes: int = 0) -> int:
     """An explicit int passes through; 'auto' picks the largest power of two <= cap
-    whose estimated peak fits `memory_fraction` of (device total - weights)."""
+    whose estimated peak fits `memory_fraction` of (device total - weights - reserve_bytes).
+
+    `reserve_bytes` is memory held beside the weights while the batches run, e.g. the
+    edited weight copies of orthogonalize.orthogonalized (~36% of an 8B model): without
+    it, an 8B capability run planned batches as if that copy weren't there and ran
+    out of memory."""
     requested = parse_batch_size(requested)
     if requested != AUTO:
         return requested
@@ -164,7 +170,7 @@ def resolve_batch_size(requested: Union[str, int], model, prompt_formatter, prom
         return 1
     prompt_tokens = max(int(prompt_formatter.format_batch([p])['attention_mask'].sum()) for p in prompts)
     per_row = estimate_bytes_per_row(model.config, model.dtype, prompt_tokens, max_new_tokens)
-    budget = memory_fraction * (device_total_bytes(model.device) - weight_bytes(model))
+    budget = memory_fraction * (device_total_bytes(model.device) - weight_bytes(model) - reserve_bytes)
     bs = 1
     while bs * 2 <= cap and bs * 2 * per_row <= budget:
         bs *= 2

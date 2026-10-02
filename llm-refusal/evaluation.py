@@ -1,3 +1,5 @@
+import contextlib
+import gc
 import math
 import os
 import json
@@ -22,7 +24,8 @@ from generation import generate_with_hooks
 from scoring import LogOddsMetric
 from concept import DEFAULT_REFUSAL_PHRASES
 from coherence import score_condition
-from batching import map_batched, parse_batch_size, resolve_batch_size
+from orthogonalize import edit_bytes, orthogonalized
+from batching import _empty_cache, map_batched, parse_batch_size, resolve_batch_size
 
 logger = logging.getLogger(__name__)
 
@@ -98,14 +101,25 @@ class InterventionSuite:
 #                      the residual norm; output is 100% repetition loops on every
 #                      model tested, so its "0% refusal" measures nothing.
 #   layer_specific_subtraction - near-redundant with layer ablation.
+#   orthogonalized - global ablation baked into the weights (orthogonalize.py,
+#                    Arditi §4). Should reproduce global_ablation up to bf16
+#                    rounding; run the two together to compare text directly.
 CONDITIONS = {
     "global_ablation":            ("ablate",   "all",    "positive"),
     "layer_specific_ablation":    ("ablate",   "single", "positive"),
     "layer_specific_addition":    ("add",      "single", "negative"),
     "global_addition":            ("add",      "all",    "negative"),
     "layer_specific_subtraction": ("subtract", "single", "positive"),
+    "orthogonalized":             ("orthogonalize", "all", "positive"),
 }
 DEFAULT_CONDITIONS = ("global_ablation", "layer_specific_ablation", "layer_specific_addition")
+
+
+# lm-eval batch sizes (see run_standard_evals). Generation tasks decode, so they
+# need >= 16 rows for MPS's fast path; scoring tasks are prefill-only.
+LM_EVAL_GENERATION_TASKS = {"gsm8k"}
+LM_EVAL_GENERATION_BATCH_SIZE = 16
+LM_EVAL_SCORING_BATCH_SIZE = 8
 
 
 class BigEvaluator:
@@ -128,6 +142,8 @@ class BigEvaluator:
         # permitting) for small models when throughput matters more than
         # comparability with previously logged runs.
         self.gen_batch_size = parse_batch_size(gen_batch_size)
+        # Bytes held beside the weights during generation (see batching.resolve_batch_size).
+        self.reserve_bytes = 0
         # Batches that ran out of memory and were split (see batching.map_batched).
         # Nonzero means some rows ran at a smaller batch shape than the rest.
         self.oom_splits = 0
@@ -264,7 +280,7 @@ class BigEvaluator:
         """The configured batch size, with 'auto' resolved for this prompt set and
         generation length (deterministic per machine/model; see batching.py)."""
         return resolve_batch_size(self.gen_batch_size, self.model, self.framework.prompt_formatter,
-                                  prompts, max_new_tokens)
+                                  prompts, max_new_tokens, reserve_bytes=self.reserve_bytes)
 
     def _record_split(self, chunk_size: int):
         self.oom_splits += 1
@@ -570,6 +586,11 @@ class BigEvaluator:
         results = {}
         generations = {}
         num_layers = len(self.intervention_applier.transformer_layers)
+        conditions = list(DEFAULT_CONDITIONS if conditions is None else conditions)
+        # The weight edit holds a copy of the edited weights while its condition runs;
+        # plan every condition's (shared) batch size around it.
+        if "orthogonalized" in conditions:
+            self.reserve_bytes = edit_bytes(self.model)
         # One batch size for every condition, resolved once over both prompt sets:
         # conditions are only comparable if they share it (bf16 numerics depend on it).
         bs = self.resolve_batch_size(list(positive_prompts) + list(negative_prompts), max_new_tokens)
@@ -606,7 +627,6 @@ class BigEvaluator:
                 if jbb_rate is not None:
                     condition_results["jailbreakbench_jailbreak_rate"] = jbb_rate
 
-        conditions = list(DEFAULT_CONDITIONS if conditions is None else conditions)
         unknown = [c for c in conditions if c not in CONDITIONS]
         if unknown:
             raise ValueError(f"Unknown evaluation condition(s) {unknown}; valid: {list(CONDITIONS)}")
@@ -642,12 +662,17 @@ class BigEvaluator:
             where = "All Layers" if scope == "all" else f"Layer {direction.layer}"
             logger.info(f"\n--- Evaluating {name.replace('_', ' ').title()} ({where}) ---")
             prompts = positive_prompts if side == "positive" else negative_prompts
-            self.intervention_applier.apply_direction_intervention(direction, int_type, strength, layers=layers)
+            if int_type == "orthogonalize":
+                edit = orthogonalized(self.model, direction.vector)
+            else:
+                self.intervention_applier.apply_direction_intervention(direction, int_type, strength, layers=layers)
+                edit = contextlib.nullcontext()
             try:
-                results[name] = {}
-                _run_condition(name, prompts, f"refusal_rate_on_{side}_prompts", results[name])
-                if int_type == "ablate":
-                    _extras(results[name])
+                with edit:
+                    results[name] = {}
+                    _run_condition(name, prompts, f"refusal_rate_on_{side}_prompts", results[name])
+                    if int_type in ("ablate", "orthogonalize"):
+                        _extras(results[name])
             finally:
                 self.intervention_applier.clear_interventions()
 

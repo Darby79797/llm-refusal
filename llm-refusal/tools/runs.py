@@ -33,14 +33,14 @@ TAG_RE = re.compile(r"^L(?P<layer>\d+)-P(?P<pos>-\d+)(?:-T(?P<tokens>\d+))?$")
 SIDE = {
     "baseline": "positive", "baseline_negative": "negative",
     "global_ablation": "positive", "layer_specific_ablation": "positive",
-    "layer_specific_subtraction": "positive",
+    "layer_specific_subtraction": "positive", "orthogonalized": "positive",
     "layer_specific_addition": "negative", "global_addition": "negative",
 }
 BASELINE_FOR = {"positive": "baseline", "negative": "baseline_negative"}
-CONDITION_ORDER = ["baseline", "global_ablation", "layer_specific_ablation", "layer_specific_subtraction",
+CONDITION_ORDER = ["baseline", "global_ablation", "orthogonalized", "layer_specific_ablation", "layer_specific_subtraction",
                    "baseline_negative", "layer_specific_addition", "global_addition"]
 SHORT = {"baseline": "base", "global_ablation": "abl", "layer_specific_ablation": "L-abl",
-         "layer_specific_subtraction": "L-sub", "baseline_negative": "neg-base",
+         "layer_specific_subtraction": "L-sub", "orthogonalized": "ortho", "baseline_negative": "neg-base",
          "layer_specific_addition": "add", "global_addition": "G-add"}
 
 Z = 1.959964  # 95%

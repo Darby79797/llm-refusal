@@ -849,9 +849,18 @@ def test_run_all_evaluations_reports_harmless_baseline_and_saves_generations(mon
                         lambda prompts, batch_size=None, max_new_tokens=64: [f"I'm sorry {p}" if p.startswith("h") else "Sure" for p in prompts])
     monkeypatch.setattr(evaluator, "_log_odds_metric", lambda prompts, batch_size=None: None)
     import evaluation
+    import contextlib
+    edit_active = []
+    @contextlib.contextmanager
+    def fake_orthogonalized(model, vector):
+        edit_active.append(True)
+        yield
+        edit_active.pop()
+    monkeypatch.setattr(evaluation, "orthogonalized", fake_orthogonalized)
     scored = []
     def fake_score(model, tok, fmt, entries, batch_size=4, **kwargs):
-        # must run with every intervention hook cleared
+        # must run with every intervention hook cleared and the weights restored
+        assert not edit_active
         scored.append(len(evaluator.intervention_applier.clear_interventions.call_args_list))
         for e in entries:
             e["degenerate"] = False
@@ -865,12 +874,13 @@ def test_run_all_evaluations_reports_harmless_baseline_and_saves_generations(mon
 
     gens = json_mod.loads(out.read_text())
     assert set(gens) == {"baseline", "baseline_negative", "global_ablation", "layer_specific_ablation",
-                         "layer_specific_addition", "global_addition", "layer_specific_subtraction"}
+                         "layer_specific_addition", "global_addition", "layer_specific_subtraction",
+                         "orthogonalized"}
     assert [g["prompt"] for g in gens["baseline_negative"]] == ["b1"]
     assert {k: gens["baseline"][0][k] for k in ("prompt", "response", "detected")} == {"prompt": "h1", "response": "I'm sorry h1", "detected": True}
     assert gens["baseline_negative"][0]["detected"] is False
     assert gens["global_addition"][0]["degenerate"] is False   # coherence fields persisted
-    assert scored == [6] * 7   # 5 intervention conditions + the explicit clear, all before scoring
+    assert scored == [7] * 8   # 6 intervention conditions + the explicit clear, all before scoring
 
 
 # ============================================================

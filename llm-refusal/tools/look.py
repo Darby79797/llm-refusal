@@ -136,6 +136,14 @@ def cmd_gens(ix, a):
     if a.seed is not None:
         random.Random(a.seed).shuffle(idx)
     idx = idx[:a.n]
+    if a.flip:
+        # Pair summary, e.g. global_ablation:orthogonalized should agree up to bf16 rounding.
+        same = sum(gens[x][i]["response"] == gens[y][i]["response"] for i in range(n_items))
+        flips = sum(gens[x][i]["detected"] != gens[y][i]["detected"] for i in range(n_items))
+        lg = [i for i in range(n_items) if "llamaguard" in gens[x][i] and "llamaguard" in gens[y][i]]
+        lg_note = (f", LlamaGuard verdict differs on {sum(gens[x][i]['llamaguard'] != gens[y][i]['llamaguard'] for i in lg)}/{len(lg)}"
+                   if lg else "")
+        print(f"{x} vs {y}: identical text {same}/{n_items}, label differs {flips}/{n_items}{lg_note}")
     print(f"{r.id}: {total} of {n_items} prompts match; showing {len(idx)}.  [D]=detected [X]=degenerate\n")
     for i in idx:
         print(f"#{i}  {gens[conds[0]][i]['prompt'][:a.chars]}")
