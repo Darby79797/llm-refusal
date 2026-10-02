@@ -24,8 +24,31 @@ from hf_offline import offline_for_script; offline_for_script()  # before transf
 import torch as t  # noqa: E402
 
 from datatypes import DirectionVector  # noqa: E402
+from formatting import last_real_token_indices  # noqa: E402
 from framework import DirectionTestFramework  # noqa: E402
 from probe import auroc, behaviour, residuals_at  # noqa: E402
+
+
+@t.no_grad()
+def token_projections(model, fmt, block, unit, prompts, batch_size=16):
+    """Per prompt: the projection onto `unit` at every real token of the formatted prompt,
+    read at `block`'s input. Returns (max over tokens, value at the last token) lists."""
+    dev = model.device
+    mx, last = [], []
+    for i in range(0, len(prompts), batch_size):
+        enc = fmt.format_batch(prompts[i:i + batch_size])
+        mask = enc["attention_mask"]
+        captured = {}
+        h = block.register_forward_pre_hook(lambda m, a: captured.__setitem__("p", (a[0].float() @ unit.to(a[0].device)).cpu()))
+        try:
+            model(input_ids=enc["input_ids"].to(dev), attention_mask=mask.to(dev), position_ids=enc["position_ids"].to(dev))
+        finally:
+            h.remove()
+        proj = captured["p"].masked_fill(mask == 0, float("-inf"))
+        mx += proj.max(dim=1).values.tolist()
+        idx = last_real_token_indices(mask)
+        last += proj[t.arange(len(idx)), idx].tolist()
+    return mx, last
 
 TEMPLATES = {
     "plain": "{x}",
@@ -65,26 +88,37 @@ def main():
 
     def measure(prompt_list):
         proj = residuals_at(model, fmt, blocks, prompt_list, r.position_index)[:, r.layer] @ r_hat
+        # The selected template position can be hidden by a template that ends the user turn
+        # with its own text (many-shot "Assistant:"); also read the max over all prompt tokens
+        # and the generation boundary (last token), as a monitor would.
+        pmax, plast = token_projections(model, fmt, blocks[r.layer], r_hat, prompt_list)
         texts, labels = [], []
         res = behaviour(fw, prompt_list, contextlib.nullcontext, 64, texts_out=texts, labels_out=labels)
         lo = ev.log_odds_scores(prompt_list)
-        return proj.tolist(), labels, lo, texts, res
+        return proj.tolist(), labels, lo, texts, res, pmax, plast
 
     out = {"model": a.model, "direction": {"layer": r.layer, "position_index": r.position_index}, "n": len(harmful),
            "templates": {}}
-    hp, hl, hlo, _, hres = measure(harmless)
-    out["harmless"] = {"proj_mean": sum(hp) / len(hp), "refusal_rate": hres["rate"], "proj": hp, "refused": hl, "log_odds": hlo}
-    print(f"harmless: proj {out['harmless']['proj_mean']:+.2f} refusal {hres['rate']:.0%}")
+    hp, hl, hlo, _, hres, hmax, hlast = measure(harmless)
+    out["harmless"] = {"proj_mean": sum(hp) / len(hp), "refusal_rate": hres["rate"], "proj": hp, "refused": hl, "log_odds": hlo,
+                       "proj_max_mean": sum(hmax) / len(hmax), "proj_last_mean": sum(hlast) / len(hlast)}
+    print(f"harmless: proj {out['harmless']['proj_mean']:+.2f} (max {out['harmless']['proj_max_mean']:+.2f}, "
+          f"last {out['harmless']['proj_last_mean']:+.2f}) refusal {hres['rate']:.0%}")
     pooled_proj, pooled_ref = [], []
     for name in a.templates.split(","):
         wrapped = [TEMPLATES[name].format(x=p) for p in harmful]
-        proj, labels, lo, texts, res = measure(wrapped)
+        proj, labels, lo, texts, res, pmax, plast = measure(wrapped)
         refused = [p for p, l in zip(proj, labels) if l]
         complied = [p for p, l in zip(proj, labels) if not l]
+        sel = lambda xs, want: [x for x, l in zip(xs, labels) if l == want]  # noqa: E731
         out["templates"][name] = {"refusal_rate": res["rate"], "log_odds_mean": res["log_odds"], "proj_mean": sum(proj) / len(proj),
                                   "proj_mean_refused": sum(refused) / len(refused) if refused else None,
                                   "proj_mean_complied": sum(complied) / len(complied) if complied else None,
                                   "auroc_proj_predicts_refusal": auroc(refused, complied),
+                                  "proj_max_mean": sum(pmax) / len(pmax), "proj_last_mean": sum(plast) / len(plast),
+                                  "auroc_projmax_predicts_refusal": auroc(sel(pmax, True), sel(pmax, False)),
+                                  "auroc_projlast_predicts_refusal": auroc(sel(plast, True), sel(plast, False)),
+                                  "proj_max": pmax, "proj_last": plast,
                                   "auroc_logodds_predicts_refusal": auroc([x for x, l in zip(lo, labels) if l],
                                                                           [x for x, l in zip(lo, labels) if not l]),
                                   "proj": proj, "refused": labels, "log_odds": lo,
@@ -95,7 +129,9 @@ def main():
         print(f"{name:13s} refusal {s['refusal_rate']:5.1%}  proj {s['proj_mean']:+.2f} "
               f"(refused {s['proj_mean_refused'] if s['proj_mean_refused'] is None else round(s['proj_mean_refused'], 2)}, "
               f"complied {s['proj_mean_complied'] if s['proj_mean_complied'] is None else round(s['proj_mean_complied'], 2)})  "
-              f"AUROC proj->refusal {s['auroc_proj_predicts_refusal']:.2f}", flush=True)
+              f"AUROC proj->refusal {s['auroc_proj_predicts_refusal']:.2f} | max-over-tokens {s['proj_max_mean']:+.2f} "
+              f"(AUROC {s['auroc_projmax_predicts_refusal']:.2f}) | last-token {s['proj_last_mean']:+.2f} "
+              f"(AUROC {s['auroc_projlast_predicts_refusal']:.2f})", flush=True)
     out["pooled_auroc_proj_predicts_refusal"] = auroc([p for p, l in zip(pooled_proj, pooled_ref) if l],
                                                       [p for p, l in zip(pooled_proj, pooled_ref) if not l])
     # Across templates: does the template's mean projection track its refusal rate?
