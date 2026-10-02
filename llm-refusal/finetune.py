@@ -428,8 +428,11 @@ def run_regrow(framework, direction, train_pos: List[str], train_neg: List[str],
     refusal_prompts = random.Random(seed).sample(train_pos, min(n_refusal, len(train_pos)))
     refusals = _generate_with(framework, refusal_prompts, None, direction) if refusal_prompts else []
     benign = [(a["instruction"], a["output"]) for a in load_alpaca("train")]
-    examples = benign + list(zip(refusal_prompts, refusals))
-    logger.info(f"regrow/{arm}: {len(benign)} benign + {len(refusals)} refusal examples, LoRA rank {rank}")
+    # `refusal_repeat` duplicates each refusal example, to separate "distinct examples"
+    # from "exposures" (n=4 x4 vs n=16 x1 give the same exposure count).
+    repeat = max(1, int(config.get('refusal_repeat', 1)))
+    examples = benign + list(zip(refusal_prompts, refusals)) * repeat
+    logger.info(f"regrow/{arm}: {len(benign)} benign + {len(refusals)} refusal examples x{repeat}, LoRA rank {rank}")
 
     def evaluate():
         return _behaviour(framework, eval_subset, "pos")
@@ -437,7 +440,7 @@ def run_regrow(framework, direction, train_pos: List[str], train_neg: List[str],
     results = {"model": framework.model_name, "concept": framework.concept.name,
                "direction": {"layer": direction.layer, "position_index": direction.position_index},
                "targets": arm, "modules": list(names), "rank": rank, "seed": seed,
-               "n_benign": len(benign), "n_refusal_examples": len(refusals),
+               "n_benign": len(benign), "n_refusal_examples": len(refusals), "refusal_repeat": repeat,
                "steps": config['train_steps'], "lr": config['lr'], "train_batch_size": config['train_batch_size'],
                "eval_n": len(eval_subset)}
     results["clean"] = evaluate()

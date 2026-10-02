@@ -79,6 +79,8 @@ examples:
                         help="regrow mode: LoRA on residual writers (o_proj/down_proj) or readers (q/k/v/gate/up)")
     parser.add_argument("--n-refusal-examples", type=int, default=0,
                         help="regrow mode: harmful->refusal examples mixed into the benign Alpaca data")
+    parser.add_argument("--refusal-repeat", type=int, default=1,
+                        help="regrow mode: duplicate each refusal example this many times (exposures vs distinct examples)")
     parser.add_argument("--lora-rank", type=int, default=8, help="regrow mode: adapter rank")
     parser.add_argument("--train-steps", type=int, default=200, help="rank1/regrow: optimizer steps")
     parser.add_argument("--lr", type=float, default=1e-3, help="rank1/regrow: Adam learning rate")
@@ -209,6 +211,7 @@ def _namespace_to_config(args):
         "rank1_examples_file": args.rank1_examples_file,
         "regrow_targets": args.regrow_targets,
         "n_refusal_examples": args.n_refusal_examples,
+        "refusal_repeat": args.refusal_repeat,
         "lora_rank": args.lora_rank,
         "train_steps": args.train_steps,
         "lr": args.lr,
