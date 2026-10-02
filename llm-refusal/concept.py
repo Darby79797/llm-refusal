@@ -39,6 +39,25 @@ DEFAULT_SEARCH_CONFIG = {
 }
 
 
+def normalise_apostrophes(text: str) -> str:
+    """Llama-3.x often writes typographic apostrophes ("I can\u2019t"), which every
+    phrase list and regex here (written with ASCII ') silently misses."""
+    return text.replace("\u2019", "'").replace("\u2018", "'")
+
+
+def heuristic_detect(text: str, detection_phrases: List[str],
+                     detection_fn: Optional[Callable[[str], bool]] = None) -> bool:
+    """The heuristic detection tier: `detection_fn` if given, else case-insensitive
+    phrase matching, after apostrophe normalisation. The one implementation behind
+    ConceptDefinition.detect, BigEvaluator._check_for_detection (below its API-judge
+    tier) and tools/runs.detector."""
+    text = normalise_apostrophes(text)
+    if detection_fn is not None:
+        return bool(detection_fn(text))
+    lowered = text.lower()
+    return any(phrase.lower() in lowered for phrase in detection_phrases)
+
+
 @dataclass
 class ConceptDefinition:
     """Defines a concept (e.g. refusal, sycophancy) for direction-finding experiments."""
@@ -57,6 +76,11 @@ class ConceptDefinition:
     # The direction is then the prompt contrast, and evaluate's ablation/addition
     # conditions test whether it causally moves the behavior.
     filter_by_behavior: bool = True
+
+    def detect(self, text: str) -> bool:
+        """Heuristic detection (detection_fn, else phrase matching). The API-judge
+        tier lives in BigEvaluator._check_for_detection, which falls back to this."""
+        return heuristic_detect(text, self.detection_phrases, self.detection_fn)
 
 
 # --- Registry: maps string names to factory functions ---

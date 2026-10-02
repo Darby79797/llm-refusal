@@ -15,7 +15,7 @@ class DirectionMethod(ABC):
         self.extractor = extractor
 
     @abstractmethod
-    def compute_direction_vectors(
+    def compute_difference_vectors(
         self,
         train_data: PromptData,
         max_positions: int = 5
@@ -26,7 +26,7 @@ class DirectionMethod(ABC):
 class DifferenceInMeans(DirectionMethod):
     """Calculates the difference-in-means direction vector between positive and negative prompt activations."""
 
-    def compute_direction_vectors(
+    def compute_difference_vectors(
         self,
         train_data: PromptData,
         max_positions: int = 5
@@ -34,8 +34,8 @@ class DifferenceInMeans(DirectionMethod):
         """
         Computes the difference-in-means vectors for all layer and position combinations.
         """
-        positive_prompts = [p for p, label in zip(train_data.prompts, train_data.labels) if label]
-        negative_prompts = [p for p, label in zip(train_data.prompts, train_data.labels) if not label]
+        positive_prompts = train_data.positive
+        negative_prompts = train_data.negative
 
         logger.info(f"Computing activations for {len(positive_prompts)} positive and {len(negative_prompts)} negative prompts.")
 
@@ -49,11 +49,3 @@ class DifferenceInMeans(DirectionMethod):
         }
 
         return difference_vectors
-
-    def compute_difference_vectors(
-        self,
-        train_data: PromptData,
-        max_positions: int = 5
-    ) -> Dict[Tuple[int, int], t.Tensor]:
-        """Backward-compatible alias for compute_direction_vectors."""
-        return self.compute_direction_vectors(train_data, max_positions)

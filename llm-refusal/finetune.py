@@ -239,12 +239,10 @@ def _micro_batches(lengths: List[int], max_rows: int, max_tokens: int) -> List[s
 
 def _generate_with(framework, prompts: List[str], intervention: Optional[Tuple[str, List[int]]], direction):
     applier = framework.intervention_applier
-    if intervention is not None:
-        applier.apply_direction_intervention(direction, intervention[0], 1.0, layers=intervention[1])
-    try:
+    ctx = (applier.intervened(direction, intervention[0], 1.0, layers=intervention[1])
+           if intervention is not None else contextlib.nullcontext())
+    with ctx:
         return framework.evaluator.generate_responses(prompts, max_new_tokens=TARGET_TOKENS)
-    finally:
-        applier.clear_interventions()
 
 
 def _behaviour(framework, prompts: List[str], key: str) -> Dict[str, float]:
@@ -258,7 +256,7 @@ def _behaviour(framework, prompts: List[str], key: str) -> Dict[str, float]:
 def _save(framework, mode: str, tag: str, results: Dict, adapters: List[LowRankAdapter]) -> str:
     out_dir = os.path.join("results", "finetune")
     os.makedirs(out_dir, exist_ok=True)
-    stem = os.path.join(out_dir, f"{framework.model_name.split('/')[-1]}-{framework.concept.name}-{mode}"
+    stem = os.path.join(out_dir, f"{framework.model_short}-{framework.concept.name}-{mode}"
                                  + (f"-{tag}" if tag else ""))
     with open(stem + ".json", "w") as f:
         json.dump(results, f, indent=1)

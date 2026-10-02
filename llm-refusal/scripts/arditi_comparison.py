@@ -23,11 +23,10 @@ For each condition, computes the direction (diff-in-means) and evaluates:
 Expected runtime: ~10-15 min on M4 Mac (single model, loaded once).
 """
 import os
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import time
@@ -127,8 +126,8 @@ def evaluate_condition(framework, direction, val_data, concept, use_raw, label):
     )
     metric = evaluator.metric
 
-    val_pos = [p for p, l in zip(val_data.prompts, val_data.labels) if l]
-    val_neg = [p for p, l in zip(val_data.prompts, val_data.labels) if not l]
+    val_pos = val_data.positive
+    val_neg = val_data.negative
 
     # Baseline
     baseline_neg_logits = evaluator._get_logits(val_neg)

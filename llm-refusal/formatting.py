@@ -51,6 +51,25 @@ def last_real_token_indices(attention_mask: t.Tensor) -> t.Tensor:
     return attention_mask.sum(dim=1) - 1
 
 
+def pad_rows(seqs: List[List[int]], pad_id: int) -> Dict[str, t.Tensor]:
+    """Right-pad token-id lists into a batch (CPU tensors).
+
+    Returns input_ids, attention_mask and position_ids. Positions are
+    cumsum(mask) - 1 on real tokens (each row starts at 0, as format_batch
+    does) and the inert sentinel 1 on pad slots, which are masked out of
+    attention and whose outputs are discarded.
+    """
+    width = max(len(s) for s in seqs)
+    input_ids = t.full((len(seqs), width), pad_id, dtype=t.long)
+    attention_mask = t.zeros((len(seqs), width), dtype=t.long)
+    for j, s in enumerate(seqs):
+        input_ids[j, :len(s)] = t.tensor(s, dtype=t.long)
+        attention_mask[j, :len(s)] = 1
+    position_ids = attention_mask.cumsum(-1) - 1
+    position_ids.masked_fill_(attention_mask == 0, 1)
+    return {'input_ids': input_ids, 'attention_mask': attention_mask, 'position_ids': position_ids}
+
+
 class ChatPromptFormatter:
     """
     A helper class to correctly format prompts.
@@ -277,15 +296,9 @@ class ChatPromptFormatter:
             rows.append(prefix + c_ids)
             # Raw text with no BOS: the first token has nothing predicting it.
             starts.append(max(len(prefix), 1))
-        width = max(len(r) for r in rows)
-        input_ids = t.full((len(rows), width), pad_id, dtype=t.long)
-        attention_mask = t.zeros((len(rows), width), dtype=t.long)
-        labels = t.full((len(rows), width), -100, dtype=t.long)
+        enc = pad_rows(rows, pad_id)
+        labels = t.full_like(enc['input_ids'], -100)
         for j, (row, start) in enumerate(zip(rows, starts)):
-            input_ids[j, :len(row)] = t.tensor(row)
-            attention_mask[j, :len(row)] = 1
-            labels[j, start:len(row)] = input_ids[j, start:len(row)]
-        position_ids = attention_mask.cumsum(-1) - 1
-        position_ids.masked_fill_(attention_mask == 0, 1)
-        return {'input_ids': input_ids, 'attention_mask': attention_mask,
-                'position_ids': position_ids, 'labels': labels}
+            labels[j, start:len(row)] = enc['input_ids'][j, start:len(row)]
+        enc['labels'] = labels
+        return enc

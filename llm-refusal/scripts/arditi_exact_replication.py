@@ -17,11 +17,10 @@ Usage:
   python llm-refusal/scripts/arditi_exact_replication.py 2>&1 | tee results/arditi_exact_replication.log
 """
 import os
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import time
@@ -33,7 +32,8 @@ import logging
 from framework import DirectionTestFramework
 from datatypes import PromptData, DirectionVector
 from generation import generate_with_hooks
-from concept import DEFAULT_REFUSAL_PHRASES
+from formatting import last_real_token_indices
+from concept import get_concept
 from prompts import create_arditi_replication_data, create_arditi_replication_eval_data
 
 logging.basicConfig(
@@ -64,7 +64,7 @@ def compute_log_odds(model, tokenizer, formatter, prompts, target_token_ids):
         outputs = model(input_ids=input_ids, attention_mask=attention_mask)
 
     # Get logits at last real token for each prompt
-    last_token_indices = attention_mask.sum(dim=1) - 1
+    last_token_indices = last_real_token_indices(attention_mask)
     batch_logits = outputs.logits[t.arange(len(prompts)), last_token_indices, :]
 
     target_ids = t.tensor(target_token_ids, device=batch_logits.device)
@@ -93,7 +93,7 @@ def compute_kl_divergence(model, tokenizer, formatter, prompts,
     # Baseline logits
     with t.no_grad():
         baseline_outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-    last_token_indices = attention_mask.sum(dim=1) - 1
+    last_token_indices = last_real_token_indices(attention_mask)
     baseline_logits = baseline_outputs.logits[t.arange(len(prompts)), last_token_indices, :]
 
     # Ablated logits (all layers)
@@ -194,12 +194,11 @@ def select_best_direction(framework, directions, val_pos, val_neg,
 
 # ── Evaluation ───────────────────────────────────────────────────────────────
 
+ARDITI_REFUSAL = get_concept("refusal_arditi_exact")  # Arditi's exact phrase list
+
+
 def classify_response(text):
-    lower = text.lower()
-    for phrase in DEFAULT_REFUSAL_PHRASES:
-        if phrase.lower() in lower:
-            return True
-    return False
+    return ARDITI_REFUSAL.detect(text)
 
 
 def evaluate_detection_rate(framework, prompts, max_new_tokens=MAX_NEW_TOKENS):

@@ -4,14 +4,7 @@ import pytest
 import warnings
 import logging
 
-# Must be set before importing any ML libraries
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
-# Bound the MPS caching allocator so it GCs / raises OOM instead of swapping
-# (see batching.MPS_WATERMARKS; duplicated here because it must precede torch).
-# LOW must not exceed HIGH (PyTorch refuses to start), so derive it unless set.
-_high = os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
-os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", str(min(0.6, 0.75 * float(_high))))
+from env import setup_process_env; setup_process_env()  # before torch is imported
 # Offline when the Hub is unreachable (cached test models then still load).
 from hf_offline import offline_for_script  # noqa: E402
 offline_for_script(argv=[])
@@ -87,15 +80,11 @@ def real_tiny_model_and_tokenizer(tiny_model_name):
 
 
 # --- Fixtures for generation tests ---
-#GENERATION_TEST_MODELS = ["gpt2", "roneneldan/TinyStories-1M", "google/gemma-3-270m"]#, "Qwen/Qwen1.5-1.8B"] # add gemma, qwen, llama, etc
 GENERATION_TEST_MODELS = [
     "google/gemma-3-1b-pt",
-    "google/gemma-3-1b-it", # Expected to fail. Fails
-    #"Qwen/Qwen1.5-1.8B-Chat", # Expected to pass, but doesn't
-    #"openai-community/gpt2",
+    "google/gemma-3-1b-it",
     "openai-community/gpt2-xl",
 ]
-#GENERATION_TEST_MODELS = ["Qwen/Qwen1.5-1.8B"]
 @pytest.fixture(scope="session", params=GENERATION_TEST_MODELS)
 def model_and_tokenizer(request):
     """

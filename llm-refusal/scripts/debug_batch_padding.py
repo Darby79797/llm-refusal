@@ -1,8 +1,7 @@
 import os
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import torch as t

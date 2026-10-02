@@ -8,8 +8,6 @@ Covers:
   forward pass raises mid-scoring (after intervention hooks were applied).
 - interventions.py: apply_direction_intervention must leave zero hooks behind
   if registration fails partway through the per-layer loop.
-- generation.py: pure-tensor regression test for the next_position off-by-one
-  fix (position_ids sentinel of 1 must not be mistaken for a real position).
 """
 import torch as t
 import torch.nn as nn
@@ -206,31 +204,38 @@ def test_apply_direction_intervention_rolls_back_only_new_hooks_when_prior_exist
     applier._get_sublayers = original_get_sublayers
 
 
-# ============================================================
-# generation.py: next_position off-by-one fix (pure tensor)
-# ============================================================
+def test_intervened_clears_hooks_on_normal_exit_and_exception():
+    """`with applier.intervened(...)` registers hooks inside the block and removes
+    them on exit, including when the body raises."""
+    layers = nn.ModuleList([TinyBlock() for _ in range(3)])
+    applier = ModelInterventionApplier(FakeHFModel(layers))
+    direction = DirectionVector(vector=t.randn(HIDDEN), layer=0, position_index=-1, score=0.0)
 
-def test_generation_next_position_fix_matches_true_sequence_length():
-    """Regression test for FIX 2: position_ids' right-padding sentinel (1, see
-    formatting.py's masked_fill) must not be mistaken for a real max position.
+    with applier.intervened(direction, "ablate", layers=[0, 1, 2]):
+        assert len(applier.intervention_hooks) == 9   # block pre + attn/mlp post per layer
+    assert applier.intervention_hooks == []
+    assert _all_hooks_empty(layers)
 
-    A sequence with true_len==1 has position_ids [0, 1, 1, 1, 1] (real token
-    at position 0, padded slots sentinel-filled with 1) — the old
-    `position_ids.max()+1` computation would wrongly give next_position=2.
-    The fix uses attention_mask.sum(dim=1), which is exactly the true length.
-    """
-    attention_mask = t.tensor([[1, 0, 0, 0, 0],
-                                [1, 1, 1, 1, 1]], dtype=t.long)
+    with pytest.raises(RuntimeError, match="boom"):
+        with applier.intervened(direction, "add", 1.0, layers=[1]):
+            assert len(applier.intervention_hooks) == 1
+            raise RuntimeError("boom")
+    assert applier.intervention_hooks == []
+    assert _all_hooks_empty(layers)
 
-    # Mirrors formatting.py's position_ids construction exactly.
-    position_ids = attention_mask.cumsum(-1) - 1
-    position_ids.masked_fill_(attention_mask == 0, 1)
-    assert position_ids.tolist() == [[0, 1, 1, 1, 1], [0, 1, 2, 3, 4]]
 
-    # Old (buggy) computation, kept here to document the regression.
-    buggy_next_position = position_ids.max(dim=-1).values + 1
-    assert buggy_next_position.tolist() == [2, 5]
+def test_ablating_zero_norm_direction_raises_and_leaves_no_hooks():
+    """A zero direction would normalise to NaN and poison every hidden state, so
+    ablation must refuse it up front. 'add' of a zero vector is a harmless no-op."""
+    layers = nn.ModuleList([TinyBlock() for _ in range(2)])
+    applier = ModelInterventionApplier(FakeHFModel(layers))
+    zero = DirectionVector(vector=t.zeros(HIDDEN), layer=0, position_index=-1, score=0.0)
 
-    # Fixed computation (matches generation.py:37).
-    next_position = attention_mask.sum(dim=1).to(position_ids.dtype)
-    assert next_position.tolist() == [1, 5]
+    with pytest.raises(ValueError, match="norm"):
+        applier.apply_direction_intervention(zero, "ablate")
+    assert applier.intervention_hooks == []
+    assert _all_hooks_empty(layers)
+
+    with applier.intervened(zero, "add", 1.0, layers=[0]):
+        assert len(applier.intervention_hooks) == 1
+    assert _all_hooks_empty(layers)

@@ -30,17 +30,6 @@ def is_cached(model_name: str, cache_dir: Optional[str] = None) -> bool:
     return False
 
 
-def use_offline_if_cached(model_name: Optional[str], needs_network: bool = False) -> bool:
-    """Set HF_HUB_OFFLINE=1 if `model_name` is fully cached, unless the user set it
-    explicitly or the run needs the Hub for something else (datasets, lm-eval)."""
-    if not model_name or needs_network or "HF_HUB_OFFLINE" in os.environ:
-        return False
-    if is_cached(model_name):
-        os.environ["HF_HUB_OFFLINE"] = "1"
-        return True
-    return False
-
-
 OFFLINE_ENV = {"HF_HUB_OFFLINE": "1", "HF_DATASETS_OFFLINE": "1"}
 
 _TASKS_PROBE = """

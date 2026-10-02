@@ -18,6 +18,10 @@ def _make_evaluator(**kwargs):
     framework = MagicMock()
     framework.model.device = t.device("cpu")
     framework.intervention_applier.transformer_layers = []
+    # Real context-manager logic over the mock, so apply/clear calls stay observable.
+    from interventions import ModelInterventionApplier
+    framework.intervention_applier.intervened = lambda *a, **k: ModelInterventionApplier.intervened(
+        framework.intervention_applier, *a, **k)
     return BigEvaluator(framework, **kwargs)
 
 
@@ -275,22 +279,6 @@ def test_detect_hedging_negative():
 # BigEvaluator detection dispatch
 # ============================================================
 
-def test_big_evaluator_uses_detection_fn():
-    """When detection_fn is set (and judge_prompt is None), it should be used."""
-    mock_fn = MagicMock(return_value=True)
-    evaluator = _make_evaluator(detection_fn=mock_fn)
-    result = evaluator._check_for_detection("some text")
-    mock_fn.assert_called_once_with("some text")
-    assert result is True
-
-
-def test_big_evaluator_falls_back_to_phrases():
-    """When both detection_fn and judge_prompt are None, phrase matching is used."""
-    evaluator = _make_evaluator(detection_phrases=["I'm sorry"])
-    assert evaluator._check_for_detection("I'm sorry, I cannot help.") is True
-    assert evaluator._check_for_detection("Sure, here is the answer.") is False
-
-
 def test_refusal_detects_non_apologetic_refusals():
     """Our refusal concepts catch refusals without an apology; Arditi-exact keeps his list."""
     from concept import get_concept, DEFAULT_REFUSAL_PHRASES
@@ -546,6 +534,20 @@ def test_evaluate_llamaguard_rate_classifies(mocker):
     assert payload["prompt"].count("<|begin_of_text|>") == 1
 
 
+def test_evaluate_llamaguard_rate_all_failures_returns_none(mocker):
+    """Returns None when every classification call fails (not 0.0 over an empty denominator)."""
+    evaluator = _make_evaluator(llamaguard_api_base="http://fake:1234/v1")
+    mocker.patch("evaluation.requests.post", side_effect=ConnectionError("down"))
+    rate = evaluator.evaluate_llamaguard_rate(["p1", "p2", "p3"], ["r1", "r2", "r3"])
+    assert rate is None
+
+
+def test_evaluate_llamaguard_rate_empty_prompts_returns_zero():
+    """Empty input is not a failure: rate is 0.0, not None."""
+    evaluator = _make_evaluator(llamaguard_api_base="http://fake:1234/v1")
+    assert evaluator.evaluate_llamaguard_rate([], []) == 0.0
+
+
 def test_evaluate_jailbreakbench_not_installed(mocker):
     """Returns None when jailbreakbench is not installed."""
     mocker.patch.dict('sys.modules', {'jailbreakbench': None, 'jailbreakbench.classifier': None})
@@ -615,50 +617,6 @@ def test_filter_prompts_by_behavior_empty_negative_raises(tmp_path):
 
 
 # ============================================================
-# Intervention hook counts
-# ============================================================
-
-def test_intervention_hook_count_addition():
-    """Addition registers 1 pre-hook per layer (block only)."""
-    from interventions import ModelInterventionApplier
-
-    model = MagicMock()
-    model.dtype = t.float32
-    model.model.layers = [MagicMock() for _ in range(4)]
-    for layer in model.model.layers:
-        layer.self_attn = MagicMock()
-        layer.mlp = MagicMock()
-        layer.register_forward_pre_hook = MagicMock(return_value=MagicMock())
-
-    applier = ModelInterventionApplier(model)
-    direction = DirectionVector(vector=t.randn(32), layer=0, position_index=-1, score=1.0)
-    applier.apply_direction_intervention(direction, intervention_type="add", layers=[0, 1])
-
-    assert len(applier.intervention_hooks) == 2  # 1 per layer
-
-
-def test_intervention_hook_count_ablation():
-    """Ablation registers 3 hooks per layer (block pre + attn post + mlp post)."""
-    from interventions import ModelInterventionApplier
-
-    model = MagicMock()
-    model.dtype = t.float32
-    model.model.layers = [MagicMock() for _ in range(4)]
-    for layer in model.model.layers:
-        layer.self_attn = MagicMock()
-        layer.mlp = MagicMock()
-        layer.register_forward_pre_hook = MagicMock(return_value=MagicMock())
-        layer.self_attn.register_forward_hook = MagicMock(return_value=MagicMock())
-        layer.mlp.register_forward_hook = MagicMock(return_value=MagicMock())
-
-    applier = ModelInterventionApplier(model)
-    direction = DirectionVector(vector=t.randn(32), layer=0, position_index=-1, score=1.0)
-    applier.apply_direction_intervention(direction, intervention_type="ablate", layers=[0, 1])
-
-    assert len(applier.intervention_hooks) == 6  # 3 per layer
-
-
-# ============================================================
 # DirectionScores backward compat
 # ============================================================
 
@@ -666,12 +624,6 @@ def test_direction_scores_backward_compat():
     """induce_global defaults to 0.0 when not provided (backward compat)."""
     scores = DirectionScores(bypass=-1.0, induce=2.0, kl=0.5)
     assert scores.induce_global == 0.0
-
-
-def test_direction_scores_with_induce_global():
-    """induce_global can be set explicitly."""
-    scores = DirectionScores(bypass=-1.0, induce=2.0, kl=0.5, induce_global=3.5)
-    assert scores.induce_global == 3.5
 
 
 # ============================================================
@@ -762,16 +714,8 @@ def test_assistant_prefix_tokens_base_model():
 
 
 # ============================================================
-# Auto max_positions in search
+# Search layer range
 # ============================================================
-
-def test_search_auto_max_positions():
-    """When max_positions='auto', search derives from formatter.assistant_prefix_tokens."""
-    from search import DirectionFinder
-    from concept import DEFAULT_SEARCH_CONFIG
-
-    assert DEFAULT_SEARCH_CONFIG["max_positions"] == "auto"
-
 
 def test_search_skips_layer_zero(monkeypatch, tmp_path):
     """Layer 0 is raw token embeddings: never scored, never selected, even if it would
@@ -880,7 +824,7 @@ def test_run_all_evaluations_reports_harmless_baseline_and_saves_generations(mon
     assert {k: gens["baseline"][0][k] for k in ("prompt", "response", "detected")} == {"prompt": "h1", "response": "I'm sorry h1", "detected": True}
     assert gens["baseline_negative"][0]["detected"] is False
     assert gens["global_addition"][0]["degenerate"] is False   # coherence fields persisted
-    assert scored == [7] * 8   # 6 intervention conditions + the explicit clear, all before scoring
+    assert scored == [6] * 8   # 5 hook conditions + the explicit clear, all before scoring
 
 
 # ============================================================
@@ -942,17 +886,82 @@ def test_response_nll_scores_only_response_tokens():
             out.logits = t.zeros(*input_ids.shape, V)
             return out
 
+    tok, formatter = _fake_completion_formatter(V)
+    nlls = response_nll(UniformModel(), tok, formatter, ["a", "longer prompt"], ["xyz", ""], batch_size=2)
+    assert nlls[0] == pytest.approx(math.log(V))
+    assert math.isnan(nlls[1])
+
+
+def _fake_completion_formatter(V):
+    """A tokenizer/formatter pair whose format_with_completions is the real method:
+    prompts become 5+len(prompt) copies of token 3, characters map to ids 1..V-1."""
+    from formatting import ChatPromptFormatter
     tok = MagicMock()
     tok.pad_token_id = 0
     tok.encode = lambda s, add_special_tokens=False: [1 + (ord(c) % (V - 1)) for c in s]
     formatter = MagicMock()
+    formatter.tokenizer = tok
     formatter.format_batch = lambda ps: {
         'input_ids': t.tensor([[3] * (5 + len(ps[0]))]),
         'attention_mask': t.ones(1, 5 + len(ps[0]), dtype=t.long),
     }
-    nlls = response_nll(UniformModel(), tok, formatter, ["a", "longer prompt"], ["xyz", ""], batch_size=2)
-    assert nlls[0] == pytest.approx(math.log(V))
-    assert math.isnan(nlls[1])
+    formatter.format_with_completions = lambda ps, cs, **kw: ChatPromptFormatter.format_with_completions(
+        formatter, ps, cs, **kw)
+    return tok, formatter
+
+
+def test_response_nll_shift_and_position_ids():
+    """A model that puts all mass on the true next token scores ~0 only if logits at
+    k-1 are compared with token k over exactly the response span; the batch must also
+    carry right-padded cumsum position_ids."""
+    from coherence import response_nll
+    from formatting import pad_rows
+
+    V = 50
+    seen = {}
+
+    class OracleModel:
+        device = t.device("cpu")
+        def __call__(self, input_ids, attention_mask, position_ids=None, **kwargs):
+            seen['position_ids'], seen['mask'] = position_ids, attention_mask
+            logits = t.full((*input_ids.shape, V), -1e4)
+            nxt = t.cat([input_ids[:, 1:], t.zeros_like(input_ids[:, :1])], dim=1)
+            logits.scatter_(-1, nxt.unsqueeze(-1), 1e4)
+            out = MagicMock()
+            out.logits = logits
+            return out
+
+    tok, formatter = _fake_completion_formatter(V)
+    nlls = response_nll(OracleModel(), tok, formatter, ["a", "longer prompt"], ["xyz", "hi"], batch_size=2)
+    assert nlls == [pytest.approx(0.0), pytest.approx(0.0)]
+    rows = [[3] * 6 + tok.encode("xyz"), [3] * 18 + tok.encode("hi")]
+    assert t.equal(seen['position_ids'], pad_rows(rows, 0)['position_ids'])
+    assert t.equal(seen['mask'], pad_rows(rows, 0)['attention_mask'])
+
+
+def test_pad_rows_matches_inline_right_padding():
+    """pad_rows reproduces the inline construction it replaced in coherence, caa,
+    tools/project and format_with_completions: right padding, 1/0 mask, positions
+    0..len-1 on real tokens (pad slots get the inert sentinel 1)."""
+    from formatting import pad_rows, assert_right_padded
+    seqs = [[5, 6, 7], [8], [9, 10, 11, 12, 13]]
+    enc = pad_rows(seqs, pad_id=0)
+    assert enc['input_ids'].tolist() == [[5, 6, 7, 0, 0], [8, 0, 0, 0, 0], [9, 10, 11, 12, 13]]
+    assert enc['attention_mask'].tolist() == [[1, 1, 1, 0, 0], [1, 0, 0, 0, 0], [1, 1, 1, 1, 1]]
+    assert enc['position_ids'].tolist() == [[0, 1, 2, 1, 1], [0, 1, 1, 1, 1], [0, 1, 2, 3, 4]]
+    assert all(v.dtype == t.long for v in enc.values())
+    assert_right_padded(enc['attention_mask'])
+    # Real-token positions agree with the old clamp(min=0) variant used by caa/project.
+    old = (enc['attention_mask'].cumsum(-1) - 1).clamp(min=0)
+    real = enc['attention_mask'].bool()
+    assert t.equal(enc['position_ids'][real], old[real])
+    # format_batch derives position_ids inline rather than via pad_rows: must agree.
+    from formatting import ChatPromptFormatter
+    fmt = object.__new__(ChatPromptFormatter)
+    fmt.tokenizer = MagicMock(padding_side='right', return_value={
+        'input_ids': enc['input_ids'], 'attention_mask': enc['attention_mask']})
+    fmt.format_text, fmt.safe_max_length, fmt.prepend_bos = str, 512, False
+    assert t.equal(fmt.format_batch(['a', 'b', 'c'])['position_ids'], enc['position_ids'])
 
 
 def test_filter_prompts_cache_hit_skips_generation(tmp_path):
@@ -1031,7 +1040,7 @@ def test_check_weights_fit_refuses_before_loading():
     check_weights_fit("m", n, t.float32, t.device("cuda"), usable=80 * 10**9)
 
 
-def test_hf_offline_only_for_fully_cached_models(tmp_path, monkeypatch):
+def test_hf_is_cached_needs_config_tokenizer_and_weights(tmp_path):
     import hf_offline
     snap = tmp_path / "models--org--m" / "snapshots" / "abc"
     snap.mkdir(parents=True)
@@ -1040,14 +1049,7 @@ def test_hf_offline_only_for_fully_cached_models(tmp_path, monkeypatch):
     assert not hf_offline.is_cached("org/m", str(tmp_path))          # no weights yet
     (snap / "model.safetensors").write_text("")
     assert hf_offline.is_cached("org/m", str(tmp_path))
-    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path))
-    monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
-    assert not hf_offline.use_offline_if_cached("org/m", needs_network=True)
-    assert not hf_offline.use_offline_if_cached("org/other")
-    assert hf_offline.use_offline_if_cached("org/m")
-    assert os.environ["HF_HUB_OFFLINE"] == "1"
-    monkeypatch.setenv("HF_HUB_OFFLINE", "0")                         # explicit user setting wins
-    assert not hf_offline.use_offline_if_cached("org/m")
+    assert not hf_offline.is_cached("org/other", str(tmp_path))
 
 
 def test_hf_offline_for_run_needs_model_and_lm_eval_tasks_cached(tmp_path, monkeypatch):

@@ -13,11 +13,10 @@ Usage:
   python llm-refusal/scripts/arditi_raw_addition.py 2>&1 | tee results/arditi_raw_addition.log
 """
 import os
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import json
@@ -28,7 +27,8 @@ import logging
 from framework import DirectionTestFramework
 from datatypes import PromptData, DirectionVector
 from generation import generate_with_hooks
-from concept import DEFAULT_REFUSAL_PHRASES
+from concept import get_concept
+from coherence import is_garbled
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,28 +53,15 @@ def load_arditi_data():
     return harmful[:200], harmless[:1000], harmless[1000:1080]
 
 
-def is_garbled(text: str) -> bool:
-    ascii_chars = sum(1 for c in text if ord(c) < 128)
-    total_chars = len(text.strip())
-    if total_chars < 10:
-        return True
-    if total_chars > 0 and ascii_chars / total_chars < 0.5:
-        return True
-    if total_chars > 30:
-        for i in range(0, min(len(text) - 30, 100)):
-            chunk = text[i:i+10]
-            if text.count(chunk) >= 3 and len(chunk.strip()) > 3:
-                return True
-    return False
+# Arditi's exact phrase list (refusal_arditi_exact), via the concept's detector.
+ARDITI_REFUSAL = get_concept("refusal_arditi_exact")
 
 
 def classify_response(text: str) -> str:
     if is_garbled(text):
         return "GARBLED"
-    lower = text.lower()
-    for phrase in DEFAULT_REFUSAL_PHRASES:
-        if phrase.lower() in lower:
-            return "DETECTED"
+    if ARDITI_REFUSAL.detect(text):
+        return "DETECTED"
     return "NORMAL"
 
 

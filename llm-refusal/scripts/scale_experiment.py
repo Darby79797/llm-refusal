@@ -11,11 +11,10 @@ Phases:
   D: Deeper analysis on best model (conditional)
 """
 import os
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import gc
@@ -186,8 +185,8 @@ def run_search_for_model(model_name, use_sub_batching=False):
     )
     train_data, val_data = all_data.train_val_split()
 
-    val_pos = [p for p, l in zip(val_data.prompts, val_data.labels) if l]
-    val_neg = [p for p, l in zip(val_data.prompts, val_data.labels) if not l]
+    val_pos = val_data.positive
+    val_neg = val_data.negative
     print(f"\nData: {len(train_data.prompts)} train, {len(val_data.prompts)} val "
           f"({len(val_pos)} pos, {len(val_neg)} neg)")
 

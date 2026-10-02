@@ -153,7 +153,7 @@ def run_capability(framework, direction, config: Dict) -> Dict:
 
     out_dir = os.path.join("results", "capability")
     os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, f"{framework.model_name.split('/')[-1]}-{framework.concept.name}"
+    path = os.path.join(out_dir, f"{framework.model_short}-{framework.concept.name}"
                                  f"-L{direction.layer}-P{direction.position_index}.json")
     with open(path, "w") as f:
         json.dump(results, f, indent=1)

@@ -41,6 +41,8 @@ from typing import Dict, Iterator, List, Optional, Tuple
 import torch as t
 import torch.nn as nn
 
+from batching import _empty_cache
+
 logger = logging.getLogger(__name__)
 
 # Rows of the embedding edited per step, bounding the fp32 working copy
@@ -172,13 +174,6 @@ def _synchronize() -> None:
         t.cuda.synchronize()
 
 
-def _release_cached_memory() -> None:
-    if t.backends.mps.is_available():
-        t.mps.empty_cache()
-    if t.cuda.is_available():
-        t.cuda.empty_cache()
-
-
 def _orthogonalize_(weight: t.Tensor, basis: t.Tensor, kind: str) -> None:
     """In place: project span(basis) out of `weight`'s residual-stream side, in chunks.
     Same fp32 arithmetic per element as _orthogonalized_weight, so the same result."""
@@ -279,7 +274,7 @@ def _orthogonalized_in_place(model, direction, writers: Writers, files: Dict[str
                     p.copy_(_orthogonalized_bias(p, basis))
                 else:
                     _orthogonalize_(p.data, basis, kind)
-        _release_cached_memory()   # the fp32 working chunks, so the edit holds nothing extra
+        _empty_cache()   # the fp32 working chunks, so the edit holds nothing extra
         logger.info(f"Orthogonalised {len(targets)} residual-stream tensors in place "
                     f"against a rank-{basis.shape[0]} subspace")
         yield

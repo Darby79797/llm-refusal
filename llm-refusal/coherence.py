@@ -44,45 +44,62 @@ def is_degenerate(token_ids: List[int]) -> bool:
     return ratio is not None and ratio < DEGENERATE_DISTINCT_BIGRAM_RATIO
 
 
+def is_garbled(text: str) -> bool:
+    """Legacy text-level breakage flag used by the standalone replication scripts.
+
+    NOT the same signal as is_degenerate (the framework's breakage flag, a token
+    distinct-bigram ratio). This also flags responses under 10 characters (after strip())
+    and responses under 50% ASCII (so any non-Latin-script answer), and its
+    repetition check only looks for a 10-char chunk in the first ~100 offsets recurring
+    3+ times. Kept as-is so those scripts' GARBLED counts stay comparable to their
+    logged results; new code should use is_degenerate.
+    """
+    ascii_chars = sum(1 for c in text if ord(c) < 128)
+    total_chars = len(text.strip())
+    if total_chars < 10:
+        return True
+    if total_chars > 0 and ascii_chars / total_chars < 0.5:
+        return True
+    if total_chars > 30:
+        for i in range(0, min(len(text) - 30, 100)):
+            chunk = text[i:i+10]
+            if text.count(chunk) >= 3 and len(chunk.strip()) > 3:
+                return True
+    return False
+
+
 def response_nll(model, tokenizer, prompt_formatter: ChatPromptFormatter,
                  prompts: List[str], responses: List[str], batch_size: int = 4,
                  on_split=None) -> List[float]:
     """Mean per-token NLL of each response given its prompt, under `model` as-is.
 
-    Callers must ensure no intervention hooks are active. Rows are built as
-    [formatted prompt | response tokens] and right-padded; only response tokens
-    are scored. Empty responses give nan.
+    Callers must ensure no intervention hooks are active. Rows come from
+    `prompt_formatter.format_with_completions` ([formatted prompt | response
+    tokens], right-padded, with position_ids); only response tokens (labels !=
+    -100) are scored. Empty responses give nan.
     """
     device = model.device
-    pad_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
 
     def score_batch(pairs):
-        rows, spans = [], []
-        for prompt, response in pairs:
-            enc = prompt_formatter.format_batch([prompt])
-            p_ids = enc['input_ids'][0][enc['attention_mask'][0].bool()].tolist()
-            r_ids = tokenizer.encode(response, add_special_tokens=False)
-            rows.append(p_ids + r_ids)
-            spans.append((len(p_ids), len(r_ids)))
-        width = max(len(r) for r in rows)
-        ids = t.full((len(rows), width), pad_id, dtype=t.long)
-        mask = t.zeros((len(rows), width), dtype=t.long)
-        for j, r in enumerate(rows):
-            ids[j, :len(r)] = t.tensor(r)
-            mask[j, :len(r)] = 1
+        enc = prompt_formatter.format_with_completions([p for p, _ in pairs], [r for _, r in pairs])
+        labels = enc['labels']
         with t.no_grad():
             # use_cache=False: a KV cache here is never read and only costs memory.
-            logits = model(input_ids=ids.to(device), attention_mask=mask.to(device), use_cache=False).logits
+            logits = model(input_ids=enc['input_ids'].to(device), attention_mask=enc['attention_mask'].to(device),
+                           position_ids=enc['position_ids'].to(device), use_cache=False).logits
         scores = []
-        for j, (p_len, r_len) in enumerate(spans):
-            if r_len == 0:
+        for j in range(len(pairs)):
+            span = (labels[j] != -100).nonzero().flatten()
+            if len(span) == 0:
                 scores.append(float('nan'))
                 continue
-            # Token k is predicted by logits at k-1. Upcast/softmax only the
-            # response span: materialising fp32 log-probs for the whole padded
-            # batch costs ~3x the memory for tokens that are never scored.
-            span_lp = t.log_softmax(logits[j, p_len - 1:p_len - 1 + r_len].float(), dim=-1)
-            targets = ids[j, p_len:p_len + r_len].to(device)
+            # The response is one contiguous span [start, end). Token k is predicted
+            # by logits at k-1. Upcast/softmax only that span: materialising fp32
+            # log-probs for the whole padded batch costs ~3x the memory for tokens
+            # that are never scored.
+            start, end = int(span[0]), int(span[-1]) + 1
+            span_lp = t.log_softmax(logits[j, start - 1:end - 1].float(), dim=-1)
+            targets = labels[j, start:end].to(device)
             scores.append(-span_lp.gather(-1, targets.unsqueeze(-1)).mean().item())
         return scores
 

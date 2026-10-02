@@ -40,14 +40,9 @@ import os
 import sys
 import time
 
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
-_high = os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
-os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", str(min(0.6, 0.75 * float(_high))))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from hf_offline import use_offline_if_cached  # noqa: E402
-# Before transformers is imported: cached models then load without Hub calls.
-use_offline_if_cached(next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--model"), None))
+from env import setup_process_env; setup_process_env()  # before torch is imported
+from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import torch as t  # noqa: E402
 

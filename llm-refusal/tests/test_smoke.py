@@ -61,8 +61,10 @@ def test_full_pipeline_smoke(real_tiny_model_and_tokenizer):
         difference_vectors = framework.direction_finder.compute_difference_vectors(train_data, max_positions=2)
         assert len(difference_vectors) > 0, "Difference-in-means failed to produce any vectors."
         
-        # Select the first available vector for testing
-        (layer, pos_idx), vec = next(iter(difference_vectors.items()))
+        # Pick the largest-norm vector. The first entry (layer 0, last position) is
+        # the raw embedding of a chat-template token shared by every prompt, so its
+        # difference of means is exactly zero and cannot be ablated.
+        (layer, pos_idx), vec = max(difference_vectors.items(), key=lambda kv: float(kv[1].norm()))
         direction = DirectionVector(vector=vec, layer=layer, position_index=pos_idx, score=0.0)
 
         # B. Evaluate the vector

@@ -28,11 +28,8 @@ import json
 import os
 import sys
 
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
-_high = os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
-os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", str(min(0.6, 0.75 * float(_high))))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import torch as t  # noqa: E402
@@ -164,19 +161,10 @@ def main():
     directions = {"r_hat": r_hat, "inhibitor": inh}
 
     # Mechanism: r̂'s projection through the layers, harmful prompts.
-    def ablate_r():
-        @contextlib.contextmanager
-        def ctx():
-            fw.intervention_applier.apply_direction_intervention(r, "ablate", layers=None)
-            try:
-                yield
-            finally:
-                fw.intervention_applier.clear_interventions()
-        return ctx
     conditions = {"plain": nothing,
                   "adapter_full_u": lambda: with_adapter(layer, U_rem, V_rem),
                   "adapter_u_perp": lambda: with_adapter(layer, U_perp, V_rem),
-                  "ablate_r_hat": ablate_r()}
+                  "ablate_r_hat": lambda: fw.intervention_applier.intervened(r, "ablate", layers=None)}
     out["mechanism"] = {}
     for name, ctx in conditions.items():
         per_layer, _ = forward_stats(harmful, ctx, directions)

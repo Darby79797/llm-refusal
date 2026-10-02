@@ -21,6 +21,7 @@ import logging
 
 from formatting import ChatPromptFormatter, last_real_token_indices, assert_right_padded
 from datatypes import DirectionVector
+from interventions import get_sublayers
 
 logger = logging.getLogger(__name__)
 
@@ -83,12 +84,7 @@ class AttributionAnalyzer:
         self.prompt_formatter = prompt_formatter
         self.device = model.device
 
-    def _get_sublayers(self, block):
-        if hasattr(block, 'self_attn') and hasattr(block, 'mlp'):
-            return block.self_attn, block.mlp
-        elif hasattr(block, 'attn') and hasattr(block, 'mlp'):
-            return block.attn, block.mlp
-        raise AttributeError(f"Could not identify sublayers for {block.__class__.__name__}")
+    _get_sublayers = staticmethod(get_sublayers)
 
     def _get_o_proj(self, attn_module):
         if hasattr(attn_module, 'o_proj'):

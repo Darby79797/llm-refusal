@@ -9,9 +9,18 @@ from sklearn.model_selection import train_test_split
 @dataclass
 class PromptData:
     """A container for prompts and their corresponding labels."""
-    # feels so unnecessary. Like, seriously. Is wrapping a list of prompts and bools in a dataclass worth it?
     prompts: List[str]
     labels: List[bool]  # True for positive examples, False for negative.
+
+    @property
+    def positive(self) -> List[str]:
+        """Prompts with a truthy label."""
+        return [p for p, label in zip(self.prompts, self.labels) if label]
+
+    @property
+    def negative(self) -> List[str]:
+        """Prompts with a falsy label."""
+        return [p for p, label in zip(self.prompts, self.labels) if not label]
 
     def train_val_split(self, test_size: float = 0.2, random_state: int = 39):
         """Splits the data into training and validation sets."""

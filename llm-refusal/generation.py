@@ -8,13 +8,14 @@ from formatting import ChatPromptFormatter, last_real_token_indices, assert_righ
 def generate_with_hooks(
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
-    prompt_formatter: ChatPromptFormatter, # Now passed in as an argument
-    prompts: List[str], # Now takes raw prompts
+    prompt_formatter: ChatPromptFormatter,
+    prompts: List[str],  # raw prompts; formatted with the chat template here
     max_new_tokens: int = 64
 ) -> List[str]:
     """
     A robust, manual greedy decoding loop that correctly handles KV caching
-    and works reliably with hooks. This replaces the in-built .generate() method.
+    and works reliably with hooks. Used instead of model.generate(), which under
+    right padding decodes from pad slots and applies the model's generation_config.
     """
     batch = prompt_formatter.format_batch(prompts)
     input_ids = batch['input_ids'].to(model.device)

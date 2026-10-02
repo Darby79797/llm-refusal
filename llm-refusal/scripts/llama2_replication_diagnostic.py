@@ -16,11 +16,10 @@ Usage:
   python llm-refusal/scripts/llama2_replication_diagnostic.py 2>&1 | tee results/llama2_diagnostic.log
 """
 import os
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import json
@@ -31,7 +30,7 @@ import logging
 from framework import DirectionTestFramework
 from datatypes import PromptData, DirectionVector
 from generation import generate_with_hooks
-from concept import DEFAULT_REFUSAL_PHRASES
+from concept import get_concept
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,11 +64,13 @@ def load_our_data():
     return prompts.create_refusal_train_data()
 
 
+# Arditi's exact phrase list (refusal_arditi_exact), via the concept's detector.
+ARDITI_REFUSAL = get_concept("refusal_arditi_exact")
+
+
 def classify_response(text):
-    lower = text.lower()
-    for phrase in DEFAULT_REFUSAL_PHRASES:
-        if phrase.lower() in lower:
-            return "DETECTED"
+    if ARDITI_REFUSAL.detect(text):
+        return "DETECTED"
     ascii_chars = sum(1 for c in text if ord(c) < 128)
     total = len(text.strip())
     if total < 10 or (total > 0 and ascii_chars / total < 0.5):

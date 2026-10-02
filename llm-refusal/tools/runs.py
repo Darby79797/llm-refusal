@@ -20,8 +20,10 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Dict, List, Optional, Tuple
 
-CONCEPTS = ["refusal_arditi_exact", "refusal_arditi", "refusal", "sycophancy_neutral", "sycophancy",
-            "hedging_v2", "hedging", "empathy"]
+from concept import CONCEPT_REGISTRY, get_concept  # torch-free
+
+# Longest first, so a name never matches as the prefix of another (refusal / refusal_arditi).
+CONCEPTS = sorted(CONCEPT_REGISTRY, key=len, reverse=True)
 _CONCEPT_RE = "|".join(CONCEPTS)
 _VARIANT_RE = r"(?:(?P<variant>[a-z][a-z0-9]*)-(?=[A-Z]))?"
 EVAL_RE = re.compile(rf"^{_VARIANT_RE}(?P<model>.+?)-(?P<concept>{_CONCEPT_RE})-evaluate-(?P<tag>.+)-generations\.json$")
@@ -50,15 +52,7 @@ def detector(concept_name: str):
     """The concept's current phrase/heuristic detector (same logic as
     BigEvaluator._check_for_detection without an API judge), for relabeling saved
     responses after a detector fix. concept.py is torch-free, so this stays cheap."""
-    from concept import get_concept
-    concept = get_concept(concept_name)
-
-    def detect(text: str) -> bool:
-        text = text.replace("\u2019", "'").replace("\u2018", "'")
-        if concept.detection_fn is not None:
-            return bool(concept.detection_fn(text))
-        return any(p.lower() in text.lower() for p in concept.detection_phrases)
-    return detect
+    return get_concept(concept_name).detect
 
 
 def wilson(k: int, n: int) -> Tuple[float, float]:

@@ -27,8 +27,7 @@ class DirectionFinder:
         self.tokenizer = tokenizer
         self.intervention_applier = intervention_applier
         self.prompt_formatter = prompt_formatter
-        self.direction_method = direction_method
-        self.direction_finder_method = self.direction_method  # backward compat alias
+        self.direction_finder_method = direction_method
         self.evaluator = evaluator
         self.search_config = search_config or DEFAULT_SEARCH_CONFIG
 
@@ -110,8 +109,8 @@ class DirectionFinder:
         difference_vectors = self.direction_finder_method.compute_difference_vectors(train_data, max_positions)
 
         logger.info("Pre-computing baseline scores and logits on the validation set...")
-        positive_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if label]
-        negative_prompts = [p for p, label in zip(val_data.prompts, val_data.labels) if not label]
+        positive_prompts = val_data.positive
+        negative_prompts = val_data.negative
 
         baseline_pos_logits = self.evaluator._get_logits(positive_prompts) if positive_prompts else []
         baseline_neg_logits = self.evaluator._get_logits(negative_prompts) if negative_prompts else []

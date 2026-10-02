@@ -73,94 +73,6 @@ def analyze_direction_subspace(directions: List[DirectionVector]) -> np.ndarray:
     return (s ** 2) / total
 
 
-# ── Joint (order-independent) multi-direction ablation ──────────
-
-def _joint_ablation_basis(directions: List[DirectionVector], rtol: float = 1e-5) -> t.Tensor:
-    """Orthonormal basis (d, r) spanning the union of `directions`' unit vectors.
-
-    Order-independent by construction: depends only on the subspace spanned by the
-    vectors (via SVD of the stacked unit vectors), not on the order they're passed in.
-    Rank-deficient input (e.g. duplicate or parallel directions) collapses to a lower-
-    rank basis via singular-value thresholding, so ablating [A, A] reduces to ablating
-    [A] alone rather than double-counting the same direction.
-    """
-    stacked = t.stack([d.unit.to(dtype=t.float64) for d in directions], dim=0)  # (k, d)
-    _, s, vh = t.linalg.svd(stacked, full_matrices=False)  # vh: (min(k,d), d)
-    threshold = s.max().item() * rtol if s.numel() > 0 else 0.0
-    keep = s > threshold
-    basis = vh[keep]  # (r, d) orthonormal rows spanning the subspace
-    return basis.T.contiguous()  # (d, r)
-
-
-def apply_joint_ablation(
-    intervention_applier: ModelInterventionApplier,
-    directions: List[DirectionVector],
-    layers: Optional[List[int]] = None,
-) -> list:
-    """Registers hooks that jointly ablate the subspace spanned by `directions`.
-
-    `ModelInterventionApplier.apply_direction_intervention` only ablates one direction at
-    a time; stacking calls for multiple directions applies sequential projection removal,
-    which is order-dependent whenever the directions are non-orthogonal (removing A then B
-    is not the same operation as removing B then A). This instead computes an orthonormal
-    basis Q for span(directions) once and removes the whole subspace in a single joint
-    projection: x - (x @ Q) @ Q.T. That is order-independent and correctly handles
-    linearly-dependent directions (see `_joint_ablation_basis`).
-
-    Mirrors the 3-hooks-per-layer pattern used by `apply_direction_intervention` for
-    single-direction ablation (block pre-hook + self_attn post-hook + mlp post-hook),
-    since the base API has no way to express a multi-direction joint ablation.
-
-    Returns the list of hook handles; the caller is responsible for removing them
-    (e.g. via `clear_joint_ablation_hooks` in a `finally` block).
-    """
-    if layers is None:
-        layers = list(range(len(intervention_applier.transformer_layers)))
-    model_dtype = intervention_applier.model.dtype
-    basis = _joint_ablation_basis(directions).to(dtype=model_dtype)  # (d, r)
-
-    def remove_span(hidden_states, basis):
-        q = basis.to(device=hidden_states.device, dtype=hidden_states.dtype)
-        return hidden_states - t.matmul(t.matmul(hidden_states, q), q.T)
-
-    def make_block_pre_hook(basis):
-        def hook(module, args):
-            hidden_states = args[0]
-            modified_states = remove_span(hidden_states, basis)
-            return (modified_states,) + args[1:]
-        return hook
-
-    def make_sublayer_post_hook(basis):
-        def hook(module, input, output):
-            is_tuple_output = isinstance(output, tuple)
-            hidden_states = output[0] if is_tuple_output else output
-            modified_states = remove_span(hidden_states, basis)
-            if is_tuple_output:
-                return (modified_states,) + output[1:]
-            else:
-                return modified_states
-        return hook
-
-    block_hook_fn = make_block_pre_hook(basis)
-    sublayer_hook_fn = make_sublayer_post_hook(basis)
-
-    hooks = []
-    for layer_idx in layers:
-        if 0 <= layer_idx < len(intervention_applier.transformer_layers):
-            block = intervention_applier.transformer_layers[layer_idx]
-            hooks.append(block.register_forward_pre_hook(block_hook_fn))
-            attn, mlp = intervention_applier._get_sublayers(block)
-            hooks.append(attn.register_forward_hook(sublayer_hook_fn))
-            hooks.append(mlp.register_forward_hook(sublayer_hook_fn))
-    return hooks
-
-
-def clear_joint_ablation_hooks(hooks: list) -> None:
-    """Removes hooks returned by `apply_joint_ablation`."""
-    for hook in hooks:
-        hook.remove()
-
-
 # ── Behavioral analysis ─────────────────────────────────────────
 
 class CellRunner:
@@ -212,18 +124,16 @@ class CellRunner:
         key = self.key(ablated, measured)
         if key in self.cells:
             return self.cells[key]
-        hooks = []
-        if len(ablated) == 1:
-            self.intervention_applier.apply_direction_intervention(
-                self.directions[ablated[0]], "ablate", 1.0,
-                layers=list(range(len(self.intervention_applier.transformer_layers))))
-        elif ablated:
-            hooks = apply_joint_ablation(self.intervention_applier, [self.directions[n] for n in ablated])
-        try:
+        if ablated:
+            # One [k, d] stack: the span is removed in a single order-independent
+            # projection (k=1 is plain single-direction ablation).
+            stack = t.stack([self.directions[n].vector for n in ablated])
+            with self.intervention_applier.intervened(
+                    stack, "ablate", 1.0,
+                    layers=list(range(len(self.intervention_applier.transformer_layers)))):
+                cell = self._measure(measured, key)
+        else:
             cell = self._measure(measured, key)
-        finally:
-            clear_joint_ablation_hooks(hooks)
-            self.intervention_applier.clear_interventions()
         self.cells[key] = cell
         logger.info(f"  {key}: rate={cell['rate']:.3f} log_odds={cell['log_odds']} "
                     f"degenerate={cell['degenerate_rate']:.3f}")
@@ -269,7 +179,7 @@ def run_multi_ablation(runner: CellRunner, ablate_names: List[str], measure_name
 
     Returns dict with 'individual_sum', 'simultaneous', and per-concept individual rates.
     The simultaneous condition jointly ablates the span of all named directions in one
-    order-independent projection (see apply_joint_ablation), rather than stacking
+    order-independent projection (interventions.py's [k, d] ablate), rather than stacking
     single-direction ablations, which would apply sequential (order-dependent)
     projection removal for non-orthogonal directions.
     """

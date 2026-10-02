@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class ActivationExtractor:
     """Extracts residual stream activations from a model, using batching.
-    Corrected to handle various model output formats (tuple vs. tensor)."""
+    Activations are captured by forward pre-hooks, i.e. the residual stream entering each layer."""
     def __init__(self, model, tokenizer, transformer_layers, prompt_formatter: ChatPromptFormatter):
         self.model = model
         self.tokenizer = tokenizer
@@ -57,7 +57,8 @@ class ActivationExtractor:
                     true_len = true_lengths[i].item()
                     for pos_idx in range(-1, -min(max_positions, true_len) - 1, -1):
                         key = (layer_idx, pos_idx)
-                        # This indexing is now correct because layer_acts_batch is guaranteed to be 3D
+                        # Right padding: real tokens occupy 0..true_len-1, so true_len + pos_idx
+                        # is the pos_idx-th real token from the end ([batch, seq, d_model] tensor).
                         # Cast to float64 for numerical stability when averaging
                         # (bf16 quantization noise accumulates over ~100 samples)
                         activation = layer_acts_batch[i, true_len + pos_idx, :].to(t.float64)

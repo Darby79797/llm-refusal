@@ -36,7 +36,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import torch as t
 
 from batching import map_batched
-from formatting import ChatPromptFormatter, last_real_token_indices
+from formatting import ChatPromptFormatter, last_real_token_indices, pad_rows
 
 logger = logging.getLogger(__name__)
 
@@ -119,15 +119,9 @@ class CAAEncoder:
 
 
 def _pad(seqs: Sequence[List[int]], pad_id: int, device) -> Tuple[t.Tensor, t.Tensor, t.Tensor]:
-    """Right-padded input_ids, attention_mask, position_ids."""
-    width = max(len(s) for s in seqs)
-    ids = t.full((len(seqs), width), pad_id, dtype=t.long)
-    mask = t.zeros((len(seqs), width), dtype=t.long)
-    for i, s in enumerate(seqs):
-        ids[i, :len(s)] = t.tensor(s)
-        mask[i, :len(s)] = 1
-    pos = (mask.cumsum(-1) - 1).clamp(min=0)
-    return ids.to(device), mask.to(device), pos.to(device)
+    """Right-padded input_ids, attention_mask, position_ids, on `device`."""
+    enc = pad_rows(list(seqs), pad_id)
+    return enc['input_ids'].to(device), enc['attention_mask'].to(device), enc['position_ids'].to(device)
 
 
 def _output_hook(fn: Callable[[t.Tensor], Optional[t.Tensor]]):

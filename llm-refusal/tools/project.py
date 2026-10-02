@@ -17,22 +17,18 @@ represent this text". --replay applies the intervention that produced the respon
 Loads a model: don't run it next to another model-loading job on a small machine.
 """
 import argparse
+import contextlib
 import json
 import os
 import sys
 
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "0")
-_high = os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.8")
-os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", str(min(0.6, 0.75 * float(_high))))
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from hf_offline import use_offline_if_cached  # noqa: E402
-use_offline_if_cached(next((sys.argv[i + 1] for i, a in enumerate(sys.argv[:-1]) if a == "--model"), None))
+from env import setup_process_env; setup_process_env()  # before torch is imported
+from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 import torch as t  # noqa: E402
 
 from datatypes import DirectionVector  # noqa: E402
-from formatting import last_real_token_indices  # noqa: E402
+from formatting import last_real_token_indices, pad_rows  # noqa: E402
 from tools.runs import SIDE, load_index  # noqa: E402
 
 REPLAY = {  # condition -> (intervention, all layers?)
@@ -61,14 +57,9 @@ def project(fw, unit: t.Tensor, seqs, batch_size: int):
     out = []
     for i in range(0, len(seqs), batch_size):
         chunk = seqs[i:i + batch_size]
-        width = max(map(len, chunk))
-        ids = t.full((len(chunk), width), fw.tokenizer.pad_token_id, dtype=t.long)
-        mask = t.zeros_like(ids)
-        for j, s in enumerate(chunk):
-            ids[j, :len(s)] = t.tensor(s)
-            mask[j, :len(s)] = 1
+        enc = pad_rows(chunk, fw.tokenizer.pad_token_id)
+        ids, mask, pos = enc['input_ids'], enc['attention_mask'], enc['position_ids']
         last_real_token_indices(mask)                   # asserts right padding
-        pos = (mask.cumsum(-1) - 1).clamp(min=0)
         dev = fw.model.device
         captured = [None] * len(blocks)
 
@@ -137,12 +128,12 @@ def main(argv=None):
         if a.replay and cond in REPLAY:
             kind, everywhere = REPLAY[cond]
             layers = list(range(len(fw.intervention_applier.transformer_layers))) if everywhere else [direction.layer]
-            fw.intervention_applier.apply_direction_intervention(direction, kind, 1.0, layers=layers)
-        try:
+            ctx = fw.intervention_applier.intervened(direction, kind, 1.0, layers=layers)
+        else:
+            ctx = contextlib.nullcontext()
+        with ctx:
             for k, p in zip(sel, project(fw, unit, [seqs[k] for k in sel], a.batch_size)):
                 items[k]["proj"] = p
-        finally:
-            fw.intervention_applier.clear_interventions()
 
     # Scale reference: mean projection at the generation boundary (last prompt token)
     # over the positive and negative baseline prompts, per layer.

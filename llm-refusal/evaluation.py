@@ -22,7 +22,7 @@ from interventions import ModelInterventionApplier
 from formatting import ChatPromptFormatter, last_real_token_indices
 from generation import generate_with_hooks
 from scoring import LogOddsMetric
-from concept import DEFAULT_REFUSAL_PHRASES
+from concept import DEFAULT_REFUSAL_PHRASES, heuristic_detect, normalise_apostrophes
 from coherence import score_condition
 from orthogonalize import edit_bytes, orthogonalized
 from batching import _empty_cache, map_batched, parse_batch_size, resolve_batch_size
@@ -61,12 +61,9 @@ class InterventionSuite:
         max_new_tokens: int = 64
     ) -> Dict[str, List[Dict]]:
         """
-        Tests interventions, attempting to use huggingface .generate().
+        Greedy-decodes test_prompts with no intervention and with the given
+        intervention at each strength (via generate_with_hooks, not .generate()).
         """
-        generation_kwargs = {
-            "max_new_tokens": max_new_tokens,
-            "do_sample": False # Makes output deterministic, using greedy sampling.
-        }
         results = {}
 
         # --- Baseline Generation ---
@@ -79,17 +76,15 @@ class InterventionSuite:
             key = f"{intervention_type}_strength_{strength}"
             logger.info(f"Generating responses for intervention: {key}")
 
-            applied = strength != 0.0 and direction is not None
-            if applied:
+            if strength != 0.0 and direction is not None:
                 layers = list(range(len(self.intervention_applier.transformer_layers))) if intervention_type == "ablate" else [direction.layer]
-                self.intervention_applier.apply_direction_intervention(direction, intervention_type, strength, layers=layers)
+                ctx = self.intervention_applier.intervened(direction, intervention_type, strength, layers=layers)
+            else:
+                ctx = contextlib.nullcontext()
 
-            try:
+            with ctx:
                 intervened_texts = self._generate(test_prompts, max_new_tokens)
                 results[key] = [{'prompt': p, 'generated_text': t} for p, t in zip(test_prompts, intervened_texts)]
-            finally:
-                if applied:
-                    self.intervention_applier.clear_interventions()
 
         return results
 
@@ -187,6 +182,17 @@ class BigEvaluator:
         A real effect moves both. A change that moves only the rate is decoding
         noise, not behaviour.
         """
+        scores = self.log_odds_scores(prompts, batch_size=batch_size)
+        if scores is None:
+            return None
+        finite = [s for s in scores if not math.isnan(s)]
+        return sum(finite) / len(finite) if finite else float('nan')
+
+    def log_odds_scores(self, prompts: List[str], batch_size: Optional[int] = None) -> Optional[List[float]]:
+        """Per-prompt log-odds of the target tokens at the generation boundary (batched).
+
+        Returns None when there is no metric or no prompts. See _log_odds_metric.
+        """
         if self.metric is None or not prompts:
             return None
         bs = batch_size or self.resolve_batch_size(prompts, max_new_tokens=0)
@@ -204,22 +210,18 @@ class BigEvaluator:
             return [self.metric.compute_log_odds(logits[j, last[j], :].float())
                     for j in range(input_ids.shape[0])]
 
-        scores = map_batched(score, prompts, bs, on_split=self._record_split)
-        finite = [s for s in scores if not math.isnan(s)]
-        return sum(finite) / len(finite) if finite else float('nan')
+        return map_batched(score, prompts, bs, on_split=self._record_split)
 
     def _check_for_detection(self, text: str) -> bool:
-        # Llama-3.x often writes typographic apostrophes ("I can’t"), which every
-        # phrase list and regex here (written with ASCII ') silently misses.
-        text = text.replace("\u2019", "'").replace("\u2018", "'")
+        # Detection hierarchy: API judge, then the concept's heuristic tier
+        # (concept.heuristic_detect: detection_fn, else phrase matching).
+        text = normalise_apostrophes(text)
         if self.judge_prompt is not None and self.judge_api_base is not None:
             try:
                 return self._llm_judge(text)
             except Exception as e:
                 logger.warning(f"API judge failed, falling back to heuristic: {e}")
-        if self.detection_fn is not None:
-            return self.detection_fn(text)
-        return any(phrase.lower() in text.lower() for phrase in self.detection_phrases)
+        return heuristic_detect(text, self.detection_phrases, self.detection_fn)
 
     def _llm_judge(self, text: str) -> bool:
         prompt = self.judge_prompt.format(response=text[:500])
@@ -240,9 +242,6 @@ class BigEvaluator:
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"]
         return content.strip().lower().startswith("yes")
-
-    # Backward-compatible alias
-    _check_for_refusal = _check_for_detection
 
     def generate_responses(self, prompts: List[str], batch_size: Optional[int] = None,
                            max_new_tokens: int = 64) -> List[str]:
@@ -296,9 +295,6 @@ class BigEvaluator:
 
         detection_count = sum(1 for text in generated_texts if self._check_for_detection(text))
         return detection_count / len(prompts) if prompts else 0.0
-
-    # Backward-compatible alias
-    evaluate_refusal_rate = evaluate_detection_rate
 
     # LlamaGuard 2 safety categories (from Meta's official template)
     _LG2_CATEGORIES = (
@@ -574,7 +570,7 @@ class BigEvaluator:
                             strength: float = 1.0, generations_path: Optional[str] = None,
                             conditions: Optional[List[str]] = None, max_new_tokens: int = 64):
         """
-        Orchestrates the entire evaluation suite. Now accepts tasks and limit.
+        Orchestrates the entire evaluation suite, including lm-eval `tasks` (capped at `limit`).
         If run_arditi_evals is True, also runs LlamaGuard2, JailbreakBench, and Alpaca CE loss.
         `conditions` selects intervention conditions from CONDITIONS (default:
         DEFAULT_CONDITIONS).
@@ -664,16 +660,12 @@ class BigEvaluator:
             if int_type == "orthogonalize":
                 edit = orthogonalized(self.model, direction.vector)
             else:
-                self.intervention_applier.apply_direction_intervention(direction, int_type, strength, layers=layers)
-                edit = contextlib.nullcontext()
-            try:
-                with edit:
-                    results[name] = {}
-                    _run_condition(name, prompts, f"refusal_rate_on_{side}_prompts", results[name])
-                    if int_type in ("ablate", "orthogonalize"):
-                        _extras(results[name])
-            finally:
-                self.intervention_applier.clear_interventions()
+                edit = self.intervention_applier.intervened(direction, int_type, strength, layers=layers)
+            with edit:
+                results[name] = {}
+                _run_condition(name, prompts, f"refusal_rate_on_{side}_prompts", results[name])
+                if int_type in ("ablate", "orthogonalize"):
+                    _extras(results[name])
 
         # Coherence of every condition's text, scored by the clean model: a rate
         # of "0% refusal" is only compliance if the text is still fluent (see

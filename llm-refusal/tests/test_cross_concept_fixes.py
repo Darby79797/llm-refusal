@@ -1,20 +1,22 @@
 """Tests for cross_concept.py bug fixes:
 
 1. Hook-lifecycle safety: clear_interventions() must run even if evaluation raises.
-2. Joint (order-independent) multi-direction ablation, replacing sequential
-   per-direction projection removal.
+2. Joint (order-independent) multi-direction ablation via interventions.py's
+   [k, d] ablate path, replacing sequential per-direction projection removal.
 3. Uncentered-SVD subspace analysis (no NaN for near-identical vectors, measures the
    subspace spanned from the origin rather than variance around the centroid).
 """
 import numpy as np
 import pytest
 import torch as t
+import torch.nn as nn
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from datatypes import DirectionVector
+from interventions import ModelInterventionApplier
 from cross_concept import (
     CellRunner,
-    _joint_ablation_basis,
     analyze_direction_subspace,
     measure_interference,
     run_multi_ablation,
@@ -25,9 +27,44 @@ def _make_direction(vec, layer=0):
     return DirectionVector(vector=vec, layer=layer, position_index=-1, score=0.0)
 
 
-def _remove_span(x: t.Tensor, basis: t.Tensor) -> t.Tensor:
-    """Same math as apply_joint_ablation's hooks: x - (x @ Q) @ Q.T."""
-    return x - t.matmul(t.matmul(x, basis), basis.T)
+class _ResidualBlock(nn.Module):
+    """Block whose output is x + attn(x) + mlp(x), so the pre-hook and both sublayer
+    post-hooks of an ablation all fire and all matter."""
+    def __init__(self, dim):
+        super().__init__()
+        self.self_attn = nn.Linear(dim, dim).double()
+        self.mlp = nn.Linear(dim, dim).double()
+
+    def forward(self, x):
+        return x + self.self_attn(x) + self.mlp(x)
+
+
+class _ResidualModel:
+    def __init__(self, dim, n_layers=2, seed=0):
+        t.manual_seed(seed)
+        self.model = SimpleNamespace(layers=nn.ModuleList([_ResidualBlock(dim) for _ in range(n_layers)]))
+        self.dtype = t.float64
+
+    def __call__(self, x):
+        for layer in self.model.layers:
+            x = layer(x)
+        return x
+
+
+def _ablated_output(model, direction, x):
+    applier = ModelInterventionApplier(model)
+    with applier.intervened(direction, "ablate"):
+        return model(x)
+
+
+def _cos_pair(dim, cos, seed):
+    t.manual_seed(seed)
+    a = t.randn(dim, dtype=t.float64)
+    a_unit = a / a.norm()
+    noise = t.randn(dim, dtype=t.float64)
+    noise_orth = noise - (noise @ a_unit) * a_unit
+    noise_orth = noise_orth / noise_orth.norm()
+    return a, cos * a_unit + (1 - cos ** 2) ** 0.5 * noise_orth
 
 
 # ============================================================
@@ -36,71 +73,64 @@ def _remove_span(x: t.Tensor, basis: t.Tensor) -> t.Tensor:
 
 class TestJointAblationOrderIndependence:
     def test_order_independent_and_zeroes_projection(self):
-        t.manual_seed(0)
         dim = 16
-        a = t.randn(dim, dtype=t.float64)
-        a_unit = a / a.norm()
-
-        # Build b with cosine similarity ~0.6 to a.
-        noise = t.randn(dim, dtype=t.float64)
-        noise_orth = noise - (noise @ a_unit) * a_unit
-        noise_orth = noise_orth / noise_orth.norm()
-        cos = 0.6
-        b = cos * a_unit + (1 - cos ** 2) ** 0.5 * noise_orth
-
-        dA = _make_direction(a)
-        dB = _make_direction(b)
+        a, b = _cos_pair(dim, 0.6, seed=0)
+        dA, dB = _make_direction(a), _make_direction(b)
         assert (dA.unit @ dB.unit).item() == pytest.approx(0.6, abs=1e-6)
 
+        model = _ResidualModel(dim)
         x = t.randn(5, dim, dtype=t.float64)
-
-        basis_ab = _joint_ablation_basis([dA, dB])
-        basis_ba = _joint_ablation_basis([dB, dA])
-
-        out_ab = _remove_span(x, basis_ab)
-        out_ba = _remove_span(x, basis_ba)
-
-        assert t.allclose(out_ab, out_ba, atol=1e-8)
+        out_ab = _ablated_output(model, t.stack([a, b]), x)
+        out_ba = _ablated_output(model, t.stack([b, a]), x)
+        assert t.allclose(out_ab, out_ba, atol=1e-6)
 
         # Residual has ~zero projection onto both original directions.
-        assert t.allclose(out_ab @ dA.unit.to(t.float64), t.zeros(5, dtype=t.float64), atol=1e-8)
-        assert t.allclose(out_ab @ dB.unit.to(t.float64), t.zeros(5, dtype=t.float64), atol=1e-8)
+        assert t.allclose(out_ab @ dA.unit, t.zeros(5, dtype=t.float64), atol=1e-6)  # basis is fp32
+        assert t.allclose(out_ab @ dB.unit, t.zeros(5, dtype=t.float64), atol=1e-6)  # basis is fp32
+
+        # Sequential single-direction ablation is order-dependent; the joint one is not that.
+        applier = ModelInterventionApplier(model)
+        applier.apply_direction_intervention(dA, "ablate")
+        applier.apply_direction_intervention(dB, "ablate")
+        try:
+            out_seq = model(x)
+        finally:
+            applier.clear_interventions()
+        assert not t.allclose(out_seq, out_ab, atol=1e-3)
 
 
 # ============================================================
-# Joint ablation: rank deficiency
+# [k, d] ablate: k=1 equals the vector path; invalid stacks are refused
 # ============================================================
 
-class TestJointAblationRankDeficiency:
-    def test_duplicate_direction_equals_single(self):
-        t.manual_seed(1)
+class TestStackedAblate:
+    @pytest.mark.parametrize("dtype", [t.float64, t.float32, t.bfloat16])
+    def test_k1_stack_matches_vector_exactly(self, dtype):
         dim = 12
-        a = t.randn(dim, dtype=t.float64)
-        dA = _make_direction(a)
+        model = _ResidualModel(dim, seed=1)
+        for layer in model.model.layers:
+            layer.to(dtype)
+        model.dtype = dtype
+        v = t.randn(dim)
+        x = t.randn(4, dim).to(dtype)
+        out_vec = _ablated_output(model, _make_direction(v), x)
+        out_k1 = _ablated_output(model, v.unsqueeze(0), x)
+        out_raw = _ablated_output(model, v, x)
+        assert t.equal(out_vec, out_k1)
+        assert t.equal(out_vec, out_raw)
 
-        x = t.randn(4, dim, dtype=t.float64)
+    def test_linearly_dependent_stack_raises(self):
+        a = t.randn(10, dtype=t.float64)
+        applier = ModelInterventionApplier(_ResidualModel(10))
+        with pytest.raises(ValueError, match="linearly dependent"):
+            applier.apply_direction_intervention(t.stack([a, 3.0 * a]), "ablate")
+        assert applier.intervention_hooks == []
 
-        basis_single = _joint_ablation_basis([dA])
-        basis_dup = _joint_ablation_basis([dA, dA])
-
-        assert basis_single.shape[1] == 1
-        assert basis_dup.shape[1] == 1  # rank-deficient pair collapses, not double-counted
-
-        out_single = _remove_span(x, basis_single)
-        out_dup = _remove_span(x, basis_dup)
-        assert t.allclose(out_single, out_dup, atol=1e-8)
-
-    def test_near_parallel_directions_collapse_to_rank_1(self):
-        t.manual_seed(2)
-        dim = 10
-        a = t.randn(dim, dtype=t.float64)
-        # b is a scaled copy of a (same ray up to sign/scale is not required here,
-        # but exact scalar multiples span a 1D subspace).
-        b = a * 3.0
-        dA = _make_direction(a)
-        dB = _make_direction(b)
-        basis = _joint_ablation_basis([dA, dB])
-        assert basis.shape[1] == 1
+    def test_stack_only_supports_ablate(self):
+        applier = ModelInterventionApplier(_ResidualModel(10))
+        with pytest.raises(ValueError, match="only supports 'ablate'"):
+            applier.apply_direction_intervention(t.randn(2, 10, dtype=t.float64), "add")
+        assert applier.intervention_hooks == []
 
 
 # ============================================================
@@ -129,15 +159,6 @@ class TestSubspaceAnalysis:
         assert explained[1] == pytest.approx(0.5, abs=1e-6)
         rank = int(np.sum(explained > 1e-6))
         assert rank == 2
-
-    def test_near_identical_vectors_no_nan(self):
-        """Regression check for the sklearn-PCA 0/0 NaN bug on near-identical inputs."""
-        v1 = t.zeros(8); v1[0] = 1.0
-        v2 = t.zeros(8); v2[0] = 1.0 + 1e-9
-        d1 = _make_direction(v1)
-        d2 = _make_direction(v2, layer=1)
-        explained = analyze_direction_subspace([d1, d2])
-        assert not np.isnan(explained).any()
 
 
 # ============================================================

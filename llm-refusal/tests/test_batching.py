@@ -16,7 +16,9 @@ from batching import (AUTO, estimate_bytes_per_row, map_batched, parse_batch_siz
                       resolve_batch_size)
 from datatypes import DirectionVector
 
-BATCH_SIZES = [1, 2, 3, 4, 8, 16]  # powers of two, plus one that isn't
+# Compared against a bs=1 reference, so 1 itself is left out (it would compare
+# with itself). Powers of two, plus one that isn't.
+BATCH_SIZES = [2, 3, 4, 8, 16]
 
 
 # ---------------------------------------------------------------- parsing

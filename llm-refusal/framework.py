@@ -9,7 +9,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from datatypes import PromptData, DirectionVector
 from concept import get_concept
-from formatting import ChatPromptFormatter, last_real_token_indices
+from formatting import ChatPromptFormatter
 from activations import ActivationExtractor
 from interventions import ModelInterventionApplier
 from direction_methods import DifferenceInMeans
@@ -221,6 +221,11 @@ class DirectionTestFramework:
 
         logger.info(f"Framework initialized on device: {self.device}")
 
+    @property
+    def model_short(self) -> str:
+        """Model ID without the org prefix (e.g. 'Qwen2.5-3B-Instruct'), for file names."""
+        return self.model_name.split('/')[-1]
+
     def _filter_cache_path(self, positive_prompts, negative_prompts, batch_size: int):
         """Cache file for a filtering pass, keyed on everything that determines its outcome.
 
@@ -245,8 +250,7 @@ class DirectionTestFramework:
             "negative": negative_prompts,
         }
         digest = hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()[:16]
-        model_short = self.model_name.split('/')[-1]
-        return os.path.join("results", "filter-cache", f"{model_short}-{self.concept.name}-{digest}.json")
+        return os.path.join("results", "filter-cache", f"{self.model_short}-{self.concept.name}-{digest}.json")
 
     def _filter_prompts_by_behavior(self, positive_prompts, negative_prompts, use_cache: bool = True):
         """Filter prompts to only keep those where model behavior matches the label.
@@ -304,24 +308,15 @@ class DirectionTestFramework:
 
         Matches Arditi's filter_train/filter_val=True: keep harmful prompts where the model
         wants to refuse (refusal_score > 0) and harmless prompts where it doesn't
-        (refusal_score < 0). Uses the concept's target tokens for scoring.
+        (refusal_score < 0). Uses the concept's target tokens for scoring, via the
+        evaluator's batched log-odds scorer (the same one behind log_odds_metric).
         """
-        from scoring import LogOddsMetric
-        metric = LogOddsMetric(self.tokenizer, self.concept.target_tokens)
+        if self.evaluator.metric is None:
+            raise ValueError(f"Concept '{self.concept.name}' has no usable target tokens; "
+                             "cannot filter by refusal score.")
 
         def score_prompts(prompts):
-            batch = self.prompt_formatter.format_batch(prompts)
-            input_ids = batch['input_ids'].to(self.device)
-            attention_mask = batch['attention_mask'].to(self.device)
-            position_ids = batch['position_ids'].to(self.device)
-            with t.no_grad():
-                outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
-            last_indices = last_real_token_indices(attention_mask)
-            scores = []
-            for i in range(len(prompts)):
-                logits = outputs.logits[i, last_indices[i], :].float()
-                scores.append(metric.compute_log_odds(logits))
-            return scores
+            return self.evaluator.log_odds_scores(prompts) or []
 
         logger.info(f"Filtering {split_name} set by refusal score ({len(val_pos)} harmful, {len(val_neg)} harmless)...")
         pos_scores = score_prompts(val_pos)
@@ -397,14 +392,13 @@ class DirectionTestFramework:
             self.search_config["induce_mode"] = config['induce_mode']
             direction_to_test = self.finder.find_best_direction(
                 train_data, val_data,
-                output_prefix=f"{self.model_name.split('/')[-1]}-{self.concept.name}")
+                output_prefix=f"{self.model_short}-{self.concept.name}")
             if direction_to_test is None:
                 logger.error("Search concluded without finding a suitable direction vector.")
                 return
 
             # Auto-save the found direction vector for later reuse
-            model_short = self.model_name.split('/')[-1]
-            save_path = f"results/{model_short}-{self.concept.name}-direction"
+                save_path = f"results/{self.model_short}-{self.concept.name}-direction"
             direction_to_test.save(save_path)
             logger.info(f"Direction vector saved to {save_path}.pt/.json")
 
@@ -461,7 +455,7 @@ class DirectionTestFramework:
                 strength=config['strength'],
                 conditions=config.get('conditions'),
                 max_new_tokens=config.get('max_new_tokens', 64),
-                generations_path=(f"results/{self.model_name.split('/')[-1]}-{self.concept.name}"
+                generations_path=(f"results/{self.model_short}-{self.concept.name}"
                                   + (f"-evaluate-{os.path.basename(config['direction_file'])}"
                                      if config.get('direction_file') else
                                      f"-evaluate-L{direction_to_test.layer}-P{direction_to_test.position_index}")
@@ -475,8 +469,8 @@ class DirectionTestFramework:
 
         elif config['mode'] in ("rank1", "regrow"):
             import finetune
-            train_pos = [p for p, l in zip(train_data.prompts, train_data.labels) if l]
-            train_neg = [p for p, l in zip(train_data.prompts, train_data.labels) if not l]
+            train_pos = train_data.positive
+            train_neg = train_data.negative
             if config['mode'] == "rank1":
                 finetune.run_rank1(self, direction_to_test, train_pos, train_neg, eval_pos, eval_neg, config)
             else:
@@ -490,7 +484,6 @@ class DirectionTestFramework:
         import caa
         from batching import forward_token_budget, parse_batch_size
 
-        model_short = self.model_name.split('/')[-1]
         behaviors = config.get('caa_behaviors') or caa.BEHAVIORS
         layers = config.get('caa_layers') or list(range(len(self.intervention_applier.transformer_layers)))
         multipliers = config.get('caa_multipliers') or [-1.0, 1.0]
@@ -508,7 +501,7 @@ class DirectionTestFramework:
         # residual-stream point (our layer l = CAA layer l-1).
         ours = {}
         for concept in ("refusal", "sycophancy"):
-            path = f"results/{model_short}-{concept}-direction"
+            path = f"results/{self.model_short}-{concept}-direction"
             if os.path.exists(f"{path}.pt"):
                 dv = DirectionVector.load(path)
                 ours[concept] = (dv.layer, dv.vector)
@@ -518,8 +511,8 @@ class DirectionTestFramework:
 
         os.makedirs("results/caa", exist_ok=True)
         tag = config.get('caa_tag') or ""
-        out_path = f"results/caa/{model_short}-ab{'-' + tag if tag else ''}.json"
-        vec_path = f"results/caa/{model_short}-ab-vectors.pt"
+        out_path = f"results/caa/{self.model_short}-ab{'-' + tag if tag else ''}.json"
+        vec_path = f"results/caa/{self.model_short}-ab-vectors.pt"
         vectors = None
         if config.get('caa_reuse_vectors'):
             saved = t.load(vec_path)["raw"]
@@ -552,11 +545,10 @@ class DirectionTestFramework:
             logger.error("cross_concept mode requires at least 2 concepts (--concepts a,b).")
             return
 
-        model_short = self.model_name.split('/')[-1]
         directions = []
         concepts = []
         for name in concept_names:
-            path = f"results/{model_short}-{name}-direction"
+            path = f"results/{self.model_short}-{name}-direction"
             if not os.path.exists(f"{path}.pt") or not os.path.exists(f"{path}.json"):
                 logger.error(
                     f"Saved direction not found for concept '{name}' at {path}.pt/.json. "
@@ -577,7 +569,7 @@ class DirectionTestFramework:
             concepts=concepts,
             model_name=self.model_name,
             gen_batch_size=self.evaluator.gen_batch_size,
-            output_path=f"results/{model_short}-cross_concept-{'-'.join(concept_names)}.json",
+            output_path=f"results/{self.model_short}-cross_concept-{'-'.join(concept_names)}.json",
         )
         logger.info("Cross-concept analysis finished.")
         return result

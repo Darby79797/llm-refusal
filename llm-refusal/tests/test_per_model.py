@@ -118,7 +118,8 @@ class TestPaddedBatchConsistency:
 
 # ── 1b. Left-padding regression test ────────────────────────────────────────
 # Left padding read at index -1 is correct; right-padding index arithmetic
-# applied to a left-padded batch is the bug, and must raise.
+# applied to a left-padded batch is the bug, and must raise (that check is
+# model-independent: test_unit.py test_last_real_token_indices_rejects_left_padding).
 
 class TestLeftPaddingRegression:
     """Pins down the April 2026 scoring bug with its *correct* diagnosis.
@@ -170,16 +171,6 @@ class TestLeftPaddingRegression:
             f"!= unpadded {tokenizer.decode([t.argmax(ref).item()])!r}")
         corr = t.corrcoef(t.stack([got, ref]))[0, 1].item()
         assert corr > 0.99, f"[{model_name}] logit correlation {corr:.5f} (bf16 noise should keep this >0.99)"
-
-    def test_right_padding_index_rejects_left_padded_batch(self, per_model_setup):
-        """The actual bug: right-padding index arithmetic applied to a left-padded
-        batch. last_real_token_indices() must refuse instead of returning
-        `mask.sum()-1`, which here points into the middle of the short prompt."""
-        from formatting import last_real_token_indices
-        _, tokenizer, formatter, _ = per_model_setup
-        _, mask = self._left_padded_batch(tokenizer, formatter)
-        with pytest.raises(ValueError, match="not right-padded"):
-            last_real_token_indices(mask)
 
 
 # ── 2. Chat template produces generation boundary ───────────────────────────
@@ -263,58 +254,7 @@ class TestChatTemplateGenerationBoundary:
                 )
 
 
-# ── 3. Position IDs correctness ─────────────────────────────────────────────
-# Verifies that format_batch produces correct position_ids that account
-# for padding, and that these are actually used by the model.
-
-class TestPositionIds:
-    """format_batch must produce correct position_ids for padded batches."""
-
-    def test_position_ids_present(self, per_model_setup):
-        """format_batch must return position_ids in the output dict."""
-        _, _, formatter, _ = per_model_setup
-        batch = formatter.format_batch(["Hello"])
-        assert 'position_ids' in batch, "format_batch must return position_ids"
-
-    def test_position_ids_match_attention_mask(self, per_model_setup):
-        """For right-padding: real tokens get positions 0..N-1,
-        padding tokens get position 1 (the masked-fill value)."""
-        _, _, formatter, model_name = per_model_setup
-
-        batch = formatter.format_batch(["Short", "This is a much longer prompt to test padding"])
-        pos = batch['position_ids']
-        mask = batch['attention_mask']
-
-        for i in range(2):
-            real_len = mask[i].sum().item()
-            real_positions = pos[i, :real_len].tolist()
-
-            # Real tokens should have sequential positions starting from 0
-            assert real_positions == list(range(real_len)), (
-                f"[{model_name}] Row {i}: real token positions should be 0..{real_len-1}, "
-                f"got {real_positions[:10]}..."
-            )
-
-            # Padding positions should all be 1 (masked fill value)
-            if real_len < pos.shape[1]:
-                pad_positions = pos[i, real_len:].tolist()
-                assert all(p == 1 for p in pad_positions), (
-                    f"[{model_name}] Row {i}: padding positions should all be 1, "
-                    f"got {pad_positions[:5]}..."
-                )
-
-    def test_unpadded_batch_has_simple_range(self, per_model_setup):
-        """A single prompt (no padding) should have position_ids = 0..N-1."""
-        _, _, formatter, model_name = per_model_setup
-        batch = formatter.format_batch(["Hello world"])
-        pos = batch['position_ids'][0]
-        expected = list(range(pos.shape[0]))
-        assert pos.tolist() == expected, (
-            f"[{model_name}] Single prompt position_ids should be simple range"
-        )
-
-
-# ── 4. Activation extraction position consistency ───────────────────────────
+# ── 3. Activation extraction position consistency ───────────────────────────
 # The extracted activation at a given (layer, position) must be the same
 # whether the prompt is processed alone or in a padded batch.
 

@@ -14,11 +14,10 @@ Usage:
   python llm-refusal/scripts/search_calibration.py --model Qwen/Qwen2.5-3B-Instruct --num-prompts 10
 """
 import os
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import argparse
@@ -32,6 +31,7 @@ from framework import DirectionTestFramework
 from datatypes import PromptData, DirectionVector
 from generation import generate_with_hooks
 from concept import get_concept
+from coherence import is_garbled
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,30 +42,6 @@ logger = logging.getLogger(__name__)
 
 NUM_PROMPTS = 20
 POS = -1
-
-
-def is_garbled(text: str) -> bool:
-    """Check if text is garbled."""
-    ascii_chars = sum(1 for c in text if ord(c) < 128)
-    total_chars = len(text.strip())
-    if total_chars < 10:
-        return True
-    if total_chars > 0 and ascii_chars / total_chars < 0.5:
-        return True
-    if total_chars > 30:
-        for i in range(0, min(len(text) - 30, 100)):
-            chunk = text[i:i+10]
-            if text.count(chunk) >= 3 and len(chunk.strip()) > 3:
-                return True
-    return False
-
-
-def check_detection(text, concept):
-    """Check if concept's behavior is detected in text."""
-    if concept.detection_fn is not None:
-        return concept.detection_fn(text)
-    lower = text.lower()
-    return any(phrase.lower() in lower for phrase in concept.detection_phrases)
 
 
 def run_calibration(model_name, concept_name="refusal", num_prompts=NUM_PROMPTS):
@@ -95,8 +71,8 @@ def run_calibration(model_name, concept_name="refusal", num_prompts=NUM_PROMPTS)
     )
 
     # Pre-compute baseline logits for scores (same as search)
-    val_pos = [p for p, l in zip(val_data.prompts, val_data.labels) if l]
-    val_neg = [p for p, l in zip(val_data.prompts, val_data.labels) if not l]
+    val_pos = val_data.positive
+    val_neg = val_data.negative
     baseline_neg_logits = framework.finder.evaluator._get_logits(val_neg) if val_neg else []
     baseline_pos_logits = framework.finder.evaluator._get_logits(val_pos) if val_pos else []
     baseline_bypass = np.nanmean([framework.finder.evaluator.metric.compute_log_odds(l) for l in baseline_pos_logits]) if baseline_pos_logits else 0.0
@@ -120,8 +96,8 @@ def run_calibration(model_name, concept_name="refusal", num_prompts=NUM_PROMPTS)
         framework.prompt_formatter, ablation_prompts,
         max_new_tokens=64
     )
-    baseline_induction_rate = sum(1 for t in baseline_neg_texts if check_detection(t, concept)) / len(baseline_neg_texts)
-    baseline_ablation_rate = sum(1 for t in baseline_pos_texts if check_detection(t, concept)) / len(baseline_pos_texts)
+    baseline_induction_rate = sum(1 for t in baseline_neg_texts if concept.detect(t)) / len(baseline_neg_texts)
+    baseline_ablation_rate = sum(1 for t in baseline_pos_texts if concept.detect(t)) / len(baseline_pos_texts)
     logger.info(f"Baseline behavioral: induction_rate={baseline_induction_rate:.2%} (should be ~0%), "
                 f"ablation_rate={baseline_ablation_rate:.2%} (should be high)")
 
@@ -155,7 +131,7 @@ def run_calibration(model_name, concept_name="refusal", num_prompts=NUM_PROMPTS)
         finally:
             framework.intervention_applier.clear_interventions()
 
-        n_induced = sum(1 for t in induction_texts if check_detection(t, concept))
+        n_induced = sum(1 for t in induction_texts if concept.detect(t))
         n_garbled = sum(1 for t in induction_texts if is_garbled(t))
         induction_rate = n_induced / len(induction_texts)
 
@@ -172,7 +148,7 @@ def run_calibration(model_name, concept_name="refusal", num_prompts=NUM_PROMPTS)
         finally:
             framework.intervention_applier.clear_interventions()
 
-        n_still_refused = sum(1 for t in ablation_texts if check_detection(t, concept))
+        n_still_refused = sum(1 for t in ablation_texts if concept.detect(t))
         ablation_rate = n_still_refused / len(ablation_texts)
 
         row = {

@@ -7,11 +7,10 @@ Usage:
   python llm-refusal/scripts/arditi_pos5_test.py 2>&1 | tee results/arditi_pos5_test.log
 """
 import os
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
 import json
@@ -22,7 +21,7 @@ import logging
 from framework import DirectionTestFramework
 from datatypes import PromptData, DirectionVector
 from generation import generate_with_hooks
-from concept import DEFAULT_REFUSAL_PHRASES
+from concept import get_concept
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,6 +57,10 @@ def load_our_data():
     return create_refusal_train_data(), create_refusal_eval_data()
 
 
+# Arditi's exact phrase list (refusal_arditi_exact), via the concept's detector.
+ARDITI_REFUSAL = get_concept("refusal_arditi_exact")
+
+
 def classify_response(text):
     if len(text.strip()) < 10:
         return "GARBLED"
@@ -69,10 +72,8 @@ def classify_response(text):
             chunk = text[i:i+10]
             if text.count(chunk) >= 3 and len(chunk.strip()) > 3:
                 return "GARBLED"
-    lower = text.lower()
-    for phrase in DEFAULT_REFUSAL_PHRASES:
-        if phrase.lower() in lower:
-            return "DETECTED"
+    if ARDITI_REFUSAL.detect(text):
+        return "DETECTED"
     return "NORMAL"
 
 

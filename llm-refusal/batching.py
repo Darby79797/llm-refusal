@@ -38,18 +38,14 @@ AUTO_MEMORY_FRACTION = 0.5
 # Headroom over the analytic estimate. Calibrated on Llama-3-8B bf16 (MPS), 512
 # new tokens: the analytic estimate is ~203 MB/row against a measured peak of
 # 187-227 MB/row, provided the MPS allocator watermarks are set (see
-# MPS_WATERMARKS). Without them, the caching allocator keeps every freed KV-cache
+# env.MPS_WATERMARKS). Without them, the caching allocator keeps every freed KV-cache
 # buffer (the cache grows by concatenation each step), and bs=16 peaked at 38 GB
 # above the weights and swapped.
 ESTIMATE_SAFETY_FACTOR = 1.25
 
-# PyTorch's MPS defaults let the caching allocator grow to 1.4x (soft) and 1.7x
-# (hard) the device's recommended working set, i.e. 54-66 GB on a 48 GB machine.
-# So instead of freeing its cache or raising OOM, it swaps. With these values it
-# garbage-collects the cache past 0.6x, and past 0.8x it raises a real OOM, which
-# map_batched catches. Set before the first MPS allocation (run_experiment.py
-# and conftest.py); an explicit environment setting wins.
-MPS_WATERMARKS = {"PYTORCH_MPS_LOW_WATERMARK_RATIO": "0.6", "PYTORCH_MPS_HIGH_WATERMARK_RATIO": "0.8"}
+# MPS allocator watermarks live in env.py (torch-free, so entry points can set
+# them before importing torch); re-exported here for callers of batching.
+from env import MPS_WATERMARKS  # noqa: E402,F401
 
 
 def parse_batch_size(value: Union[str, int]) -> Union[str, int]:
