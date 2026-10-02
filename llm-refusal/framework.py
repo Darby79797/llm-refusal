@@ -447,6 +447,9 @@ class DirectionTestFramework:
         if config['mode'] == "search":
             logger.info("Running in SEARCH mode...")
             self.search_config["induce_mode"] = config['induce_mode']
+            if config.get('layer_cutoff_frac') is not None:
+                self.search_config["layer_cutoff_frac"] = config['layer_cutoff_frac']
+                logger.info(f"Search layer cutoff overridden: {config['layer_cutoff_frac']}")
             direction_to_test = self.finder.find_best_direction(
                 train_data, val_data,
                 output_prefix=stem)

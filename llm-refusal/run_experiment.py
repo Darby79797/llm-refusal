@@ -134,6 +134,9 @@ examples:
     parser.set_defaults(filter_prompts=True)
     parser.add_argument("--strength", type=float, default=1.0,
                         help="Intervention strength for evaluate mode (default: 1.0)")
+    parser.add_argument("--layer-cutoff-frac", type=float, default=None,
+                        help="search mode: override the concept's layer cutoff (fraction of depth searched); the "
+                             "regrown models' mediators sit beyond the default 0.65")
     parser.add_argument("--induce-mode", choices=["single_layer", "all_layers"], default="single_layer",
                         help="Induce score mode for search selection: single_layer (default) or all_layers (Arditi-style)")
     parser.add_argument("--gen-batch-size", type=parse_batch_size, default="auto",
@@ -192,6 +195,7 @@ def _namespace_to_config(args):
         "alpaca_max_prompts": args.alpaca_max_prompts,
         "filter_prompts": args.filter_prompts,
         "induce_mode": args.induce_mode,
+        "layer_cutoff_frac": args.layer_cutoff_frac,
         "strength": args.strength,
         "gen_batch_size": args.gen_batch_size,
         "conditions": (list(CONDITIONS) if args.conditions and "all" in args.conditions
