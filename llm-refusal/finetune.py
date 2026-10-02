@@ -139,8 +139,7 @@ def installed(model, stem: str, variant: str = "full", r_hat: Optional[t.Tensor]
     if variant != "full" and r_hat is None:
         raise ValueError(f"variant {variant!r} needs r̂")
     if variant != "full":
-        d_model = model.get_input_embeddings().weight.shape[1]
-        bad = [name for parent, name in sites if getattr(parent, name).out_features != d_model]
+        bad = [name for parent, name in sites if name not in WRITERS]
         if bad:
             raise ValueError(f"variant {variant!r} needs every adapted site to write the residual stream "
                              f"(out_features == d_model); {sorted(set(bad))} do not")

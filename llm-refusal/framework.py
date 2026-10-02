@@ -384,6 +384,9 @@ class DirectionTestFramework:
             self._variant_active = bool(config.get('orthogonalize_first') or config.get('adapter_file'))
             if self._variant_active and config.get('mode') == 'evaluate' and 'orthogonalized' in (config.get('conditions') or []):
                 raise ValueError("The 'orthogonalized' evaluate condition can't run inside --orthogonalize-first / --adapter-file")
+            if config.get('orthogonalize_first') and config.get('mode') in ('regrow', 'capability'):
+                raise ValueError(f"--orthogonalize-first can't wrap --mode {config['mode']}: it applies the in-place "
+                                 "weight edit itself (nesting the edit breaks the checkpoint restore)")
             yield
 
     def run(self, config: Dict):
@@ -471,18 +474,31 @@ class DirectionTestFramework:
                 logger.error(f"'pos' must be a negative index from the end of the prompt (got {pos}).")
                 return
 
-            logger.info(f"Using pre-specified vector for Layer {layer}, Position {pos}...")
-            # We still need to compute the vector, even if we know the location.
-            # Extract exactly as deep as `pos`: the method's default (5) is shallower
-            # than search's auto max_positions (assistant_prefix_tokens + 1 = 6 on
-            # every supported template), so a search-selected pos -6 was unreachable.
-            diff_vectors = self.finder.direction_finder_method.compute_difference_vectors(
-                train_data, max_positions=-pos)
-            vec = diff_vectors.get((layer, pos))
-            if vec is None:
-                logger.error(f"Vector at ({layer}, {pos}) not found. Exiting.")
-                return
-            direction_to_test = DirectionVector(vector=vec, layer=layer, position_index=pos, score=0.0)
+            if getattr(self, "_variant_active", False):
+                # Recomputing the contrast here would use the *variant* model (edited or
+                # adapted), whose contrast at these coordinates is not r̂ (it is ~⊥ r̂ after
+                # the edit). Inside a variant the direction is the saved clean one.
+                edit_path = config.get('edit_direction_file') or self.saved_direction_path()
+                direction_to_test = DirectionVector.load(edit_path)
+                if (direction_to_test.layer, direction_to_test.position_index) != (layer, pos):
+                    raise ValueError(f"--layer/--pos {layer}/{pos} differ from the saved direction {edit_path} "
+                                     f"(L{direction_to_test.layer}/P{direction_to_test.position_index}); inside a model "
+                                     "variant the saved clean direction is used, pass matching coordinates or --direction-file")
+                logger.info(f"Model variant active: using the saved clean direction {edit_path}, not a recomputed one")
+
+            if direction_to_test is None:
+                logger.info(f"Using pre-specified vector for Layer {layer}, Position {pos}...")
+                # We still need to compute the vector, even if we know the location.
+                # Extract exactly as deep as `pos`: the method's default (5) is shallower
+                # than search's auto max_positions (assistant_prefix_tokens + 1 = 6 on
+                # every supported template), so a search-selected pos -6 was unreachable.
+                diff_vectors = self.finder.direction_finder_method.compute_difference_vectors(
+                    train_data, max_positions=-pos)
+                vec = diff_vectors.get((layer, pos))
+                if vec is None:
+                    logger.error(f"Vector at ({layer}, {pos}) not found. Exiting.")
+                    return
+                direction_to_test = DirectionVector(vector=vec, layer=layer, position_index=pos, score=0.0)
 
         if direction_to_test is None:
             logger.warning("No direction vector to test. Exiting.")

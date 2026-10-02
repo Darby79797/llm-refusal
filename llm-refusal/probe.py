@@ -154,7 +154,7 @@ def token_projections(model, formatter, block, direction: t.Tensor, prompts: Lis
         proj = captured["p"].masked_fill(~keep, float("-inf"))
         mx += proj.max(dim=1).values.tolist()
         idx = last_real_token_indices(mask)
-        last += proj[t.arange(len(idx)), idx].tolist()
+        last += captured["p"][t.arange(len(idx)), idx].tolist()   # unmasked: the boundary is never dropped
     return mx, last
 
 

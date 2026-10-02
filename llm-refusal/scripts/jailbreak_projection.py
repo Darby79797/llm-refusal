@@ -113,6 +113,7 @@ def main():
     ap.add_argument("--model", required=True)
     ap.add_argument("--n", type=int, default=99)
     ap.add_argument("--templates", default=",".join(TEMPLATES))
+    ap.add_argument("--tag", default="", help="suffix for the output file, so a template subset doesn't overwrite the main run")
     a = ap.parse_args()
     run = load_run(a.model)
     fw, model, fmt, blocks, r, r_hat = run.fw, run.model, run.fmt, run.blocks, run.r, run.r_hat
@@ -171,7 +172,7 @@ def main():
         out["template_level_corr_proj_refusal"] = num / den if den else None
     print(f"pooled AUROC {out['pooled_auroc_proj_predicts_refusal']:.2f}; template-level corr "
           f"{out.get('template_level_corr_proj_refusal')}", flush=True)
-    print("saved", save_json(run.path("jailbreak", "refusal"), out))
+    print("saved", save_json(run.path("jailbreak", "refusal", a.tag), out))
 
 
 if __name__ == "__main__":
