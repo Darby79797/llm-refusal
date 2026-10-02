@@ -116,15 +116,17 @@ def run_capability(framework, direction, config: Dict) -> Dict:
 
     rand = random_direction(direction.vector.shape[-1])
     cos = float(t.nn.functional.cosine_similarity(rand, direction.vector.float().cpu(), dim=0))
+    edit_layers, edit_embedding = config.get('edit_layers'), config.get('edit_embedding', True)
     variants = {
         "baseline": lambda: contextlib.nullcontext(),
-        "orthogonalized": lambda: orthogonalized(model, direction.vector),
-        "random_orthogonalized": lambda: orthogonalized(model, rand),
+        "orthogonalized": lambda: orthogonalized(model, direction.vector, layers=edit_layers, embedding=edit_embedding),
+        "random_orthogonalized": lambda: orthogonalized(model, rand, layers=edit_layers, embedding=edit_embedding),
     }
     results = {"model": framework.model_name, "concept": framework.concept.name,
                "layer": direction.layer, "position_index": direction.position_index,
                "batch_size": bs, "dtype": str(model.dtype), "max_tokens": MAX_TOKENS,
                "n_alpaca": len(alpaca), "n_pile": len(pile), "n_on_distribution": len(od_prompts),
+               "edit_layers": edit_layers, "edit_embedding": edit_embedding,
                "random_direction_seed": RANDOM_DIRECTION_SEED, "random_direction_cos": cos,
                "eval_tasks": config.get('eval_tasks', []), "limit": config.get('limit'),
                "variants": {}}

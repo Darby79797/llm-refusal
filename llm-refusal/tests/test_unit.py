@@ -827,6 +827,38 @@ def test_run_all_evaluations_reports_harmless_baseline_and_saves_generations(mon
     assert scored == [6] * 8   # 5 hook conditions + the explicit clear, all before scoring
 
 
+def test_run_capability_passes_edit_scope_to_both_edited_variants(monkeypatch, tmp_path):
+    """--edit-layers / --no-edit-embedding scope the r-hat edit and its random-direction control alike."""
+    import capability
+    import contextlib
+    calls = []
+    @contextlib.contextmanager
+    def fake_orthogonalized(model, vector, **kwargs):
+        calls.append(kwargs)
+        yield
+    monkeypatch.setattr(capability, "orthogonalized", fake_orthogonalized)
+    monkeypatch.setattr(capability, "edit_bytes", lambda model: 0)
+    monkeypatch.setattr(capability, "resolve_forward_batch_size", lambda *a, **k: 1)
+    monkeypatch.setattr(capability, "load_alpaca", lambda split: [{"instruction": "i", "output": "o"}])
+    monkeypatch.setattr(capability, "load_pile", lambda: ["p"])
+    monkeypatch.setattr(capability, "completion_ce", lambda *a, **k: 1.0)
+    monkeypatch.setattr(capability, "_empty_cache", lambda: None)
+    monkeypatch.chdir(tmp_path)
+    fw = MagicMock()
+    fw.model.dtype = t.float32
+    fw.model_name = fw.model_short = "m"
+    fw.concept.name = "refusal"
+    fw.evaluator.generate_responses.return_value = ["r"]
+    fw.evaluator.run_standard_evals.return_value = {}
+    fw.evaluator.oom_splits = 0
+    direction = DirectionVector(vector=t.randn(8), layer=1, position_index=-1, score=0.0)
+
+    out = capability.run_capability(fw, direction, {"edit_layers": [2, 3], "edit_embedding": False})
+
+    assert calls == [{"layers": [2, 3], "embedding": False}] * 2
+    assert out["edit_layers"] == [2, 3] and out["edit_embedding"] is False
+
+
 # ============================================================
 # Framework: evaluate/eyeball extract deep enough for `pos`
 # ============================================================
