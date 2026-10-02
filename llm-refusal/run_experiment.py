@@ -331,8 +331,11 @@ def check_variant_tag(config):
     if variant and config["mode"] in ("search", "evaluate", "capability", "rank1", "regrow") and not tag:
         raise SystemExit("--run-tag is required with --adapter-file / --orthogonalize-first / --edit-layers / "
                          "--no-edit-embedding (the run would overwrite the untagged results)")
-    if tag and not re.fullmatch(r"[a-z][a-z0-9]*", tag):
-        raise SystemExit(f"--run-tag {tag!r} must match [a-z][a-z0-9]* (tools/runs.py reads it as a variant prefix)")
+    # search/evaluate put the tag in front of the file name, where tools/runs.py reads it as a
+    # variant prefix; rank1/regrow append it (hyphens fine there, e.g. readers-r8-s0).
+    if tag and config["mode"] in ("search", "evaluate") and not re.fullmatch(r"[a-z][a-z0-9]*", tag):
+        raise SystemExit(f"--run-tag {tag!r} must match [a-z][a-z0-9]* for {config['mode']} "
+                         "(tools/runs.py reads it as a variant prefix)")
 
 
 if __name__ == "__main__":
