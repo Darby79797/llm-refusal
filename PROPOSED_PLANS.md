@@ -6,15 +6,15 @@ Cost key: **S** = hours, no new heavy runs; **M** = a day or a 7-model sweep; **
 
 ---
 
-## 1. How few refusal examples regrow refusal? — M
+## 1. How few refusal examples regrow refusal? — M — **done 2026-10-02 on 0.5B (8-16 examples; tracks recent exposures), Llama-3-8B points running; see RESULTS.md Limb §2**
 
 32 refusal examples (~2% of the fine-tuning data) restore 82-100% refusal on every model and in both LoRA arms. Find the threshold: `--mode regrow --n-refusal-examples` 1, 2, 4, 8, 16, with 3 seeds each, on Llama-3-8B and Qwen2.5-7B (readers arm, where r̂ is unavailable). Also run benign-only to 1000 steps, to check that "benign fine-tuning doesn't bring refusal back" isn't just a 200-step artefact. This turns the durability finding into a number: how much refusal data undoes an abliteration.
 
-## 2. What reads the refusal inhibitor? — M
+## 2. What reads the refusal inhibitor? — M — **open; the off-switch is now known to exist at every layer and to survive regrowth (Limb §2)**
 
 Rank-one fine-tuning finds a canonical direction û⊥, orthogonal to r̂, that switches refusal off when written to. It isn't a harmfulness feature, it's refusal-specific (empathy unaffected), and it mostly bypasses r̂: later layers' r̂ falls by only a third, while refusal log-odds drop further than under r̂ ablation (RESULTS.md "Does Fine-Tuning Rediscover r̂?"). Open: what carries the effect from û⊥ to the refusal-token logits? Attribute the drop in refusal log-odds when writing û⊥ to downstream heads and MLPs (`attribution.py`, as in the refusal-circuit analysis). Do these overlap the components that write r̂, or form a separate path straight to the output?
 
-## 3. Why does the edit cost Qwen 5-20× more than Llama? — M
+## 3. Why does the edit cost Qwen 5-20× more than Llama? — M — **mostly answered 2026-10-02: Qwen's late MLPs write +r̂ into every prompt; the blocks after r̂'s layer carry 25-50% of the Alpaca/Pile cost (Limb §1, §3); the on-distribution part is still open**
 
 The weight edit costs 0.06-0.19 nats of CE on Qwen2.5 (0.5B-7B), ≤0.04 on Llama, and the random-direction edit ≤0.03 everywhere. Candidates:
 - r̂ on Qwen overlaps directions the model uses for ordinary text.
@@ -26,15 +26,15 @@ Measure CE for layer-restricted edits (only layers ≥ ℓ, or only ℓ±2) and 
 
 `orthogonalize.py` already takes a [k, d] stack. Llama-2 is the outlier: single-layer ablation leaves 78.8% refusal, and global ablation leaves 5.1% (10% on JailbreakBench). Build a rank-k basis from the per-layer difference-in-means directions (top-k PCA of the L candidate r̂'s, or 2-3 depth-separated layers). Plot refusal, log-odds and CE against k for Llama-2, with Qwen2.5-7B as a control where k=1 already gives 0%. Apply the same to sycophancy (item 5).
 
-## 5. Sycophancy from a response contrast — M
+## 5. Sycophancy from a response contrast — M — **done on 0.5B (induces up to 83%, doesn't ablate), 3B running; refusal→sycophancy judged real on all Qwens (Limb §4)**
 
 Take activations on the *same* prompts when the model was vs wasn't sycophantic (CAA-style answer contrast), instead of the prompt contrast, which encodes framing. On Qwen2.5-0.5B the behaviourally filtered direction works (42% → 5% ablated, 11% → 52% induced); the pipeline lacks a way to build it on models that rarely act sycophantically. Then test the "ablating refusal raises sycophancy" cross-concept finding against the text.
 
-## 6. Category-specific directions and targeted edits — M
+## 6. Category-specific directions and targeted edits — M — **answered on 0.5B: one direction, no targeting possible (Limb §3); 3B/8B geometry queued**
 
 Compute difference-in-means per harm category (weapons, cyber, bio/chem, fraud, self-harm, harassment) and measure pairwise cosines with the global r̂. If they diverge, orthogonalise against *one* category's direction and measure refusal on each category, to test whether a weight edit can be targeted. The Llama-3 safety audit suggests harassment and misinformation behave differently (they were LlamaGuard's misses).
 
-## 7. Jailbreaks through the lens of r̂ (Arditi §5) — M
+## 7. Jailbreaks through the lens of r̂ (Arditi §5) — M — **done with hand-written templates on 0.5B/3B/Llama-3 (Limb §3); stronger templates for Llama-3 in progress; GCG needs network**
 
 Project known jailbreaks (roleplay, DAN-style, many-shot, and §5's adversarial suffixes) onto r̂ at the selected layer with `tools/project.py`. Test whether successful jailbreaks suppress the projection and whether the projection predicts success (AUROC). That would be a cheap refusal monitor, and it covers §5, the last unreplicated section of the paper.
 
