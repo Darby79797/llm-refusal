@@ -76,3 +76,38 @@ From the five referee passes (results/analysis/referee-*.json). Queued: Llama-3 
 - **Sycophancy_response on neutral and polarity-flipped prompts** with the validated judge: deference vs "affirm the proposition".
 - **Category subset-noise null** (random 10-prompt subsets) and ablation of the category residuals c_k.
 - Seeds: a second Llama-3 regrowth seed + regrown search (is L16/P-1 canonical?), 0.5B rank1 remove/null seeds 1-2 for the CE netting, random-direction edits with seeds 1-4.
+
+## 12. Does the regrown model still obey the original r̂? — S (designed 2026-10-03, not run)
+
+**Question.** After r̂ is edited out and refusal is fine-tuned back along a new axis, does adding the clean r̂
+to a harmless prompt still trigger refusal, or did fine-tuning also train away the response to r̂? The edit
+only removes r̂ from what layers *write*; what they *read* is untouched, so the response to an injected r̂
+should survive the edit itself. The question is whether the adapters change it. Untested so far: the identity
+runs added the regrown model's re-extracted direction, never the clean r̂.
+
+**Conditions** (harmless prompts, add the clean r̂ at its own layer/position, same norm as in the clean run):
+
+| | Model | Tells us |
+|---|---|---|
+| A | clean | reference induction rate |
+| B | edited, no adapter | did the edit alone break the response to r̂? |
+| C | edited + benign-only adapter (r0) | effect of fine-tuning per se |
+| D | edited + regrown adapter (r32), readers and writers arms | the question |
+| E | D, with the regrown mediator ablated at every layer | does an injected r̂ act through the new axis? |
+
+Controls in every model: a norm-matched random direction (should induce ~0%) and the regrown mediator itself
+(positive control). Readouts: refusal rate and log-odds, degenerate rate, response NLL, and the projection onto
+the regrown mediator at its layer when r̂ is added.
+
+**Reading.** D ≈ C ≈ B: the response to r̂ survives and the model has two refusal triggers. D ≪ C: refusing
+for the new reason trained the r̂ response away. E ≪ D: r̂ now acts upstream of the new axis. A dose curve
+(×0.5/1/2/4) separates "weaker" from "gone"; evaluate has no addition-scale flag yet, so that needs a small
+addition to `run_experiment.py`.
+
+**Models.** Qwen2.5-0.5B first (minutes); then Llama-3-8B and Qwen2.5-7B, which have readers/writers r0/r32
+adapters saved. Commands (0.5B, condition D readers arm; B drops `--adapter-file`, C uses `-r0`):
+
+    .venv/bin/python3 llm-refusal/run_experiment.py --model Qwen/Qwen2.5-0.5B-Instruct --mode evaluate \
+      --orthogonalize-first --adapter-file results/finetune/Qwen2.5-0.5B-Instruct-refusal-regrow-readers-r32 \
+      --direction-file results/Qwen2.5-0.5B-Instruct-refusal-direction \
+      --conditions layer_specific_addition global_addition --run-tag rhatinregrown
