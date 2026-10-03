@@ -61,3 +61,16 @@ The edit-cost sweeps already show that orthogonalising r̂ out of only the block
 ## 10. The many-shot exception on Qwen2.5-3B — S
 
 3B refuses 97% of many-shot-wrapped prompts although the r̂ projection at both decision positions (end-of-instruction token and generation boundary, read at L21's input) is near the level of the suppression template it complies with. Measure the last-token projection at *every* layer for many-shot vs suppression vs plain prompts (one forward pass each; extend `scripts/jailbreak_projection.py` with a per-layer last-token curve). If later layers rebuild r̂ at the boundary for many-shot only, the monitor should read a later layer; if not, that refusal runs through something other than r̂.
+
+## 11. Referee-proposed tests not yet run (2026-10-03)
+
+From the five referee passes (results/analysis/referee-*.json). Queued: Llama-3 r16 at lr 1e-4 (is the 8-16 threshold an lr artefact?), the edited-model-without-regrowth and null-adapter controls for the off-switch overlap, random/clean L16 direction controls for the "latent axis", the OOD evaluation of the regrown Llama-3, the Qwen-7B regrown search, the outlier-masked r̂ edit cost and trajectory, and the jailbreak controls on 3B. Not yet queued, in rough priority:
+- **Novel-target regrowth control** (`--regrow-examples-file`): harmful → a fixed non-refusal marker, or a harmless category → refusal, at n = 8/32. If it learns at the same exposure count, "capacity to refuse" is generic learnability.
+- **Inhibitor mechanism**: a `u_random` adapter variant (keep V, random U ⊥ r̂ at matched norm, 3-5 seeds); position-restricted application (prompt-only vs boundary-and-generation); prefill "I cannot" with the inhibitor installed. Distinguishes downstream inhibition from first-token steering.
+- **Generic-token trajectory**: per-layer r̂·x and norm over Pile tokens (sink excluded) on 0.5B/3B/Llama-3, to see whether the late +r̂ write exists where CE is measured.
+- **Per-row CE** from `completion_ce` and an MLP-only (L17/L21/L22 down_proj) edit on 0.5B, plus mean-ablation instead of zero-ablation, for the edit-cost decomposition.
+- **Token-matched trajectory positions** (`--positions`) on Qwen-3B vs Llama-3 ("assistant", "\n", `<|im_end|>`/`<|eot_id|>`).
+- **XSTest safe split** per-layer AUROC (download needed): does r̂ probe refusal or topic?
+- **Sycophancy_response on neutral and polarity-flipped prompts** with the validated judge: deference vs "affirm the proposition".
+- **Category subset-noise null** (random 10-prompt subsets) and ablation of the category residuals c_k.
+- Seeds: a second Llama-3 regrowth seed + regrown search (is L16/P-1 canonical?), 0.5B rank1 remove/null seeds 1-2 for the CE netting, random-direction edits with seeds 1-4.
