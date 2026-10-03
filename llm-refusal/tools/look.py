@@ -332,24 +332,62 @@ def limbs_edit_cost(ix, a):
 
 def limbs_trajectory(ix, a):
     rows = []
+    pile_rows = []
     for x in ix.find_limbs("trajectory", a.model):
         d = x.load()
+        if "sets" in d:  # --pile run: per-token projection over ordinary text, no harmful/harmless split
+            for name, s in d["sets"].items():
+                mp = s["mean_proj"]
+                peak = max(range(len(mp)), key=lambda i: mp[i])
+                pile_rows.append([_short_model(x.model), x.parts["tag"] or "", name, d["direction"]["layer"], len(mp),
+                                  s["n_tokens_kept"], peak, f"{mp[peak]:+.2f}", f"{mp[-1]:+.2f}",
+                                  f"{s['mean_cos'][-1]:+.3f}", f"{s['frac_pos'][-1]:.2f}"])
+            continue
         for cond, c in d["conditions"].items():
             p = c["proj_r_hat"]
             hm, hl, au = p["harmful_mean"], p["harmless_mean"], p["auroc"]
             peak = max(range(len(hm)), key=lambda i: hm[i])
             first = next((i for i, v in enumerate(au) if v is not None and v >= 0.95), None)
-            rows.append([_short_model(x.model), cond, d["direction"]["layer"], len(hm), peak,
+            rows.append([_short_model(x.model), x.parts["tag"] or "", cond, d["direction"]["layer"], len(hm), peak,
                          f"{hm[peak]:+.2f}/{hl[peak]:+.2f}", f"{hm[-1]:+.2f}/{hl[-1]:+.2f}", "–" if first is None else first])
     if rows:
         print("== trajectory  projection onto r̂ by layer (harmful/harmless means)")
-        print(table(rows, ["model", "cond", "dir L", "layers", "peak L", "proj @peak", "proj @last", "AUROC≥.95 from L"]))
+        print(table(rows, ["model", "tag", "cond", "dir L", "layers", "peak L", "proj @peak", "proj @last", "AUROC≥.95 from L"]))
         print()
+    if pile_rows:
+        print("== trajectory (--pile)  mean per-token projection onto r̂ by layer, ordinary text vs harmless chat")
+        print(table(pile_rows, ["model", "tag", "set", "dir L", "layers", "tokens", "peak L", "proj @peak", "proj @last", "cos @last", "frac>0 @last"]))
+        print()
+
+
+def _jailbreak_layers(x, d):
+    """--layers run: per-layer mean projection at the template position and the last token, per template."""
+    L = d["direction"]["layer"]
+    nl = d["n_layers"]
+    harm = d.get("harmless", {})
+    cols = [L, (L + nl - 1) // 2, nl - 1]
+    rows = []
+    for name, t in list(d["templates"].items()) + [("(harmless)", harm)]:
+        if not t:
+            continue
+        row = [name, pct(t["refusal_rate"]) if "refusal_rate" in t else ""]
+        for pos in ("template", "last"):
+            mp = t[pos]["proj_mean"]
+            peak = max(range(len(mp)), key=lambda i: mp[i])
+            row += [f"{mp[i]:+.1f}" for i in cols] + [f"L{peak}"]
+        rows.append(row)
+    print(f"== jailbreak --layers  {x.model} {x.parts['concept']}  dir L{L}/P{d['direction']['position_index']}  n {d.get('n')}  "
+          f"(mean proj onto r̂ at the template position and the last token; columns = layers)")
+    print(table(rows, ["template", "refusal"] + [f"tmpl L{c}" for c in cols] + ["tmpl peak"] + [f"last L{c}" for c in cols] + ["last peak"]))
+    print()
 
 
 def limbs_jailbreak(ix, a):
     for x in ix.find_limbs("jailbreak", a.model):
         d = x.load()
+        if "positions" in d and not any("proj_mean" in t for t in d["templates"].values()):
+            _jailbreak_layers(x, d)
+            continue
         has_last = any("proj_last_mean" in t for t in d["templates"].values())
         rows = []
         for name, t in d["templates"].items():
