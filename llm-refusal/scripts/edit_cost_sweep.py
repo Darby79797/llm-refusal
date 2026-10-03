@@ -21,6 +21,7 @@ Writes results/edit-cost/<model>-<concept>[-<tag>].json, one entry per spec, sav
 """
 import argparse
 import contextlib
+import json
 import os
 import sys
 import time
@@ -105,6 +106,12 @@ def main():
            "n": {"alpaca": len(alpaca), "pile": len(pile), "on_distribution": len(od_prompts),
                  "harmful": len(harmful), "harmless": len(harmless)}, "specs": {}}
 
+    if os.path.exists(path):  # resume: keep specs already measured for the same direction
+        prev = json.load(open(path))
+        if prev.get("direction") == out["direction"] and prev.get("n") == out["n"]:
+            out["specs"] = {k: v for k, v in prev.get("specs", {}).items() if k in a.specs}
+            print("resuming; done:", list(out["specs"]), flush=True)
+
     def ctx_for(spec):
         kind, layers, emb, extra = parse_spec(spec, r.layer, n_layers)
         if kind == "none":
@@ -119,6 +126,8 @@ def main():
             {"kind": kind, "layers": layers, "embedding": emb, "n_blocks_edited": n_edited}
 
     for spec in a.specs:
+        if spec in out["specs"]:
+            continue
         ctx, meta = ctx_for(spec)
         t0 = time.time()
         with ctx():

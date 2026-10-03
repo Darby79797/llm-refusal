@@ -84,10 +84,13 @@ def inhibitor_direction(stems: Sequence[str], r_hat: t.Tensor) -> Tuple[t.Tensor
 
 
 def save_json(path: str, obj) -> str:
-    """Write `obj` to `path` (indent=1), creating the directory; returns `path`."""
+    """Write `obj` to `path` (indent=1), creating the directory; returns `path`. Atomic (temp file + rename),
+    so a crash mid-write leaves the previous version for resumable scripts to pick up."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w") as f:
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(obj, f, indent=1)
+    os.replace(tmp, path)
     return path
 
 
