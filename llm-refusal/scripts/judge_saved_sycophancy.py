@@ -11,7 +11,8 @@ The judge is compared with the phrase detector. Labels are cached per item in
 results/analysis/judged-sycophancy-<source>-<prompt hash>.json, keyed on a hash of the judge
 model + instruction + message template + schema, so a changed prompt never reuses old labels.
 The judge prompt is validated against the referee's hand labels by judge_validate.py.
-Summary: results/analysis/judged-sycophancy-v2.json.
+Summary: results/analysis/judged-sycophancy-v2.json (embeds judge_validate.py's metrics from
+results/analysis/judge-validation-v2.json when its prompt hash matches).
 
   .venv/bin/python3 llm-refusal/scripts/judge_saved_sycophancy.py
 """
@@ -134,6 +135,13 @@ def main():
         sr.setdefault("baseline", rates(cache["baseline"]))  # baseline_negative is identical across runs
         sr[f"addition_{strength}"] = rates(cache["addition"])
 
+    vpath = os.path.join(out_dir, "judge-validation-v2.json")  # written by judge_validate.py --secondary --out
+    if os.path.exists(vpath):
+        v = json.load(open(vpath))
+        if v.get("prompt_hash") == h:
+            summary["validation"] = {k: v[k]["metrics"] for k in ("primary", "secondary") if k in v}
+        else:
+            print(f"WARNING: {vpath} is for prompt hash {v.get('prompt_hash')}, not {h}; not embedded")
     json.dump(summary, open(os.path.join(out_dir, "judged-sycophancy-v2.json"), "w"), indent=1)
     print(f"judge {a.judge_model}, prompt hash {h}")
     print("\ncross_concept sycophancy (agreement with a false claim), baseline -> ablate[refusal]")
