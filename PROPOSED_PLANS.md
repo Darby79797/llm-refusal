@@ -77,37 +77,77 @@ From the five referee passes (results/analysis/referee-*.json). Queued: Llama-3 
 - **Category subset-noise null** (random 10-prompt subsets) and ablation of the category residuals c_k.
 - Seeds: a second Llama-3 regrowth seed + regrown search (is L16/P-1 canonical?), 0.5B rank1 remove/null seeds 1-2 for the CE netting, random-direction edits with seeds 1-4.
 
-## 12. Does the regrown model still obey the original r̂? — S (designed 2026-10-03, not run)
+## 12. Does the regrown model still obey the original r̂? — S — 0.5B done, Llama-3.2-1B partial, 7-8B designed (2026-10-03)
 
 **Question.** After r̂ is edited out and refusal is fine-tuned back along a new axis, does adding the clean r̂
-to a harmless prompt still trigger refusal, or did fine-tuning also train away the response to r̂? The edit
-only removes r̂ from what layers *write*; what they *read* is untouched, so the response to an injected r̂
-should survive the edit itself. The question is whether the adapters change it. Untested so far: the identity
-runs added the regrown model's re-extracted direction, never the clean r̂.
+to harmless prompts still trigger refusal, or did fine-tuning train that response away? Script:
+`scripts/rhat_in_regrown.py` (one model load; variants clean / edited / edited + each regrow arm; per-prompt
+log-odds, degenerate rate and samples saved to `results/finetune/<model>-rhat-in-regrown.json`).
 
-**Conditions** (harmless prompts, add the clean r̂ at its own layer/position, same norm as in the clean run):
+**Comparison that counts.** Regrown (32 refusal examples) against the *benign-only* fine-tune of the same arm,
+in log-odds *shift* (r̂ added minus nothing, per prompt). Not against the edited model: benign fine-tuning alone
+moves the harmless baseline ~3.7 nats away from refusal (0.5B), which drops r̂-induced refusal 90% → 1% while
+r̂'s push shrinks only from +6.1 to +4.7 nats. Rates mislead here; shifts don't.
 
-| | Model | Tells us |
-|---|---|---|
-| A | clean | reference induction rate |
-| B | edited, no adapter | did the edit alone break the response to r̂? |
-| C | edited + benign-only adapter (r0) | effect of fine-tuning per se |
-| D | edited + regrown adapter (r32), readers and writers arms | the question |
-| E | D, with the regrown mediator ablated at every layer | does an injected r̂ act through the new axis? |
+**Qwen2.5-0.5B (one seed per arm, 80 harmless prompts, r̂ at L14 strength 1).**
 
-Controls in every model: a norm-matched random direction (should induce ~0%) and the regrown mediator itself
-(positive control). Readouts: refusal rate and log-odds, degenerate rate, response NLL, and the projection onto
-the regrown mediator at its layer when r̂ is added.
+| Variant | Refusal | Log-odds none → r̂ | Shift |
+|---|---|---|---|
+| clean | 100% | −3.6 → +1.7 | +5.2 |
+| edited | 90% | −5.1 → +1.0 | +6.1 |
+| readers, benign only | 1% | −8.8 → −4.1 | +4.7 |
+| readers, 32 refusals | 14% | −7.3 → −2.3 | +5.0 |
+| writers, benign only | 1% | −8.7 → −4.5 | +4.2 |
+| writers, 32 refusals | 35% | −6.9 → −1.0 | +5.9 |
 
-**Reading.** D ≈ C ≈ B: the response to r̂ survives and the model has two refusal triggers. D ≪ C: refusing
-for the new reason trained the r̂ response away. E ≪ D: r̂ now acts upstream of the new axis. A dose curve
-(×0.5/1/2/4) separates "weaker" from "gone"; evaluate has no addition-scale flag yet, so that needs a small
-addition to `run_experiment.py`.
+Refusal training does not remove the response to r̂ (shift ≥ the benign-only one in both arms); the regrown model
+has two triggers. Ablating the regrown L18 mediator trims r̂'s effect only a little (14 → 9%, 35 → 26%; clean
+100 → 96%). Random norm-matched direction: 0-9%. Strength 4 and every-layer addition: degenerate, not results.
 
-**Models.** Qwen2.5-0.5B first (minutes); then Llama-3-8B and Qwen2.5-7B, which have readers/writers r0/r32
-adapters saved. Commands (0.5B, condition D readers arm; B drops `--adapter-file`, C uses `-r0`):
+**Llama-3.2-1B (partial: clean and edited only; the rest waits for a free GPU).** Regrowth replicates (32
+examples: 100% harmful refusal in both arms; benign only: 0%); the regrown mediator is L14/P-1 of 16. r̂ at L8
+strength 1 induces 76% (clean) / 80% (edited), shift ≈ +16 nats, per-prompt SD of the shift 3.5-3.9. **Unlike
+0.5B, ablating the L14 mediator abolishes r̂'s induction in the clean model** (76 → 0%, log-odds +4.5 → −5.8):
+on Llama-3.2-1B r̂ acts through the late boundary direction even before any editing.
 
-    .venv/bin/python3 llm-refusal/run_experiment.py --model Qwen/Qwen2.5-0.5B-Instruct --mode evaluate \
-      --orthogonalize-first --adapter-file results/finetune/Qwen2.5-0.5B-Instruct-refusal-regrow-readers-r32 \
-      --direction-file results/Qwen2.5-0.5B-Instruct-refusal-direction \
-      --conditions layer_specific_addition global_addition --run-tag rhatinregrown
+### Design for Qwen2.5-7B and Llama-3-8B
+
+Adapters exist for both (readers/writers × r0/r32, seed 0); mediators: Llama-3 `results/regrown-Meta-Llama-3-8B-Instruct-refusal-direction`
+(L16/P-1), 7B `results/regrown100-Qwen2.5-7B-Instruct-refusal-direction` (L24/P-1).
+
+*Power, by reasoning rather than formal tests.* The unit that varies most is the adapter, not the prompt.
+- **Prompts.** The per-prompt SD of the shift is ~3.5-4 nats, and paired differences between variants on the
+  same prompts should be no larger. With all 80 harmless eval prompts, a ~1.2-nat difference in mean shift is
+  resolvable. "Trained away" means a multi-nat drop, so 80 prompts are plenty, and more would not help.
+- **Adapters.** On 0.5B the two arms disagree by ~1.4 nats on the regrowth effect (+0.3 vs +1.7), so one
+  adapter seed has about ±1-1.5 nats of its own noise. One seed per arm therefore settles only large effects.
+- **Rule.** Phase 1 runs one seed, both arms. Stop there if the regrown-vs-benign shift difference is either
+  within ±1 nat in both arms ("preserved") or below −3 nats in both arms ("trained away"). If it lands in
+  between, or the arms disagree in sign, run Phase 2: train two more seeds of readers r0 and r32 (~20 min each
+  on 8B) and rerun those variants only. Three seeds put the seed-mean noise at ~±0.7 nats.
+- **Rates.** Detection rates are secondary. Report them only at strengths where the edited model sits at 50-90%
+  refusal, because 100% hides differences and degenerate text fakes them. Batch-size noise is a few pp, so no
+  rate difference under ~10 pp counts.
+
+*Conditions per variant* (trimmed from the small-model run): harmful none, harmless none, r̂ at its layer
+×0.25/0.5/1 (8B models saturate at ×1: clean addition 97.5-100%), random norm-matched ×1, mediator added ×1
+(positive control), mediator ablated + r̂ ×0.5 and ×1, mediator projections. Drop ×2/×4 and every-layer
+addition, which were degenerate on the small models. That is about 9 generation passes per variant.
+
+*Cost.* An 8B pass over 80 prompts is ~1-1.5 min, so 6 variants × 9 conditions is ~1-1.5 h per model, plus
+~1.5 h for Phase 2 if needed. Run one model at a time and never alongside another GPU job: two OOM crashes on
+2026-10-03 came from sharing the GPU.
+
+    .venv/bin/python3 llm-refusal/scripts/rhat_in_regrown.py --model meta-llama/Meta-Llama-3-8B-Instruct \
+      --strengths 0.25,0.5,1 --mediator results/regrown-Meta-Llama-3-8B-Instruct-refusal-direction
+    .venv/bin/python3 llm-refusal/scripts/rhat_in_regrown.py --model Qwen/Qwen2.5-7B-Instruct \
+      --strengths 0.25,0.5,1 --mediator results/regrown100-Qwen2.5-7B-Instruct-refusal-direction
+
+(The script's random ×max-strength and every-layer conditions follow `--strengths`; with max 1 they cost one
+extra pass. The mediator-ablated condition runs at ×1 and ×max.)
+
+**What each outcome means.** If the shift is preserved at 8B, removing r̂ and regrowing refusal leaves two
+triggers at every scale, so an r̂-based monitor still fires on the regrown model. If it is trained away at 8B
+only, scale changes how fine-tuning treats an unused input direction. If ablating the mediator kills r̂'s
+induction on Llama-3-8B, as on Llama-3.2-1B, then in the Llama family r̂ is upstream of the late boundary
+direction even in the clean model, which explains why regrowth reuses that direction.
