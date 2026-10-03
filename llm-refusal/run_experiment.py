@@ -95,9 +95,11 @@ examples:
     parser.add_argument("--adapter-file", default=None,
                         help="run inside a saved rank1/regrow adapter set: the stem of results/finetune/<...>.json "
                              "and -adapters.pt (every mode)")
-    parser.add_argument("--adapter-variant", choices=["full", "u_perp", "u_rhat"], default="full",
-                        help="with --adapter-file: as trained, with r̂ projected out of U (the inhibitor), "
-                             "or only U's r̂ part. r̂ = the saved direction (--edit-direction-file)")
+    parser.add_argument("--adapter-variant", default="full",
+                        help="with --adapter-file: full (as trained), u_perp (r̂ projected out of U: the inhibitor), "
+                             "u_rhat (only U's r̂ part (u_rhat), or u_random[k] (k=0..9 seed): U replaced by random unit "
+                             "columns orthogonal to r̂ at the saved r̂-free norm (matched random-write control; V as saved). "
+                             "r̂ = the saved direction (--edit-direction-file)")
     parser.add_argument("--orthogonalize-first", action="store_true",
                         help="run the whole mode inside the weight edit of the saved direction "
                              "(--edit-direction-file, default results/<model>-<concept>-direction)")

@@ -28,6 +28,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import random
 import time
 from typing import Dict, Iterator, List, Optional, Sequence, Tuple
@@ -129,13 +130,19 @@ def installed(model, stem: str, variant: str = "full", r_hat: Optional[t.Tensor]
 
     variant: 'full' as trained; 'u_perp' with r̂ projected out of every U column (the
     refusal *inhibitor* of a rank1 remove adapter); 'u_rhat' with only the r̂
-    component of U kept. A regrow adapter was trained inside the weight edit, so
+    component of U kept; 'u_random' / 'u_random<k>' (k = 0..9, plain = 0) keeps V and
+    replaces each U column with a random unit vector orthogonal to r̂ (generator seeded
+    1000 + k + site index) scaled to the saved column's r̂-free norm: the matched
+    random-write control for "the trained write direction matters". A regrow adapter was trained inside the weight edit, so
     install it inside `orthogonalized(model, r̂)` as well (framework: --orthogonalize-first).
     """
     meta, weights = load_adapters(stem)
     sites, rank = saved_adapter_sites(model, meta)
     if len(weights) != len(sites):
         raise ValueError(f"{stem}: {len(weights)} saved adapters for {len(sites)} sites")
+    rnd = re.fullmatch(r"u_random([0-9])?", variant)
+    if variant not in ("full", "u_perp", "u_rhat") and not rnd:
+        raise ValueError(f"unknown adapter variant {variant!r}")
     if variant != "full" and r_hat is None:
         raise ValueError(f"variant {variant!r} needs r̂")
     if variant != "full":
@@ -144,14 +151,21 @@ def installed(model, stem: str, variant: str = "full", r_hat: Optional[t.Tensor]
             raise ValueError(f"variant {variant!r} needs every adapted site to write the residual stream "
                              f"(out_features == d_model); {sorted(set(bad))} do not")
     with adapted(model, sites, rank=rank, seed=0) as adapters:
-        for a, w in zip(adapters, weights):
+        for i, (a, w) in enumerate(zip(adapters, weights)):
             U, V = w["U"].float(), w["V"].float()
             if variant in ("u_perp", "u_rhat"):
                 r = r_hat.float().cpu()
                 along = t.outer(r, r @ U)
                 U = U - along if variant == "u_perp" else along
-            elif variant != "full":
-                raise ValueError(f"unknown adapter variant {variant!r}")
+            elif rnd:
+                r = r_hat.float().cpu()
+                r = r / r.norm()
+                U = U.cpu()
+                kept = U - t.outer(r, r @ U)
+                g = t.Generator().manual_seed(1000 + int(rnd.group(1) or 0) + i)
+                R = t.randn(U.shape, generator=g)
+                R = R - t.outer(r, r @ R)
+                U = R / R.norm(dim=0, keepdim=True) * kept.norm(dim=0, keepdim=True)
             a.U.data, a.V.data = U.to(a.U.device), V.to(a.V.device)
         logger.info(f"Installed {len(adapters)} saved adapter(s) from {stem} ({variant})")
         yield adapters

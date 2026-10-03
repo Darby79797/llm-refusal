@@ -206,3 +206,29 @@ def test_row_too_big_on_its_own_is_skipped(model, tokenizer, monkeypatch):
     # U starts at 0, so step 1's loss is the unadapted model's CE on the rows used.
     want = completion_ce(model, fmt, [p for p, _ in others], [c for _, c in others], batch_size=4)
     assert hist[0]["loss"] == pytest.approx(want, rel=1e-4)
+
+
+def test_u_random_variant_is_orthogonal_matched_norm_and_seeded(model, monkeypatch):
+    import finetune
+    d = model.config.hidden_size
+    g = t.Generator().manual_seed(5)
+    U, V = t.randn(d, 1, generator=g), t.randn(d, 1, generator=g)
+    r = t.randn(d, generator=g)
+    r = r / r.norm()
+    sites = adapter_sites(model, [0], ["o_proj"])
+    monkeypatch.setattr(finetune, "load_adapters", lambda stem: ({}, [{"U": U, "V": V}]))
+    monkeypatch.setattr(finetune, "saved_adapter_sites", lambda m, meta: (sites, 1))
+    got = {}
+    for v in ("u_random0", "u_random1", "u_random"):
+        with finetune.installed(model, "x", v, r_hat=r) as (a,):
+            got[v] = a.U.detach().clone()
+            assert t.allclose(a.V.detach(), V)
+    want = (U - r[:, None] * (r @ U)).norm()
+    for v in ("u_random0", "u_random1"):
+        assert abs(float(r @ got[v])) < 1e-5
+        assert abs(float(got[v].norm()) - float(want)) < 1e-4
+    assert not t.allclose(got["u_random0"], got["u_random1"])
+    assert t.allclose(got["u_random"], got["u_random0"])
+    with pytest.raises(ValueError):
+        with finetune.installed(model, "x", "u_random10", r_hat=r):
+            pass
