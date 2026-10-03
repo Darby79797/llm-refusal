@@ -131,7 +131,7 @@ Adapters exist for both (readers/writers × r0/r32, seed 0); mediators: Llama-3 
 
 *Conditions per variant* (trimmed from the small-model run): harmful none, harmless none, r̂ at its layer
 ×0.25/0.5/1 (8B models saturate at ×1: clean addition 97.5-100%), random norm-matched ×1, mediator added ×1
-(positive control), mediator ablated + r̂ ×0.5 and ×1, mediator projections. Drop ×2/×4 and every-layer
+(positive control), mediator ablated + r̂ ×1, mediator projections. Drop ×2/×4 and every-layer
 addition, which were degenerate on the small models. That is about 9 generation passes per variant.
 
 *Cost.* An 8B pass over 80 prompts is ~1-1.5 min, so 6 variants × 9 conditions is ~1-1.5 h per model, plus
