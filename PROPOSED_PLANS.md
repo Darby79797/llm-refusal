@@ -77,7 +77,7 @@ From the five referee passes (results/analysis/referee-*.json). Queued: Llama-3 
 - **Category subset-noise null** (random 10-prompt subsets) and ablation of the category residuals c_k.
 - Seeds: a second Llama-3 regrowth seed + regrown search (is L16/P-1 canonical?), 0.5B rank1 remove/null seeds 1-2 for the CE netting, random-direction edits with seeds 1-4.
 
-## 12. Does the regrown model still obey the original r̂? — S — 0.5B done, Llama-3.2-1B partial, 7-8B designed (2026-10-03)
+## 12. Does the regrown model still obey the original r̂? — S — **DONE 2026-10-04 on 0.5B, Llama-3.2-1B, Llama-3-8B, Qwen-7B (RESULTS.md Limb §6): yes, more than a benign fine-tune does**
 
 **Question.** After r̂ is edited out and refusal is fine-tuned back along a new axis, does adding the clean r̂
 to harmless prompts still trigger refusal, or did fine-tuning train that response away? Script:
@@ -104,7 +104,15 @@ Refusal training does not remove the response to r̂ (shift ≥ the benign-only 
 has two triggers. Ablating the regrown L18 mediator trims r̂'s effect only a little (14 → 9%, 35 → 26%; clean
 100 → 96%). Random norm-matched direction: 0-9%. Strength 4 and every-layer addition: degenerate, not results.
 
-**Llama-3.2-1B (partial: clean and edited only; the rest waits for a free GPU).** Regrowth replicates (32
+**Outcome at 1B-8B (2026-10-04).** Regrown-minus-benign shift, per arm/seed: Llama-3.2-1B +3.3 / +4.1 (×1);
+Llama-3-8B +4.9 / +1.2 / +5.9 readers seeds 0-2, +7.3 writers (×1); Qwen-7B +6.6 / +4.3 / +4.7, +5.5 (×0.5; ×1
+saturates). Paired per-prompt SD 1-2 nats (tighter than the 3.5-4 assumed above); seed spread ±2.5 nats on Llama-3
+(larger than the ±1-1.5 assumed). The design's rule had no "amplified" branch; every estimate lands there. Benign
+fine-tuning alone shrinks r̂'s push 2-4×, refusal training restores part of it. Mediator-ablated r̂: 0-14% on 7B and
+1B variants, but largely intact on Llama-3-8B, where the mediator used (seed-0 L16) has since been superseded by the
+full-depth L30 pick.
+
+**Llama-3.2-1B (first pass, 2026-10-03: clean and edited).** Regrowth replicates (32
 examples: 100% harmful refusal in both arms; benign only: 0%); the regrown mediator is L14/P-1 of 16. r̂ at L8
 strength 1 induces 76% (clean) / 80% (edited), shift ≈ +16 nats, per-prompt SD of the shift 3.5-3.9. **Unlike
 0.5B, ablating the L14 mediator abolishes r̂'s induction in the clean model** (76 → 0%, log-odds +4.5 → −5.8):
@@ -151,3 +159,17 @@ triggers at every scale, so an r̂-based monitor still fires on the regrown mode
 only, scale changes how fine-tuning treats an unused input direction. If ablating the mediator kills r̂'s
 induction on Llama-3-8B, as on Llama-3.2-1B, then in the Llama family r̂ is upstream of the late boundary
 direction even in the clean model, which explains why regrowth reuses that direction.
+
+## 13. Follow-ups from the 2026-10-03/04 queue — S each (RESULTS.md Limb §6)
+
+- **Llama-3-8B r̂ bypass against the real mediator**: rerun the mediator-ablated conditions of plan 12 with
+  `results/regrown100-Meta-Llama-3-8B-Instruct-refusal-direction` (L30/P-1) instead of L16. Plan 12's "r̂ bypasses
+  the mediator on Llama-3-8B" rests on the superseded L16 pick (`rhat_in_regrown.py --mediator ...`; ~1 h).
+- **Cross-seed transfer**: ablate seed 0's regrown direction inside the seed-1/2 regrown models (and vice versa). The
+  same-layer regrowth deltas agree at cos 0.6-0.86; does ablating one seed's axis remove another seed's refusal?
+- **Is Llama-3-8B's L30 axis needed by the clean model**, as 7B's L24 is (89 → 4%)? `--direction-file
+  results/regrown100-Meta-Llama-3-8B-Instruct-refusal-direction` evaluate on the clean model, plus `axis_vs_clean.py`.
+- **Masked 7B edit at 512 tokens / JailbreakBench** (needs the local LlamaGuard via Ollama): does the near-free
+  masked edit comply as fully as the plain one?
+- **Seed 1 of Llama-3 readers r32** has 42% degenerate harmful refusals and the weakest r̂ response (+1.2): eyeball
+  its generations before pooling it.
