@@ -160,7 +160,7 @@ only, scale changes how fine-tuning treats an unused input direction. If ablatin
 induction on Llama-3-8B, as on Llama-3.2-1B, then in the Llama family r̂ is upstream of the late boundary
 direction even in the clean model, which explains why regrowth reuses that direction.
 
-## 13. Follow-ups from the 2026-10-03/04 queue — S each (RESULTS.md Limb §6)
+## 13. Follow-ups from the 2026-10-03/04 queue — S each (RESULTS.md Limb §6) — queued 2026-10-04 as jobs 200-250 (dose, r̂ via L29-30, cross-seed, clean necessity, outlier control)
 
 - **Llama-3-8B r̂ bypass against the real mediator**: rerun the mediator-ablated conditions of plan 12 with
   `results/regrown100-Meta-Llama-3-8B-Instruct-refusal-direction` (L30/P-1) instead of L16. Plan 12's "r̂ bypasses
