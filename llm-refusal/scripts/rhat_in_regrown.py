@@ -52,7 +52,12 @@ def main():
     ap.add_argument("--n-eval", type=int, default=100)
     ap.add_argument("--n-harmful", type=int, default=50)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--tag", default="", help="output suffix (…-rhat-in-regrown-<tag>.json), for subset/other-mediator runs")
+    ap.add_argument("--subset", default=None, help="comma-separated condition names to run (default all)")
+    ap.add_argument("--logodds-only", action="store_true", help="skip generation: first-token log-odds only (fast)")
+    ap.add_argument("--no-reference", action="store_true", help="skip the clean and edited variants")
     a = ap.parse_args()
+    subset = set(a.subset.split(",")) if a.subset else None
 
     run = load_run(a.model)
     fw, model, r, r_hat = run.fw, run.model, run.r, run.r_hat
@@ -71,14 +76,14 @@ def main():
     def behaviour(fw_, prompts, ctx=contextlib.nullcontext):
         ev = fw_.evaluator
         with ctx():
-            texts = ev.generate_responses(prompts, max_new_tokens=64)
+            texts = None if a.logodds_only else ev.generate_responses(prompts, max_new_tokens=64)
             scores = ev.log_odds_scores(prompts)
-        labels = [bool(ev._check_for_detection(x)) for x in texts]
         finite = [x for x in scores if x == x]
-        res = {"rate": sum(labels) / len(labels), "log_odds": sum(finite) / len(finite), "n": len(labels),
-               "labels": labels, "log_odds_per_prompt": scores}
-        res["degenerate"] = sum(is_degenerate(tok.encode(x, add_special_tokens=False)) for x in texts) / len(texts)
-        res["samples"] = texts[:3]
+        res = {"log_odds": sum(finite) / len(finite), "n": len(prompts), "log_odds_per_prompt": scores}
+        if texts is not None:
+            labels = [bool(ev._check_for_detection(x)) for x in texts]
+            res.update(rate=sum(labels) / len(labels), labels=labels, samples=texts[:3],
+                       degenerate=sum(is_degenerate(tok.encode(x, add_special_tokens=False)) for x in texts) / len(texts))
         return res
 
     def dv(v, layer, pos):
@@ -104,51 +109,60 @@ def main():
         return float((h @ unit(med.vector)).mean())
 
     def conditions():
-        res = {"harmful_none": behaviour(fw, harmful), "harmless_none": behaviour(fw, harmless)}
+        res = {}
+
+        def run(name, prompts, ctx=contextlib.nullcontext):
+            if subset is None or name in subset:
+                res[name] = behaviour(fw, prompts, ctx)
+
+        run("harmful_none", harmful)
+        run("harmless_none", harmless)
         for s in strengths:
-            res[f"add_rhat_s{s:g}"] = behaviour(fw, harmless, add_at(r.vector, r.layer, r.position_index, s))
-        res["add_rhat_every_layer_s1"] = behaviour(fw, harmless, add_at(r.vector, r.layer, r.position_index, 1.0, True))
+            run(f"add_rhat_s{s:g}", harmless, add_at(r.vector, r.layer, r.position_index, s))
+        run("add_rhat_every_layer_s1", harmless, add_at(r.vector, r.layer, r.position_index, 1.0, True))
         for s in sorted({1.0, max(strengths)}):
-            res[f"add_random_s{s:g}"] = behaviour(fw, harmless, add_at(rand, r.layer, r.position_index, s))
+            run(f"add_random_s{s:g}", harmless, add_at(rand, r.layer, r.position_index, s))
         if med is not None:
-            res["add_mediator_s1"] = behaviour(fw, harmless, add_at(med.vector, med.layer, med.position_index))
+            run("add_mediator_s1", harmless, add_at(med.vector, med.layer, med.position_index))
             for s in sorted({1.0, max(strengths)}):
-                res[f"ablate_mediator_add_rhat_s{s:g}"] = behaviour(fw, harmless, lambda s=s: ablate_med_add_rhat(s))
-            res["mediator_projection"] = {
-                "none": med_projection(contextlib.nullcontext),
-                **{f"add_rhat_s{s:g}": med_projection(add_at(r.vector, r.layer, r.position_index, s)) for s in strengths}}
+                run(f"ablate_mediator_add_rhat_s{s:g}", harmless, lambda s=s: ablate_med_add_rhat(s))
+            if subset is None or "mediator_projection" in subset:
+                res["mediator_projection"] = {
+                    "none": med_projection(contextlib.nullcontext),
+                    **{f"add_rhat_s{s:g}": med_projection(add_at(r.vector, r.layer, r.position_index, s)) for s in strengths}}
         return res
 
-    out = {"model": a.model, "direction": run.coords, "rhat_norm": float(rnorm), "n_harmless": len(harmless),
+    out = {"model": a.model, "tag": a.tag, "subset": a.subset, "logodds_only": a.logodds_only, "direction": run.coords, "rhat_norm": float(rnorm), "n_harmless": len(harmless),
            "n_harmful": len(harmful), "strengths": strengths, "random_seed": a.seed,
            "mediator": a.mediator and {"stem": a.mediator, "layer": med.layer, "position_index": med.position_index,
                                        "cos_r_hat": cos(med.vector, r_hat)},
            "variants": {}}
 
-    out_path = run.path("finetune", "rhat-in-regrown")
+    out_path = run.path("finetune", "rhat-in-regrown", a.tag)
     if os.path.exists(out_path):
         import json
         prev = json.load(open(out_path))
-        if prev.get("strengths") == strengths and prev.get("mediator") == out["mediator"]:
+        if all(prev.get(k, {"logodds_only": False}.get(k)) == out[k] for k in ("strengths", "mediator", "subset", "logodds_only")):
             out["variants"] = prev.get("variants", {})
             print("resuming; done:", list(out["variants"]), flush=True)
 
     def report(name, res):
         out["variants"][name] = res
-        rates = " ".join(f"{k}={v['rate']:.0%}/{v['degenerate']:.0%}d" for k, v in res.items() if isinstance(v, dict) and "rate" in v)
+        rates = " ".join(f"{k}={v['rate']:.0%}/{v['degenerate']:.0%}d" if "rate" in v else f"{k}=lo{v['log_odds']:+.1f}"
+                         for k, v in res.items() if isinstance(v, dict) and "log_odds" in v)
         print(f"{name:22s} {rates}", flush=True)
         if "mediator_projection" in res:
             print(f"{'':22s} mediator projection: " + " ".join(f"{k}={v:+.2f}" for k, v in res["mediator_projection"].items()),
                   flush=True)
-        save_json(run.path("finetune", "rhat-in-regrown"), out)
+        save_json(out_path, out)
 
     def todo(name):
         return name not in out["variants"]
 
-    if todo("clean"):
+    if todo("clean") and not a.no_reference:
         report("clean", conditions())
     with orthogonalized(model, r.vector):
-        if todo("edited"):
+        if todo("edited") and not a.no_reference:
             report("edited", conditions())
         for arm in a.arms.split(","):
             stem = f"results/finetune/{run.short}-refusal-regrow-{arm}"
@@ -159,7 +173,7 @@ def main():
                 continue
             with installed(model, stem, "full"):
                 report(f"edited+{arm}", conditions())
-    print("saved", run.path("finetune", "rhat-in-regrown"))
+    print("saved", out_path)
 
 
 if __name__ == "__main__":
