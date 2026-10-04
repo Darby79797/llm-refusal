@@ -160,7 +160,7 @@ only, scale changes how fine-tuning treats an unused input direction. If ablatin
 induction on Llama-3-8B, as on Llama-3.2-1B, then in the Llama family r̂ is upstream of the late boundary
 direction even in the clean model, which explains why regrowth reuses that direction.
 
-## 13. Follow-ups from the 2026-10-03/04 queue — S each (RESULTS.md Limb §6) — queued 2026-10-04 as jobs 200-250 (dose, r̂ via L29-30, cross-seed, clean necessity, outlier control)
+## 13. Follow-ups from the 2026-10-03/04 queue — S each (RESULTS.md Limb §6) — DONE 2026-10-04 (jobs 200-250, RESULTS.md §7) except the masked-edit JailbreakBench run (now 14d). Outcome: r̂ sensitivity from refusal training does not track regrowth; on Llama-3 it goes through the regrown L29-30 axis too (no bypass); the 7B regrown axis transfers across seeds, Llama-3's only from L29; the clean 7B needs that axis, the clean Llama-3 does not; the outlier cost drop is specific to those coordinates
 
 - **Llama-3-8B r̂ bypass against the real mediator**: rerun the mediator-ablated conditions of plan 12 with
   `results/regrown100-Meta-Llama-3-8B-Instruct-refusal-direction` (L30/P-1) instead of L16. Plan 12's "r̂ bypasses
@@ -173,3 +173,19 @@ direction even in the clean model, which explains why regrowth reuses that direc
   masked edit comply as fully as the plain one?
 - **Seed 1 of Llama-3 readers r32** has 42% degenerate harmful refusals and the weakest r̂ response (+1.2): eyeball
   its generations before pooling it.
+
+## 14. Follow-ups from the plan-13 checks — S each (RESULTS.md §7) — queued 2026-10-04 as jobs 300-330
+
+- **14a. Llama-3 cross-seed asymmetry: layer or seed?** (job 300, `scripts/seed_direction_stems.py` +
+  `ablate_in_variants.py --tag crossseed-delta`). Seed 0's L30 direction leaves 60% of seeds 1-2's refusal, their
+  L29 directions remove everything. Ablate seed 0's raw L29 contrast, each seed's regrowth delta (minus the benign
+  twin) at L29/L30, and random, inside all three regrown models. If seed 0's L29 contrast or delta transfers, the gap
+  is depth; if only the deltas transfer, seed 0's direction carries a seed-specific part that seeds 1-2 don't use.
+- **14b. Does ablating a regrown axis cause false refusal?** (job 310, `--harmless-gen`). Harmless first-token
+  log-odds rise 4-7 nats under ablation. Generate on the harmless prompts in the clean and regrown Llama-3 and 7B
+  with the regrown axis, random and r̂ ablated. A real false-refusal rate means the ablation results above carry a
+  disruption cost; ~0% means the log-odds move is a flatter first token.
+- **14c. Is Llama-3's L30 axis a trigger in the clean model?** (job 320). It is not needed there (100 → 99%). Add it
+  to harmless prompts at ×0.25 / 0.5 / 1, as for 7B's L24 (0 / 17.5 / 100%) and the old L16 (80% at ×1).
+- **14d. Masked 7B edit on JailbreakBench** (job 330, 512 tokens, LlamaGuard 2 via the local Ollama). Plain r̂ edit
+  vs the outlier-masked edit: does the near-free edit comply as fully?

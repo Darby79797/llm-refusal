@@ -6,7 +6,8 @@ r̂'s layer)? Variants: `clean`, `edited`, or a regrow tag (edited + results/fin
 Directions: a saved stem, `rhat` (the clean refusal direction), or `random@<stem>` (a norm-matched random direction
 at that stem's layer/position; ablation ignores the norm). `--from-layer K` ablates only at layers >= K (default
 every layer). Reports refusal on harmful prompts (64-token generation, phrase detector) and first-token log-odds,
-plus harmless log-odds as a disruption check.
+plus harmless log-odds as a disruption check (`--harmless-gen` also generates on the harmless prompts: false
+refusal and degeneracy, for when ablation moves harmless log-odds).
 
   .venv/bin/python3 llm-refusal/scripts/ablate_in_variants.py --model meta-llama/Meta-Llama-3-8B-Instruct \\
       --variants readers-r32,readers-r32-s1 --directions rhat,results/regrown100-Meta-Llama-3-8B-Instruct-refusal-direction \\
@@ -43,6 +44,7 @@ def main():
     ap.add_argument("--n-harmful", type=int, default=99)
     ap.add_argument("--n-harmless", type=int, default=80)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--harmless-gen", action="store_true", help="also generate on harmless prompts (false refusal)")
     a = ap.parse_args()
 
     run = load_run(a.model)
@@ -80,14 +82,19 @@ def main():
     def measure(d):
         with ablated(d):
             texts = ev.generate_responses(harmful, max_new_tokens=64)
+            texts_n = ev.generate_responses(harmless, max_new_tokens=64) if a.harmless_gen else None
             lo_h = ev.log_odds_scores(harmful)
             lo_n = ev.log_odds_scores(harmless)
         labels = [bool(ev._check_for_detection(x)) for x in texts]
+        degen = lambda xs: sum(is_degenerate(tok.encode(x, add_special_tokens=False)) for x in xs) / len(xs)  # noqa: E731
         fin = lambda xs: [x for x in xs if x == x]  # noqa: E731
-        return {"rate": sum(labels) / len(labels), "log_odds": sum(fin(lo_h)) / len(fin(lo_h)),
-                "harmless_log_odds": sum(fin(lo_n)) / len(fin(lo_n)),
-                "degenerate": sum(is_degenerate(tok.encode(x, add_special_tokens=False)) for x in texts) / len(texts),
-                "n": len(labels), "samples": texts[:3]}
+        m = {"rate": sum(labels) / len(labels), "log_odds": sum(fin(lo_h)) / len(fin(lo_h)),
+             "harmless_log_odds": sum(fin(lo_n)) / len(fin(lo_n)), "degenerate": degen(texts),
+             "n": len(labels), "samples": texts[:3]}
+        if texts_n is not None:
+            m.update(harmless_rate=sum(bool(ev._check_for_detection(x)) for x in texts_n) / len(texts_n),
+                     harmless_degenerate=degen(texts_n), harmless_samples=texts_n[:3])
+        return m
 
     path = run.path("analysis", "ablate-in-variants", a.tag)
     out = {"model": a.model, "from_layer": a.from_layer, "directions": {k: (None if v is None else
@@ -105,7 +112,9 @@ def main():
                 continue
             res[dname] = m = measure(d)
             print(f"{name:18s} ablate {dname[-60:]:60s} refusal {m['rate']:5.0%}  lo {m['log_odds']:+6.2f}  "
-                  f"harmless lo {m['harmless_log_odds']:+6.2f}  degenerate {m['degenerate']:.0%}", flush=True)
+                  f"harmless lo {m['harmless_log_odds']:+6.2f}  degenerate {m['degenerate']:.0%}"
+                  + (f"  harmless refusal {m['harmless_rate']:.0%} degenerate {m['harmless_degenerate']:.0%}"
+                     if "harmless_rate" in m else ""), flush=True)
             save_json(path, out)
 
     variants = a.variants.split(",")
