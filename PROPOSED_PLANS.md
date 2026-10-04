@@ -189,3 +189,15 @@ direction even in the clean model, which explains why regrowth reuses that direc
   to harmless prompts at ×0.25 / 0.5 / 1, as for 7B's L24 (0 / 17.5 / 100%) and the old L16 (80% at ×1).
 - **14d. Masked 7B edit on JailbreakBench** (job 330, 512 tokens, LlamaGuard 2 via the local Ollama). Plain r̂ edit
   vs the outlier-masked edit: does the near-free edit comply as fully?
+
+## 15. Scale and seed series for the regrown mediator, outlier controls — queued 2026-10-04 night as jobs 400-470 (~8.5 h)
+
+Plan 13/14 found, on two 7-8B models, that regrowth rebuilds one late boundary axis; that 7B's is shared across seeds
+and needed by the clean model while Llama-3-8B's is neither fully shared nor needed; and that 7B's outlier
+coordinates carry the edit cost specifically. Each job adds datapoints to one of those claims:
+- **400** outlier-mask controls at 0.5B / 1.5B / 3B (1.5B's masked edit is new; 3B also masks both low-gain dims).
+- **410 / 420 / 450** regrowth on Qwen2.5-1.5B, Qwen2.5-3B and Llama-3.1-8B (never run): full-depth mediator
+  search, clean-model necessity of that axis (with false-refusal generation), and plan 12 (r̂ obeyed, through the axis?).
+- **430 / 440 / 460** cross-seed transfer at 0.5B, Llama-3.2-1B and 1.5B (two new seeds each).
+- **470** Llama-3-8B seeds 3-4 and the full 5×5 cross-seed matrix: is seed 0 the odd one out?
+Every step is ≤ 25 min or resumable inside, so yields to synth-doc-cot cost little.
