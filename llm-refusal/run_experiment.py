@@ -105,6 +105,10 @@ examples:
                              "(--edit-direction-file, default results/<model>-<concept>-direction)")
     parser.add_argument("--edit-direction-file", default=None,
                         help="direction (path without .pt/.json) for --orthogonalize-first / --adapter-variant")
+    parser.add_argument("--extra-edit-directions", nargs="+", default=None, metavar="STEM",
+                        help="also orthogonalise these saved directions out of the weights, with the edit direction "
+                             "(a subspace edit), in --orthogonalize-first and in --mode regrow's own edit. A regrow "
+                             "adapter records them and must be installed with the same list (iterated removal)")
     parser.add_argument("--edit-layers", type=int, nargs="+", default=None,
                         help="restrict the weight edit (orthogonalized condition, --orthogonalize-first) to these "
                              "blocks' o_proj/down_proj (default: all)")
@@ -230,6 +234,7 @@ def _namespace_to_config(args):
         "adapter_variant": args.adapter_variant,
         "orthogonalize_first": args.orthogonalize_first,
         "edit_direction_file": args.edit_direction_file,
+        "extra_edit_directions": args.extra_edit_directions,
         "edit_layers": args.edit_layers,
         "edit_embedding": args.edit_embedding,
     }

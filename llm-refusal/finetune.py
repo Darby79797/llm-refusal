@@ -455,9 +455,9 @@ def run_regrow(framework, direction, train_pos: List[str], train_neg: List[str],
                "targets": arm, "modules": list(names), "rank": rank, "seed": seed,
                "n_benign": len(benign), "n_refusal_examples": len(refusals), "refusal_repeat": repeat,
                "steps": config['train_steps'], "lr": config['lr'], "train_batch_size": config['train_batch_size'],
-               "eval_n": len(eval_subset)}
+               "eval_n": len(eval_subset), "extra_edit_directions": list(config.get('extra_edit_directions') or [])}
     results["clean"] = evaluate()
-    with orthogonalized(model, direction.vector):
+    with orthogonalized(model, framework.edit_vectors(direction.vector, config)):
         sites = adapter_sites(model, range(n_layers), names)
         with adapted(model, sites, rank=rank, seed=seed) as adapters:
             results["history"] = train_adapters(

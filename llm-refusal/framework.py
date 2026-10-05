@@ -350,6 +350,16 @@ class DirectionTestFramework:
     def saved_direction_path(self, concept: Optional[str] = None) -> str:
         return f"results/{self.model_short}-{concept or self.concept.name}-direction"
 
+    @staticmethod
+    def edit_vectors(vector, config: Dict):
+        """The weight edit's direction(s): `vector` alone, or stacked [k, d] with the saved
+        `extra_edit_directions` (iterated removal: r̂ plus earlier regrown mediators)."""
+        extra = config.get('extra_edit_directions') or []
+        if not extra:
+            return vector
+        rows = [vector.float().cpu()] + [DirectionVector.load(s).vector.float().cpu() for s in extra]
+        return t.stack(rows).to(vector.dtype)
+
     @contextlib.contextmanager
     def model_variant(self, config: Dict):
         """Run everything inside the model variant the config asks for:
@@ -365,15 +375,20 @@ class DirectionTestFramework:
         with contextlib.ExitStack() as stack:
             if config.get('orthogonalize_first'):
                 from orthogonalize import edit_bytes, orthogonalized
-                vec = DirectionVector.load(edit_path).vector
+                vec = self.edit_vectors(DirectionVector.load(edit_path).vector, config)
                 self.evaluator.reserve_bytes = edit_bytes(self.model)
                 stack.enter_context(orthogonalized(self.model, vec, layers=config.get('edit_layers'),
                                                    embedding=config.get('edit_embedding', True)))
                 logger.info(f"Model variant: weights orthogonalised against {edit_path} "
-                            f"(layers={config.get('edit_layers') or 'all'}, embedding={config.get('edit_embedding', True)})")
+                            + (f"+ {config['extra_edit_directions']} " if config.get('extra_edit_directions') else "")
+                            + f"(layers={config.get('edit_layers') or 'all'}, embedding={config.get('edit_embedding', True)})")
             if config.get('adapter_file'):
                 from finetune import installed, load_adapters
                 meta = load_adapters(config['adapter_file'])[0]
+                trained = meta.get("extra_edit_directions") or []
+                if config.get('orthogonalize_first') and list(trained) != list(config.get('extra_edit_directions') or []):
+                    raise ValueError(f"{config['adapter_file']} was trained with extra edit directions {trained}, "
+                                     f"but this run edits {config.get('extra_edit_directions') or []}")
                 saved = meta.get("direction", {})
                 mine = json.load(open(edit_path + ".json"))
                 if saved and (saved.get("layer"), saved.get("position_index")) != (mine["layer"], mine["position_index"]):

@@ -13,6 +13,7 @@ on Alpaca reference completions, raw Pile text and the clean model's own complet
   +emb suffix                   add the embedding to any of the above, e.g. lt:D+emb
   adapter:STEM[:VARIANT]        a saved rank1/regrow adapter set (finetune.installed), VARIANT full/u_perp/u_rhat
 E is an integer expression in D, the direction's layer (D, D-1, D+2 ...).
+--extra-edit-directions S1 S2 ... adds saved directions to every edit spec (a subspace edit: iterated removal).
 
   .venv/bin/python3 llm-refusal/scripts/edit_cost_sweep.py --model Qwen/Qwen2.5-0.5B-Instruct \\
       --specs none random full noemb lt:D lt:D+1+emb ge:D win:D:2 adapter:results/finetune/Qwen2.5-0.5B-Instruct-refusal-rank1-remove:u_perp
@@ -30,8 +31,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
+import torch as t  # noqa: E402
+
 from batching import resolve_forward_batch_size  # noqa: E402
 from capability import MAX_TOKENS, completion_ce, load_alpaca, load_pile, random_direction  # noqa: E402
+from datatypes import DirectionVector  # noqa: E402
 from finetune import installed  # noqa: E402
 from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
 from probe import behaviour, load_run, save_json  # noqa: E402
@@ -84,6 +88,8 @@ def main():
     ap.add_argument("--n-harmless", type=int, default=80)
     ap.add_argument("--tag", default="")
     ap.add_argument("--torch-dtype", default="auto")
+    ap.add_argument("--extra-edit-directions", nargs="+", default=[], metavar="STEM",
+                    help="orthogonalise these saved directions out too, with r̂, in every edit spec")
     a = ap.parse_args()
 
     run = load_run(a.model, a.concept, direction=a.direction or True, torch_dtype=a.torch_dtype)
@@ -99,16 +105,20 @@ def main():
     od_prompts = [x["instruction"] for x in load_alpaca("eval")[:a.n_od]]
     od_completions = ev.generate_responses(od_prompts, max_new_tokens=MAX_TOKENS)
     rand = random_direction(r.vector.shape[-1])
+    edit_vec = r.vector if not a.extra_edit_directions else t.stack(
+        [r.vector.float().cpu()] + [DirectionVector.load(x).vector.float().cpu() for x in a.extra_edit_directions]
+    ).to(r.vector.dtype)
 
     path = run.path("edit-cost", a.concept, a.tag)
-    out = {"model": a.model, "concept": a.concept, "direction": run.coords,
+    out = {"model": a.model, "concept": a.concept, "direction": run.coords, "extra_edit_directions": a.extra_edit_directions,
            "n_layers": n_layers, "ce_batch_size": bs, "dtype": str(model.dtype),
            "n": {"alpaca": len(alpaca), "pile": len(pile), "on_distribution": len(od_prompts),
                  "harmful": len(harmful), "harmless": len(harmless)}, "specs": {}}
 
     if os.path.exists(path):  # resume: keep specs already measured for the same direction
         prev = json.load(open(path))
-        if prev.get("direction") == out["direction"] and prev.get("n") == out["n"]:
+        if (prev.get("direction"), prev.get("n"), prev.get("extra_edit_directions", [])) == (
+                out["direction"], out["n"], out["extra_edit_directions"]):
             out["specs"] = {k: v for k, v in prev.get("specs", {}).items() if k in a.specs}
             print("resuming; done:", list(out["specs"]), flush=True)
 
@@ -122,7 +132,7 @@ def main():
             stem, variant = extra
             return (lambda: installed(model, stem, variant, r_hat)), {"kind": kind, "stem": stem, "variant": variant}
         n_edited = (n_layers if layers is None else len(layers))
-        return (lambda: orthogonalized(model, r.vector, layers=layers, embedding=emb)), \
+        return (lambda: orthogonalized(model, edit_vec, layers=layers, embedding=emb)), \
             {"kind": kind, "layers": layers, "embedding": emb, "n_blocks_edited": n_edited}
 
     for spec in a.specs:

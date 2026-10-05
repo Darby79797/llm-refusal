@@ -201,3 +201,42 @@ coordinates carry the edit cost specifically. Each job adds datapoints to one of
 - **430 / 440 / 460** cross-seed transfer at 0.5B, Llama-3.2-1B and 1.5B (two new seeds each).
 - **470** Llama-3-8B seeds 3-4 and the full 5×5 cross-seed matrix: is seed 0 the odd one out?
 Every step is ≤ 25 min or resumable inside, so yields to synth-doc-cot cost little.
+
+## 16. Iterated removal ("hydra") and the Llama-3-8B seed subspace — queued 2026-10-05 night as jobs 800-850 (~7.5 h)
+
+Code: `--extra-edit-directions STEM ...` (run_experiment: the weight edit removes r̂ plus saved directions, in
+`--orthogonalize-first` and in `--mode regrow`, and a regrow adapter records them and refuses to install under a
+different edit); `ablate_in_variants.py` variants `edited@S1+S2` and adapters trained under such an edit, directions
+`span:A+B` and `randspan:K@stem`; `edit_cost_sweep.py --extra-edit-directions`. Queue helpers `hydra_round` and
+`hydra_analysis` in `results/queue/lib.sh`.
+
+**Quick (10-40 min each, run first):**
+- **16a. Is Llama-3-8B's regrowth one subspace?** (job 800, ~35 min). Ablate the span of one direction per seed group
+  (s1 L29 + s3 L30), of s0+s1+s3, and of all five seeds' directions, in the clean model and all five regrown models;
+  2-D and 5-D random spans as controls. Predicted: span{s1,s3} leaves ≤10% in all five (p≈0.65); all five ~0%
+  (p≈0.85); random spans ~100%; the clean model keeps ≥80% under the five-span (p≈0.7).
+  - span{s1,s3} works everywhere: regrowth lives in a small late subspace and seeds pick different vectors in it. Next:
+    PCA of the five directions and ablate the top PCs.
+  - Even the five-span leaves refusal in some model: that model has more refusal paths than five seeds found. Next:
+    a residual search in it, with its own direction ablated.
+  - The clean model loses refusal under the five-span: the clean Llama-3 *does* use the late region, spread over
+    directions no single one captures. That revises §8's "not needed".
+- **16b. Hydra round 2 on 0.5B** (job 810's first two steps, ~20 min). Remove r̂ and round 1's mediator (L23) from
+  the weights, regrow with the same 32 refusal examples, search the full depth. Predicted: refusal regrows (≥90% at
+  200 steps, p≈0.8) to a new late direction (L18-23, p≈0.6) whose ablation removes it (≤10%). The writers can't
+  write the removed directions, so the new mediator is orthogonal to them.
+  - It regrows normally: refusal has many interchangeable late carriers. Rounds 3-4 (the rest of the job) ask
+    whether that runs out, and whether the edit's CE cost accumulates.
+  - It doesn't regrow (<50%): removing two directions makes refusal hard to relearn at this budget, which is the
+    first evidence of a limited supply. Next: a dose run (64 examples, 400 steps) to see whether it is slower or impossible.
+  - The new direction removes the clean model's refusal too: the clean 0.5B holds a third redundant path.
+
+**Overnight (jobs 810-850, in priority order):** hydra rounds 2-4 on Qwen2.5-0.5B, 2-3 on Llama-3.2-1B and Qwen2.5-1.5B,
+and round 2 on Qwen2.5-7B (one shared axis, needed by the clean model) and Llama-3-8B (several seed solutions). Each
+job then ablates r̂, every mediator, their joint span and a random direction in the clean model, the round-1 model,
+every round's model and the fully edited untrained model (with false-refusal generation), and measures the CE cost of
+each cumulative edit. Questions: does each round regrow at the same speed (history every 50 steps), does the mediator
+move deeper or shallower, and does the clean model need round-2+ mediators? On 7B, round 2 must find something other
+than the shared axis. On Llama-3-8B the prediction is that round 2 lands in another seed group's solution, so that
+seeds 1-4's directions remove its refusal. A round that fails to regrow (<50%) stops that model's series, and the
+analysis still runs.

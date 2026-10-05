@@ -2,9 +2,11 @@
 
 Built for the 2026-10-04 checks of the regrown-mediator claims: does ablating seed A's regrown direction remove seed
 B's regrown refusal (cross-seed transfer), and does the clean model need the regrown axis (and only downstream of
-r̂'s layer)? Variants: `clean`, `edited`, or a regrow tag (edited + results/finetune/<short>-refusal-regrow-<tag>).
-Directions: a saved stem, `rhat` (the clean refusal direction), or `random@<stem>` (a norm-matched random direction
-at that stem's layer/position; ablation ignores the norm). `--from-layer K` ablates only at layers >= K (default
+r̂'s layer)? Variants: `clean`, `edited`, `edited@S1+S2` (the edit with saved directions S1, S2 also orthogonalised out), or a
+regrow tag (results/finetune/<short>-refusal-regrow-<tag>, installed inside the edit it was trained under: r̂ plus
+its recorded extra_edit_directions). Directions: a saved stem, `rhat` (the clean refusal direction), `random@<stem>`
+(a norm-matched random direction at that stem's layer/position; ablation ignores the norm), `span:A+B+...` (the
+whole span of several of those removed in one projection) or `randspan:K@<stem>` (K random directions' span). `--from-layer K` ablates only at layers >= K (default
 every layer). Reports refusal on harmful prompts (64-token generation, phrase detector) and first-token log-odds,
 plus harmless log-odds as a disruption check (`--harmless-gen` also generates on the harmless prompts: false
 refusal and degeneracy, for when ablation moves harmless log-odds).
@@ -29,7 +31,7 @@ import torch as t  # noqa: E402
 
 from coherence import is_degenerate  # noqa: E402
 from datatypes import DirectionVector  # noqa: E402
-from finetune import installed  # noqa: E402
+from finetune import installed, load_adapters  # noqa: E402
 from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
 from probe import load_run, save_json, unit  # noqa: E402
 
@@ -64,6 +66,12 @@ def main():
             g = t.Generator().manual_seed(a.seed)
             v = unit(t.randn(ref.vector.shape[-1], generator=g)) * ref.vector.float().norm()
             return DirectionVector(vector=v.to(ref.vector.dtype), layer=ref.layer, position_index=ref.position_index, score=0)
+        if spec.startswith("span:"):
+            return t.stack([load_dir(x).vector.float().cpu() for x in spec[5:].split("+")])
+        if spec.startswith("randspan:"):
+            k, ref = spec[9:].split("@", 1)
+            g = t.Generator().manual_seed(a.seed)
+            return t.randn(int(k), DirectionVector.load(ref).vector.shape[-1], generator=g)
         return DirectionVector.load(spec)
 
     dirs = {"none": None, **{d: load_dir(d) for d in a.directions.split(",")}}
@@ -97,7 +105,8 @@ def main():
         return m
 
     path = run.path("analysis", "ablate-in-variants", a.tag)
-    out = {"model": a.model, "from_layer": a.from_layer, "directions": {k: (None if v is None else
+    out = {"model": a.model, "from_layer": a.from_layer, "directions": {k: (
+           None if v is None else {"span": v.shape[0]} if isinstance(v, t.Tensor) else
            {"layer": v.layer, "position_index": v.position_index}) for k, v in dirs.items()}, "results": {}}
     if os.path.exists(path):
         prev = json.load(open(path))
@@ -117,17 +126,29 @@ def main():
                      if "harmless_rate" in m else ""), flush=True)
             save_json(path, out)
 
+    def edit_of(v):
+        """(extra edit directions, adapter stem or None) for a non-clean variant."""
+        if v == "edited" or v.startswith("edited@"):
+            return tuple(v[7:].split("+")) if "@" in v else (), None
+        stem = f"results/finetune/{run.short}-refusal-regrow-{v}"
+        return tuple(load_adapters(stem)[0].get("extra_edit_directions") or ()), stem
+
     variants = a.variants.split(",")
     if "clean" in variants:
         do_variant("clean")
-    rest = [v for v in variants if v != "clean"]
-    if rest:
-        with orthogonalized(model, r.vector):
-            for v in rest:
-                if v == "edited":
-                    do_variant("edited")
+    groups = {}  # one weight edit per distinct extra-direction set, in first-seen order
+    for v in variants:
+        if v != "clean":
+            extra, stem = edit_of(v)
+            groups.setdefault(extra, []).append((v, stem))
+    for extra, members in groups.items():
+        vec = r.vector if not extra else t.stack([r.vector.float().cpu()] + [
+            DirectionVector.load(x).vector.float().cpu() for x in extra]).to(r.vector.dtype)
+        with orthogonalized(model, vec):
+            for v, stem in members:
+                if stem is None:
+                    do_variant(v)
                     continue
-                stem = f"results/finetune/{run.short}-refusal-regrow-{v}"
                 with installed(model, stem, "full"):
                     do_variant(v)
     print("saved", path)
