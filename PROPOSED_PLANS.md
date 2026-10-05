@@ -174,7 +174,7 @@ direction even in the clean model, which explains why regrowth reuses that direc
 - **Seed 1 of Llama-3 readers r32** has 42% degenerate harmful refusals and the weakest r̂ response (+1.2): eyeball
   its generations before pooling it.
 
-## 14. Follow-ups from the plan-13 checks — S each (RESULTS.md §7) — queued 2026-10-04 as jobs 300-330
+## 14. Follow-ups from the plan-13 checks — S each (RESULTS.md §7) — queued 2026-10-04 as jobs 300-330 — DONE 2026-10-05 (RESULTS.md §8). Outcome: Llama-3's cross-seed gap is per seed, not layer; ablation causes no false refusal (0-1%); L30 is not a clean trigger (45% at ×1, 96% degenerate); the masked 7B edit complies on JailbreakBench like the plain one
 
 - **14a. Llama-3 cross-seed asymmetry: layer or seed?** (job 300, `scripts/seed_direction_stems.py` +
   `ablate_in_variants.py --tag crossseed-delta`). Seed 0's L30 direction leaves 60% of seeds 1-2's refusal, their
@@ -190,7 +190,7 @@ direction even in the clean model, which explains why regrowth reuses that direc
 - **14d. Masked 7B edit on JailbreakBench** (job 330, 512 tokens, LlamaGuard 2 via the local Ollama). Plain r̂ edit
   vs the outlier-masked edit: does the near-free edit comply as fully?
 
-## 15. Scale and seed series for the regrown mediator, outlier controls — queued 2026-10-04 night as jobs 400-470 (~8.5 h)
+## 15. Scale and seed series for the regrown mediator, outlier controls — queued 2026-10-04 night as jobs 400-470 (~8.5 h) — DONE 2026-10-05 17:04 (RESULTS.md §8). Outcome: Llama-3-8B's 5 seeds split into non-transferring groups, every other model's axis transfers; the mediator lands at 75-96% depth on all seven models; clean necessity is per model (1B/3B/7B yes, 0.5B/1.5B partly, both 8B Llamas no); outlier masking is near-free on 0.5B/1.5B/7B and the control mask is not
 
 Plan 13/14 found, on two 7-8B models, that regrowth rebuilds one late boundary axis; that 7B's is shared across seeds
 and needed by the clean model while Llama-3-8B's is neither fully shared nor needed; and that 7B's outlier
