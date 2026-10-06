@@ -202,7 +202,7 @@ coordinates carry the edit cost specifically. Each job adds datapoints to one of
 - **470** Llama-3-8B seeds 3-4 and the full 5×5 cross-seed matrix: is seed 0 the odd one out?
 Every step is ≤ 25 min or resumable inside, so yields to synth-doc-cot cost little.
 
-## 16. Iterated removal ("hydra") and the Llama-3-8B seed subspace — queued 2026-10-05 night as jobs 800-850 (~7.5 h)
+## 16. Iterated removal ("hydra") and the Llama-3-8B seed subspace — DONE 2026-10-06 (RESULTS.md §9)
 
 Code: `--extra-edit-directions STEM ...` (run_experiment: the weight edit removes r̂ plus saved directions, in
 `--orthogonalize-first` and in `--mode regrow`, and a regrow adapter records them and refuses to install under a
@@ -240,3 +240,11 @@ move deeper or shallower, and does the clean model need round-2+ mediators? On 7
 than the shared axis. On Llama-3-8B the prediction is that round 2 lands in another seed group's solution, so that
 seeds 1-4's directions remove its refusal. A round that fails to regrow (<50%) stops that model's series, and the
 analysis still runs.
+
+**Outcome (2026-10-06):** 16a: span{s1, s3} removes refusal in all five regrown models (as predicted), and the clean
+model loses refusal under the five-span (100 → 5%, against the p≈0.7 prediction that it would keep ≥80%), so the third
+branch holds. Next: PCA of the five directions and ablate the top PCs in the clean model. 16b: round 2 regrows (94% at
+200 steps) to L19, necessary in its own model (12%), as predicted. Rounds continue on every model, but slower each time.
+0.5B round 4 stalls at 48% with no mediating direction. Follow-ups: (i) 0.5B round 4 at 64 examples / 400 steps (slower
+or impossible?); (ii) a residual search in 0.5B round 3/4 with m3 ablated (refusal is less concentrated there);
+(iii) PCA/top-k of the Llama-3-8B seed span in the clean model.
