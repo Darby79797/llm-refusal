@@ -386,7 +386,9 @@ class DirectionTestFramework:
                 from finetune import installed, load_adapters
                 meta = load_adapters(config['adapter_file'])[0]
                 trained = meta.get("extra_edit_directions") or []
-                if config.get('orthogonalize_first') and list(trained) != list(config.get('extra_edit_directions') or []):
+                edits = list(config.get('extra_edit_directions') or [])
+                beyond = config.get('edit_beyond_adapter') and edits[:len(trained)] == list(trained)
+                if config.get('orthogonalize_first') and list(trained) != edits and not beyond:
                     raise ValueError(f"{config['adapter_file']} was trained with extra edit directions {trained}, "
                                      f"but this run edits {config.get('extra_edit_directions') or []}")
                 saved = meta.get("direction", {})

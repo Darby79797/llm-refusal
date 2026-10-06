@@ -109,6 +109,10 @@ examples:
                         help="also orthogonalise these saved directions out of the weights, with the edit direction "
                              "(a subspace edit), in --orthogonalize-first and in --mode regrow's own edit. A regrow "
                              "adapter records them and must be installed with the same list (iterated removal)")
+    parser.add_argument("--edit-beyond-adapter", action="store_true",
+                        help="allow --extra-edit-directions to extend the list the installed regrow adapter was "
+                             "trained under (its list first): removes further directions from that model's weights, "
+                             "e.g. a residual search with its own mediator gone")
     parser.add_argument("--edit-layers", type=int, nargs="+", default=None,
                         help="restrict the weight edit (orthogonalized condition, --orthogonalize-first) to these "
                              "blocks' o_proj/down_proj (default: all)")
@@ -235,6 +239,7 @@ def _namespace_to_config(args):
         "orthogonalize_first": args.orthogonalize_first,
         "edit_direction_file": args.edit_direction_file,
         "extra_edit_directions": args.extra_edit_directions,
+        "edit_beyond_adapter": args.edit_beyond_adapter,
         "edit_layers": args.edit_layers,
         "edit_embedding": args.edit_embedding,
     }

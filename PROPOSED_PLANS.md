@@ -248,3 +248,24 @@ branch holds. Next: PCA of the five directions and ablate the top PCs in the cle
 0.5B round 4 stalls at 48% with no mediating direction. Follow-ups: (i) 0.5B round 4 at 64 examples / 400 steps (slower
 or impossible?); (ii) a residual search in 0.5B round 3/4 with m3 ablated (refusal is less concentrated there);
 (iii) PCA/top-k of the Llama-3-8B seed span in the clean model.
+
+## 17. Follow-ups to plan 16 — queued 2026-10-06 as jobs 900-930 (~1.5 h with a smoke test)
+
+Code: `ablate_in_variants.py` specs `pcs:K@A+B+...` (top-K uncentred principal axes of saved directions) and
+`perp:<spec>` (r̂ projected out), `--rhat-push S` (r̂ added on harmless prompts under each ablation);
+`run_experiment.py --edit-beyond-adapter` (edit more directions than a regrow adapter was trained under).
+
+- **17a. How many dimensions carry the clean Llama-3-8B's late refusal?** (job 910, ~30 min) Clean model; ablate
+  the top 1-4 PCs of the five seed directions, the clean model's own late contrast (r̂ projected out; L29, and
+  L26+L29+L30), round 2's mediator, a random 5-span; r̂ ×1 pushed on harmless prompts under each. Predicted: PC1 leaves
+  ~80%, top 3 ≤30% (p≈0.5); own contrast at least as strong as PC1 (p≈0.6); r̂'s push collapses under the 5-span
+  (p≈0.65).
+  - 2-3 PCs suffice: a small late refusal subspace downstream of r̂ that regrowth reuses. Next: the same on 7B and
+    Llama-3.1.
+  - All five needed, or the own contrast does it alone: "five seeds" was "enough ablation to hit the main
+    harmful/harmless axis", which weakens §9's correction.
+- **17c. Residual search in 0.5B round 3** (job 920, ~20 min) with m3 edited out too. Predicted: a second direction
+  exists and the span{m3, residual} leaves ≤15% (p≈0.55). None found or ineffective: refusal in this model is no
+  longer low-rank.
+- **17b. 0.5B round 4 at 64 examples / 400 steps** (job 930, ~30 min). Predicted: ≥90% (p≈0.7), mediator near L11-14
+  (p≈0.5), partial ablation (p≈0.6). Stalls again: first real limit on regrowth.
