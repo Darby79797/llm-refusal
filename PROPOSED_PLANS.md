@@ -249,7 +249,7 @@ branch holds. Next: PCA of the five directions and ablate the top PCs in the cle
 or impossible?); (ii) a residual search in 0.5B round 3/4 with m3 ablated (refusal is less concentrated there);
 (iii) PCA/top-k of the Llama-3-8B seed span in the clean model.
 
-## 17. Follow-ups to plan 16 — queued 2026-10-06 as jobs 900-930 (~1.5 h with a smoke test)
+## 17. Follow-ups to plan 16 — DONE 2026-10-07 (RESULTS.md §10)
 
 Code: `ablate_in_variants.py` specs `pcs:K@A+B+...` (top-K uncentred principal axes of saved directions) and
 `perp:<spec>` (r̂ projected out), `--rhat-push S` (r̂ added on harmless prompts under each ablation);
@@ -269,3 +269,10 @@ Code: `ablate_in_variants.py` specs `pcs:K@A+B+...` (top-K uncentred principal a
   longer low-rank.
 - **17b. 0.5B round 4 at 64 examples / 400 steps** (job 930, ~30 min). Predicted: ≥90% (p≈0.7), mediator near L11-14
   (p≈0.5), partial ablation (p≈0.6). Stalls again: first real limit on regrowth.
+
+**Outcome (2026-10-07):** 17a: graded over 3-4 PCs (PC1 98%, top 3 24%, all five 5%); the clean model's own late
+contrast does less than 2 PCs. r̂'s push collapses under late ablations that leave natural refusal intact
+(downstream, as predicted). 17b: regrows fast (96%) at 57 examples / 400 steps, so the round-4 stall was the budget. m4
+(L21) removes the clean 0.5B's refusal (90 → 19%): the first post-m1 direction the clean model needs. 17c: residual at L11;
+span{m3, residual} leaves 25%, not ≤15%. Next: round 4 on 1B/1.5B at the larger budget (does m4 also hit the clean
+model there?); r̂ push under m4 ablation on 0.5B; JailbreakBench on clean 0.5B with m4 ablated.
