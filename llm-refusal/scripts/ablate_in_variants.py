@@ -19,7 +19,8 @@ gone?
       --variants readers-r32,readers-r32-s1 --directions rhat,results/regrown100-Meta-Llama-3-8B-Instruct-refusal-direction \\
       --tag crossseed
 
-Writes results/analysis/<short>-ablate-in-variants-<tag>.json; resumes per (variant, direction).
+Writes results/analysis/<short>-ablate-in-variants-<tag>.json (every harmful-prompt response and its detector label, for
+re-scoring: the phrase detector misses moralising deflections); resumes per (variant, direction).
 """
 import argparse
 import contextlib
@@ -115,7 +116,7 @@ def main():
         fin = lambda xs: [x for x in xs if x == x]  # noqa: E731
         m = {"rate": sum(labels) / len(labels), "log_odds": sum(fin(lo_h)) / len(fin(lo_h)),
              "harmless_log_odds": sum(fin(lo_n)) / len(fin(lo_n)), "degenerate": degen(texts),
-             "n": len(labels), "samples": texts[:3]}
+             "n": len(labels), "samples": texts[:3], "texts": texts, "labels": labels}
         if a.rhat_push is not None:
             with ablated(d):
                 run.applier.apply_direction_intervention(r, "add", a.rhat_push, layers=[r.layer])
