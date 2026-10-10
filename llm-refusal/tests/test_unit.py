@@ -191,6 +191,23 @@ def test_strict_selection_ignores_non_passing_candidates():
     assert _strict_finder()._select_strict(candidates[1:]) is None
 
 
+def test_selection_requires_ablation_to_lower_bypass():
+    """A candidate whose ablation leaves bypass at or above baseline is never selected,
+    even if it is the only strict passer (hydra4b Llama-3.2-1B: L7/P-5 at +4.71 vs +4.58)."""
+    from search import DirectionFinder
+    candidates = [
+        (DirectionVector(vector=t.randn(32), layer=7, position_index=-5, score=0),
+         DirectionScores(bypass=4.71, induce=0.5, kl=0.05)),   # strict passer, no bypass
+        (DirectionVector(vector=t.randn(32), layer=13, position_index=-1, score=0),
+         DirectionScores(bypass=-0.58, induce=-0.24, kl=0.01)),  # bypasses, fails induce
+    ]
+    eligible = DirectionFinder._lowers_bypass(list(candidates), baseline_bypass=4.58)
+    assert [d.layer for d, _ in eligible] == [13]
+    assert _strict_finder()._select_strict(eligible) is None
+    # nothing lowers bypass: keep everything rather than return no candidates
+    assert len(DirectionFinder._lowers_bypass(candidates[:1], baseline_bypass=4.58)) == 1
+
+
 # ============================================================
 # Sycophancy / hedging detection heuristics
 # ============================================================

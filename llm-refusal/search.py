@@ -178,6 +178,7 @@ class DirectionFinder:
         else:
             logger.warning("No data was collected during search; skipping data saving and plotting.")
 
+        all_candidates = self._lowers_bypass(all_candidates, baseline_bypass_score)
         selected_direction = self._select_strict(all_candidates)
         if selected_direction:
             logger.info(f"\n--- Strictly Selected Direction (Met All Criteria) ---")
@@ -197,6 +198,24 @@ class DirectionFinder:
             )
 
         return selected_direction
+
+    @staticmethod
+    def _lowers_bypass(candidates: list, baseline_bypass: float) -> list:
+        """Only candidates whose ablation lowers the bypass score below baseline can be
+        selected: strict selection and the fallback filter on induce and KL only, so inside
+        an edited model, where few directions induce, they could pick one whose ablation
+        leaves refusal untouched (hydra4b Llama-3.2-1B, 2026-10-09: L7/P-5, bypass +4.71
+        against baseline +4.58, while L13/P-1 had -0.58). If none lowers it, keep them all
+        and say so."""
+        eligible = [(d, s) for d, s in candidates if s.bypass < baseline_bypass]
+        if candidates and not eligible:
+            logger.warning(f"No candidate's ablation lowers the bypass score below baseline "
+                           f"({baseline_bypass:.4f}); selecting among all candidates")
+            return candidates
+        if len(eligible) < len(candidates):
+            logger.info(f"{len(candidates) - len(eligible)} of {len(candidates)} candidates dropped: "
+                        f"ablation does not lower bypass below baseline ({baseline_bypass:.4f})")
+        return eligible
 
     def _select_strict(self, candidates: list) -> Optional[DirectionVector]:
         """
