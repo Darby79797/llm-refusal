@@ -352,3 +352,8 @@ If 7B follows the Qwens and 3.1-8B does not, the two-stage chain is a Qwen-famil
   2-5%. Each with the other and r̂ projected out. Predicted: both still ≤30% (p≈0.6), i.e. a multi-dimensional late stage
   in which several near-orthogonal directions are each necessary; if either rises to ≥70%, they share one necessary
   component.
+- **21d.** (job 1077, ~15 min) Re-run the plan-20 late conditions (0.5B/1.5B late-only, 3B every layer, with r̂ and a
+  random control) keeping every response, then label each as comply / deflect / refuse without a model (Claude
+  subagent reading the texts). Trigger: 4 of 6 saved 1.5B late-only samples are moralising deflections the phrase
+  detector counts as compliance. Predicted: 1.5B late-only deflection ≥30% (p≈0.6), so "refusal removed" there means
+  the template went and harm-recognition stayed; 0.5B and 3B ≤15% deflection (p≈0.6).
