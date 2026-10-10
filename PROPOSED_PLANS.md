@@ -346,3 +346,9 @@ late-only and 4 random draws.
   regrown axis was not necessary in its clean model and Llama-3.2-1B's own axis left 24%; the r̂ push survives late-only
   ablation (≥50%, p≈0.55).
 If 7B follows the Qwens and 3.1-8B does not, the two-stage chain is a Qwen-family property rather than a size effect.
+- **21c.** (job 1076, ~5 min, added after the no-model cosines) On 0.5B the own L21 contrast ⊥ r̂ and m4 have cos 0.19
+  (own late contrasts rotate with depth: adjacent layers 0.57-0.85, 4-6 apart 0.25-0.50; round-1 mediators match the own
+  contrast at their depth, 0.52-0.74; hydra rounds 2-4 ≤0.26 with every own contrast) yet each ablates the clean model to
+  2-5%. Each with the other and r̂ projected out. Predicted: both still ≤30% (p≈0.6), i.e. a multi-dimensional late stage
+  in which several near-orthogonal directions are each necessary; if either rises to ≥70%, they share one necessary
+  component.
