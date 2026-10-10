@@ -276,3 +276,41 @@ contrast does less than 2 PCs. r̂'s push collapses under late ablations that le
 (L21) removes the clean 0.5B's refusal (90 → 19%): the first post-m1 direction the clean model needs. 17c: residual at L11;
 span{m3, residual} leaves 25%, not ≤15%. Next: round 4 on 1B/1.5B at the larger budget (does m4 also hit the clean
 model there?); r̂ push under m4 ablation on 0.5B; JailbreakBench on clean 0.5B with m4 ablated.
+
+## 18. Is 0.5B's round-4 direction special? — queued 2026-10-09 (jobs 1000-1030)
+
+§10's headline is that m4 (hydra round 4b, L21/P-1) takes the *clean* 0.5B 90 → 19%, the first post-m1 direction
+the clean model needs. Before chasing it on other models, the cheap alternative: m4 is just the clean model's own late
+harmful-minus-harmless axis (minus r̂), which a full-depth search lands on once the fine-tune routes through it.
+
+- **18a. m4 vs the clean model's own late contrast** (job 1000, 0.5B, ~15 min). Save the clean 0.5B's
+  difference-in-means at L15/L19/L21/L23 P-1; ablate in the clean model: m4, own L21 contrast with r̂ projected out,
+  the span of own L19+L21+L23 (r̂ out), own L15 (r̂ out), a random direction, r̂; `--rhat-push 1`. Predicted:
+  cos(m4, own L21 ⊥ r̂) between 0.3 and 0.7 (p≈0.6); own L21 ⊥ r̂ leaves ≤40% (p≈0.5); r̂'s push collapses (≤30%)
+  under m4 (p≈0.6).
+  - Own contrast ≈ m4 in effect: round 4 found the clean model's native late axis; "clean model needs m4" is then a
+    statement about that axis, and the interesting question becomes why rounds 2-3 did not land on it.
+  - Own contrast much weaker than m4 (≥70%): m4 is a specific refusal path, not topic recognition.
+- **18b. Seed replicate of round 4b** (job 1010, 0.5B, ~25 min). Same edit and budget, `--seed 1`. Predicted:
+  regrows ≥80% (p≈0.8); its mediator has |cos| ≥0.5 with m4 (p≈0.5); ablating it leaves the clean model ≤40%
+  (p≈0.5). Fails to hit the clean model: §10's m4 result was seed luck.
+- **18c/d. Round 4 at 57-64 examples / 400 steps on Llama-3.2-1B and Qwen2.5-1.5B** (jobs 1020/1030, ~30-40 min
+  each, queued only after 18a/b). Predicted: regrows ≥80% on both (p≈0.7); clean model ≤50% under the new direction on
+  at least one (p≈0.4).
+
+## 19. Follow-ups to plan 18 — queued 2026-10-10 (jobs 1040-1050)
+
+Plan 18 so far: 0.5B's round-4 direction replicates across seeds (cos 0.71; clean 90 → 2-19%), but the clean 0.5B's
+own late contrast ⊥ r̂ does as much (5%), and 20 random directions give median 89% (54-98%, log-odds +0.52 ± 0.44).
+On 1.5B the round-4 direction leaves the clean model at 95%. On Llama-3.2-1B round 4 regrew (94%) but the search found
+no single direction that removes it (best candidate L7/P-5, bypass score +4.7; ablated in its own model: 96%).
+`save_variant_direction.py --extra-edit-directions` added (diff-in-means inside a hydra variant).
+
+- **19a. Is 1B's round-4 refusal low-rank but spread?** (job 1040, ~15 min). Save the round-4b model's own
+  harmful-minus-harmless contrast at L9/L11/L13/L14/L15 P-1; ablate in that model (and round 3) singles, the L11+L13+L15
+  span, the top-3 PCs of all five, a random 3-span. Predicted: no single contrast leaves ≤30% (p≈0.6); the 3-span leaves
+  ≤30% (p≈0.55). Neither works: regrown refusal there is not carried by late boundary-token contrasts at all (maybe
+  earlier positions, or genuinely distributed), and §9's "a fresh mediator each round" ends at round 4 on 1B.
+- **19b. Clean own late axis ⊥ r̂ on 1B and 1.5B** (in jobs 1040/1050, ~10 min each), as 18a on 0.5B, plus 4 random
+  draws. Predicted: on 1.5B (needs m3 partly, 66%) own L24 ⊥ r̂ leaves ≤50% (p≈0.5); on 1B own L13 ⊥ r̂ ≤50%
+  (p≈0.5). If both are ≥80%, the 0.5B result (clean model's late axis ⊥ r̂ is necessary) is a small-model margin effect.

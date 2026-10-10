@@ -23,11 +23,14 @@ def main():
     ap.add_argument("--concept", default="refusal")
     ap.add_argument("--adapter")
     ap.add_argument("--orthogonalize-first", action="store_true")
+    ap.add_argument("--extra-edit-directions", nargs="*", default=[],
+                    help="saved stems edited out with r̂ (iterated removal); must match the adapter's recorded list")
     ap.add_argument("--coords", nargs="+", required=True, help="layer:pos pairs")
     ap.add_argument("--out-prefix", required=True)
     a = ap.parse_args()
     run = load_run(a.model, a.concept)
-    cfg = {"orthogonalize_first": a.orthogonalize_first, "adapter_file": a.adapter, "mode": "evaluate"}
+    cfg = {"orthogonalize_first": a.orthogonalize_first, "adapter_file": a.adapter, "mode": "evaluate",
+           "extra_edit_directions": a.extra_edit_directions}
     coords = [(int(x.split(":")[0]), int(x.split(":")[1])) for x in a.coords]
     with run.fw.model_variant(cfg):
         pos, neg = run.fw.concept.train_data_fn()
