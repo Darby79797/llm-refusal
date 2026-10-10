@@ -103,8 +103,8 @@ class ChatPromptFormatter:
             manual_template = self._get_manual_template(model_name, bool(tokenizer.chat_template))
             if manual_template is not None:
                 self.template = manual_template
-                # Manual templates don't include BOS — prepend it
-                self.prepend_bos = True
+                # Manual templates don't include BOS — prepend it (if the tokenizer has one)
+                self.prepend_bos = tokenizer.bos_token_id is not None
             elif tokenizer.chat_template:
                 self.template = None # Signal to use built-in template
                 self.prepend_bos = False  # Built-in templates include BOS
@@ -114,9 +114,9 @@ class ChatPromptFormatter:
                 logger.warning(f"No chat template found for {tokenizer.name_or_path}. "
                                "Generation may be incorrect.")
         else:
-            # Base models get a pass-through template with explicit BOS
+            # Base models get a pass-through template with explicit BOS (Qwen2.5 base tokenizers have none)
             self.template = "{x}"
-            self.prepend_bos = True
+            self.prepend_bos = tokenizer.bos_token_id is not None
 
         # --- Compute assistant prefix token count ---
         # Number of tokens between the end of the user's instruction and the

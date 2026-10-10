@@ -27,6 +27,7 @@ import contextlib
 import json
 import os
 import sys
+import zlib
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from env import setup_process_env; setup_process_env()  # before torch is imported
@@ -64,12 +65,19 @@ def main():
     n_layers = len(run.blocks)
     layers = None if a.from_layer is None else list(range(a.from_layer, n_layers))
 
+    def spec_seed(spec):
+        """--seed for the first random spec of a run (as before 2026-10-10); others mix in the spec, so two random specs
+        in one run are not the same direction."""
+        return a.seed if spec == first_random else a.seed * 1_000_003 + zlib.crc32(spec.encode())
+
+    first_random = next((x for x in a.directions.split(",") if x.startswith(("random@", "randspan:"))), None)
+
     def load_dir(spec):
         if spec == "rhat":
             return r
         if spec.startswith("random@"):
             ref = DirectionVector.load(spec[7:])
-            g = t.Generator().manual_seed(a.seed)
+            g = t.Generator().manual_seed(spec_seed(spec))
             v = unit(t.randn(ref.vector.shape[-1], generator=g)) * ref.vector.float().norm()
             return DirectionVector(vector=v.to(ref.vector.dtype), layer=ref.layer, position_index=ref.position_index, score=0)
         if spec.startswith("span:"):
@@ -88,7 +96,7 @@ def main():
                                    position_index=d.position_index, score=0)
         if spec.startswith("randspan:"):
             k, ref = spec[9:].split("@", 1)
-            g = t.Generator().manual_seed(a.seed)
+            g = t.Generator().manual_seed(spec_seed(spec))
             return t.randn(int(k), DirectionVector.load(ref).vector.shape[-1], generator=g)
         return DirectionVector.load(spec)
 
@@ -133,14 +141,19 @@ def main():
         return m
 
     path = run.path("analysis", "ablate-in-variants", a.tag)
-    out = {"model": a.model, "from_layer": a.from_layer, "rhat_push": a.rhat_push, "directions": {k: (
+    settings = {"from_layer": a.from_layer, "rhat_push": a.rhat_push, "seed": a.seed, "n_harmful": a.n_harmful,
+                "n_harmless": a.n_harmless, "harmless_gen": a.harmless_gen}
+    out = {"model": a.model, **settings, "directions": {k: (
            None if v is None else {"span": v.shape[0]} if isinstance(v, t.Tensor) else
            {"layer": v.layer, "position_index": v.position_index}) for k, v in dirs.items()}, "results": {}}
     if os.path.exists(path):
         prev = json.load(open(path))
-        if prev.get("from_layer") == a.from_layer and prev.get("rhat_push") == a.rhat_push:
-            out["results"] = prev.get("results", {})
-            print("resuming; done:", {k: list(v) for k, v in out["results"].items()}, flush=True)
+        # Files from before 2026-10-10 lack the newer keys: treat a missing key as matching.
+        diff = {k: (prev[k], v) for k, v in settings.items() if k in prev and prev[k] != v}
+        if diff:
+            sys.exit(f"{path} was written with other settings {diff}: use another --tag")
+        out["results"] = prev.get("results", {})
+        print("resuming; done:", {k: list(v) for k, v in out["results"].items()}, flush=True)
 
     def do_variant(name):
         res = out["results"].setdefault(name, {})

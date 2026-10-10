@@ -70,10 +70,13 @@ def real_tiny_model_and_tokenizer(tiny_model_name):
 
 
 # --- Fixtures for generation tests ---
+# Models the pipeline already caches (2026-10-10; was gemma-3-1b-pt/-it and gpt2-xl, 9.8 GB used only here).
+# Instruct Qwen ships repetition_penalty (test_generation_ignores_shipped_sampling_config), the base model has no
+# chat template, and Llama-3.2 covers the Llama template and BOS handling.
 GENERATION_TEST_MODELS = [
-    "google/gemma-3-1b-pt",
-    "google/gemma-3-1b-it",
-    "openai-community/gpt2-xl",
+    "Qwen/Qwen2.5-0.5B-Instruct",
+    "Qwen/Qwen2.5-0.5B",
+    "meta-llama/Llama-3.2-1B-Instruct",
 ]
 @pytest.fixture(scope="session", params=GENERATION_TEST_MODELS)
 def model_and_tokenizer(request):
