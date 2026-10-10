@@ -277,7 +277,7 @@ contrast does less than 2 PCs. r̂'s push collapses under late ablations that le
 span{m3, residual} leaves 25%, not ≤15%. Next: round 4 on 1B/1.5B at the larger budget (does m4 also hit the clean
 model there?); r̂ push under m4 ablation on 0.5B; JailbreakBench on clean 0.5B with m4 ablated.
 
-## 18. Is 0.5B's round-4 direction special? — queued 2026-10-09 (jobs 1000-1030)
+## 18. Is 0.5B's round-4 direction special? — DONE 2026-10-10 (RESULTS.md §11)
 
 §10's headline is that m4 (hydra round 4b, L21/P-1) takes the *clean* 0.5B 90 → 19%, the first post-m1 direction
 the clean model needs. Before chasing it on other models, the cheap alternative: m4 is just the clean model's own late
@@ -298,7 +298,7 @@ harmful-minus-harmless axis (minus r̂), which a full-depth search lands on once
   each, queued only after 18a/b). Predicted: regrows ≥80% on both (p≈0.7); clean model ≤50% under the new direction on
   at least one (p≈0.4).
 
-## 19. Follow-ups to plan 18 — queued 2026-10-10 (jobs 1040-1050)
+## 19. Follow-ups to plan 18 — DONE 2026-10-10 (RESULTS.md §11)
 
 Plan 18 so far: 0.5B's round-4 direction replicates across seeds (cos 0.71; clean 90 → 2-19%), but the clean 0.5B's
 own late contrast ⊥ r̂ does as much (5%), and 20 random directions give median 89% (54-98%, log-odds +0.52 ± 0.44).
@@ -314,3 +314,11 @@ no single direction that removes it (best candidate L7/P-5, bypass score +4.7; a
 - **19b. Clean own late axis ⊥ r̂ on 1B and 1.5B** (in jobs 1040/1050, ~10 min each), as 18a on 0.5B, plus 4 random
   draws. Predicted: on 1.5B (needs m3 partly, 66%) own L24 ⊥ r̂ leaves ≤50% (p≈0.5); on 1B own L13 ⊥ r̂ ≤50%
   (p≈0.5). If both are ≥80%, the 0.5B result (clean model's late axis ⊥ r̂ is necessary) is a small-model margin effect.
+
+**Outcome (2026-10-10):** 18a: cos(m4, own L21 ⊥ r̂) 0.19 (predicted 0.3-0.7: wrong); own L21 ⊥ r̂ leaves 5% (≤40%:
+right); r̂'s push under m4 49% (≤30%: wrong). 18b: regrows 94%, cos 0.71 with m4, clean 2% (all three right). 18c/d:
+regrows 94-97% on both (right); clean ≤50% under the new direction on neither (1.5B 95%; 1B's search returned a
+non-mediator, a selection bug now fixed). 19a: no single ≤30% (L13 37%) and the 3-span 10% (both right). 19b: own late
+⊥ r̂ ≤50% on 1.5B (1%) and 1B (L15 24%; L13 54%) (right). Next: the clean model's own late contrast ⊥ r̂ on 3B/7B/Llama-3.1
+(do the Qwens all need it; do the Llamas?); ablate it only from r̂'s layer on (`--from-layer`), so that early-layer overlap
+can't explain the necessity; 1B round 5 with the 3-span edited out.
