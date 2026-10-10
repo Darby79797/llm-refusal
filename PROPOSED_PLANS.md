@@ -323,10 +323,14 @@ non-mediator, a selection bug now fixed). 19a: no single ≤30% (L13 37%) and th
 (do the Qwens all need it; do the Llamas?); ablate it only from r̂'s layer on (`--from-layer`), so that early-layer overlap
 can't explain the necessity; 1B round 5 with the 3-span edited out.
 
-## 20. Is the late contrast ⊥ r̂ necessary downstream, and on 3B? — queued 2026-10-10 (jobs 1060-1070)
+## 20. Is the late contrast ⊥ r̂ necessary downstream, and on 3B? — DONE 2026-10-10 (RESULTS.md §11)
 
 - **20a.** (job 1060, ~10 min) The own late contrast ⊥ r̂ ablated only at layers after r̂'s (`--from-layer` r̂+1) on
   0.5B (L21) and 1.5B (L21, L24). Predicted: still ≤30% on both (p≈0.65). If refusal comes back, the every-layer
   necessity came from the direction's overlap with earlier-layer features, not the late region.
 - **20b.** (job 1070, ~20 min) Clean Qwen2.5-3B: own contrast ⊥ r̂ at L27/L30/L33 P-1, their span, 5 random draws,
   r̂ push. Predicted: some single layer ≤30% (p≈0.6), as on 0.5B/1.5B.
+
+**Outcome (2026-10-10):** 20a: late-only ablation leaves 2% (0.5B) and 2-4% (1.5B) (≤30%: right). 20b: 3B 0-5% at
+every single layer tried (right). Next: the same on 7B and Llama-3.1-8B (does the Llama/Qwen split hold at 8B?), and
+whether the late stage is one direction across layers (cosines of own L27/L30/L33 ⊥ r̂).
