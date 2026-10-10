@@ -334,3 +334,15 @@ can't explain the necessity; 1B round 5 with the 3-span edited out.
 **Outcome (2026-10-10):** 20a: late-only ablation leaves 2% (0.5B) and 2-4% (1.5B) (≤30%: right). 20b: 3B 0-5% at
 every single layer tried (right). Next: the same on 7B and Llama-3.1-8B (does the Llama/Qwen split hold at 8B?), and
 whether the late stage is one direction across layers (cosines of own L27/L30/L33 ⊥ r̂).
+
+## 21. Does the late-stage necessity split Qwen/Llama at 7-8B? — queued 2026-10-10 as jobs 1080-1090 (~80 min)
+
+Same protocol as 18a/20 on the two clean models not yet tested: the own P-1 contrast ⊥ r̂ at four late layers, ablated
+at every layer (with harmless generation and the r̂ push), then only after r̂'s layer (`--from-layer` r̂+1), plus r̂
+late-only and 4 random draws.
+- **21a.** (job 1080) Qwen2.5-7B (r̂ L16), L20/22/24/26. Predicted: some layer ≤30% at every layer (p≈0.7) and late-only
+  (p≈0.6), as on 0.5B-3B; random ≥75%.
+- **21b.** (job 1090) Llama-3.1-8B (r̂ L11), L16/20/24/28. Predicted: no single layer ≤30% (p≈0.6), as Llama-3-8B's
+  regrown axis was not necessary in its clean model and Llama-3.2-1B's own axis left 24%; the r̂ push survives late-only
+  ablation (≥50%, p≈0.55).
+If 7B follows the Qwens and 3.1-8B does not, the two-stage chain is a Qwen-family property rather than a size effect.
