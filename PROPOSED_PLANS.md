@@ -335,7 +335,7 @@ can't explain the necessity; 1B round 5 with the 3-span edited out.
 every single layer tried (right). Next: the same on 7B and Llama-3.1-8B (does the Llama/Qwen split hold at 8B?), and
 whether the late stage is one direction across layers (cosines of own L27/L30/L33 ⊥ r̂).
 
-## 21. Does the late-stage necessity split Qwen/Llama at 7-8B? — queued 2026-10-10 as jobs 1080-1090 (~80 min)
+## 21. Does the late-stage necessity split Qwen/Llama at 7-8B? — DONE 2026-10-11/12 (RESULTS.md §12)
 
 Same protocol as 18a/20 on the two clean models not yet tested: the own P-1 contrast ⊥ r̂ at four late layers, ablated
 at every layer (with harmless generation and the r̂ push), then only after r̂'s layer (`--from-layer` r̂+1), plus r̂
@@ -357,3 +357,89 @@ If 7B follows the Qwens and 3.1-8B does not, the two-stage chain is a Qwen-famil
   subagent reading the texts). Trigger: 4 of 6 saved 1.5B late-only samples are moralising deflections the phrase
   detector counts as compliance. Predicted: 1.5B late-only deflection ≥30% (p≈0.6), so "refusal removed" there means
   the template went and harm-recognition stayed; 0.5B and 3B ≤15% deflection (p≈0.6).
+
+**Outcome (2026-10-12):** 21a right: 7B 0-8% at every own late layer, every layer and late-only; random 88-90%.
+21b right: Llama-3.1-8B 73-93% (span of all four 73%), while r̂ late-only leaves 11%; the r̂ push survives L20/L24
+(95-100%). So the split is by family, not size. 21c wrong: own L21 ⊥ m4 leaves 34%, m4 ⊥ own L21 54% (span 0%). The
+two partly share a necessary component; neither is an independent route. 21d: the qwen3:4b five-way judge was
+unusable (9/15 hand-checked "deflect" calls were step-by-step compliance); re-scored with LlamaGuard 2 + phrase
+detector instead (job 1095): 1.5B late-only 59-62% moralising, 16-24% comply (≥30% deflection: right); 0.5B 40% and 3B
+L30/L33 70-73% moralising (≤15%: wrong); r̂ ablation 0-6% moralising. RESULTS §12. Also: the Llama harmless log-odds jump under late ablation is the
+first-token metric counting "I" ("I'd be happy to…"), not refusal.
+
+## 22. How many dimensions is the clean 0.5B's late stage? — DONE 2026-10-12 (RESULTS.md §12)
+
+Pool every own late contrast ⊥ r̂ (L15-L23, P-1, the clean model's harmful-minus-harmless difference-in-means after
+r̂'s L14; new stems `results/cleanall-*`) with the five regrown/hydra mediators (m1, hydra2, hydra3, m4 seeds 0/1),
+all ⊥ r̂. Ablate the top-K uncentred principal axes (`pcs:K`), K = 1, 2, 3, 4, 6, 8, at every layer with the r̂ push;
+the own-only and hydra-only pools at K = 1, 3; random 3- and 8-spans; K = 1, 3 late-only (≥L15). Every response
+labelled by LlamaGuard 2.
+- Predicted: PC1 of the full pool ≤30% (p≈0.5): one shared axis, of which own L21 and m4 are partial copies (21c).
+- Top 3 ≤10% (p≈0.7); random 8-span ≥75% (p≈0.85).
+- Own-only PC1 at least as strong as hydra-only PC1 (p≈0.7): the hydra rounds land near the model's own late stage.
+- Late-only K = 3 within 10 points of every-layer K = 3 (p≈0.7).
+The smallest K that reaches ≤10% (K₁₀) is the number to carry to Llama (plan 23).
+
+**Outcome (2026-10-12):** PC1 0% (right), top 3 0% (right), own-only PC1 2% vs hydra-only PC1 1% (tie: "at least as
+strong" holds only within noise), late-only top 3 0% vs 0% (right), random 8-span 65% (≥75%: wrong; 0.5B's refusal is
+fragile to any 8-D late ablation). K₁₀ = 1 for the template. With LG2 labels, PC1 leaves 29% moralising; top 3
+leaves 5%, so harm recognition needs PCs 2-3. Degeneration from K = 6 (16-23%). PC1 is the own contrast's common axis
+(cos 0.84-0.88 with own L18-22), and the hydra mediators sit 0.04-0.25 from it, yet the hydra-only PC1 removes the
+template too: second axis or thin margin (plan 24).
+
+## Designs after plans 21-22 (2026-10-12; not queued)
+
+The new picture on the Qwens: r̂ (upstream) carries harm recognition; a late ⊥ r̂ axis turns it into a first-person
+refusal; 2-3 further late axes carry the recognition that survives as moralising. These plans test that chain's parts
+one at a time. Every job labels responses with `label_deflection.py` (LG2 + phrase detector; moralise/other split by
+the harm-word regex, which should move into the script first) and generates 160 tokens, not 64, so a preamble cut off
+before compliance stops counting as "other-safe" (the 64-token pass stays for comparison with earlier tables).
+
+### 23. Which late axes carry recognition vs the template? (0.5B ~20 min; then 1.5B, 3B ~40 min)
+
+Needs `pc:k@...` in `ablate_in_variants.py` (the k-th principal axis alone, not the top-k span).
+- **23a.** Clean 0.5B, late-only (≥L15): PC1, PC2, PC3 alone; PC1+PC2, PC1+PC3; r̂ (every layer) + PC1. Predicted:
+  PC2 or PC3 alone leaves refusal ≥70% (not needed for the template; p≈0.65); PC1+PC2 or PC1+PC3 cuts moralising
+  below 10% (p≈0.6); r̂ + PC1 cuts moralising below 10% (p≈0.75: recognition starts at r̂).
+- **23b.** Same pool construction on 1.5B (own L18-L27 + its hydra mediators) and 3B (own L23-L35), K = 1, 3 and the
+  best single PCs from 23a. Predicted: PC1 removes the template (≤10%) and leaves ≥30% moralising on both (p≈0.6),
+  i.e. 1.5B's 60% moralising is the same split, not a 1.5B quirk.
+- If 23a fails (no single PC carries moralising), recognition is spread over the late stage and "2-3 axes" was a
+  span effect; then size it with cumulative pcs on the moralise rate alone.
+
+### 24. Are the hydra mediators a second necessary axis, or PC1 at a thin margin? (0.5B, ~15 min)
+
+Needs `tilt:c@<spec>`: a random unit direction ⊥ r̂ with cosine exactly c to a reference axis (seeded draws).
+- Ablate tilted randoms at c = 0.1, 0.25, 0.4 to PC1 (5 draws each), and the hydra-only PC1 and m4 with PC1 projected
+  out (the 21c split, but against the pool axis). Predicted: c = 0.25 draws leave a median ≥50% refusal (p≈0.6), and
+  hydra PC1 ⊥ PC1 still ≤30% (p≈0.5). Both true: the hydra rounds found a second necessary axis. If tilted
+  randoms at 0.25 already break refusal, the hydra directions work through their PC1 overlap on a fragile 0.5B (the
+  random 8-span alone gives 65%), and the result should be re-run on 1.5B, where random spans leave 91-95%.
+
+### 25. How many dimensions is Llama-3.1-8B's late stage? (~45 min; Qwen2.5-7B comparison ~15 min)
+
+21b: four single-layer own contrasts and their span leave 73-93%; Llama-3-8B's seed PCs needed 3-5 (§10).
+- Own contrast ⊥ r̂ at every layer L12-L31 (20 stems), ablate pcs:K at K = 1, 2, 4, 8, 12, 16, random 16-span,
+  `--harmless-gen` (its harmless log-odds are unusable, §12). Same pool on 7B (L17-L27), K = 1, 2, 4. Predicted:
+  Llama needs K ≥ 8 to reach ≤30% (p≈0.5) while 7B reaches ≤10% at K = 1 (p≈0.7). If Llama reaches ≤30% only where
+  degeneration passes 10%, its late refusal isn't low-rank in the own-contrast basis and the family split is real.
+- Llama's r̂ late-only (11%) says its late layers read r̂ itself. Also ablate r̂ only at L20+ and L26+ to find where
+  that read happens. Predicted: L20+ ≥50% refusal (p≈0.55), i.e. the read sits in L12-L19.
+
+### 26. Is the late axis downstream of r̂? Activation readout, no generation (all four models, ~10 min total)
+
+New script `late_readout.py`: at P-1, the projection onto the late PC1 (0.5B; own-pool PC1 elsewhere) at each layer
+after r̂'s, for harmful, harmless, harmless + r̂ push, harmful with r̂ ablated (every layer, and only at r̂'s layer).
+Report the fraction of the harmful-minus-harmless gap that (i) the push recreates and (ii) r̂ ablation removes.
+Predicted: on the Qwens r̂ ablation removes ≥60% of the gap at the late layers (p≈0.6) and the push recreates ≥60%
+(p≈0.6); on Llama-3.1-8B, both ≤40% (p≈0.5). That would show directly the causal chain the ablations imply.
+
+### 27. Measurement hygiene (no new science; do before 23)
+
+- Move the moralise/other split into `label_deflection.py`, and add an `--label` option to `ablate_in_variants.py`
+  that runs it after generation (unloading LG2 before the next model loads).
+- A refusal-specific log-odds token set without bare "I"/"As" reported next to the current one (the Llama harmless
+  artifact, §12). Report both rather than changing the old metric, so the earlier tables stay comparable.
+- Re-label plans 18-20's saved texts where they exist (only jobs ≥1077 kept every response; earlier ones would need a
+  re-run).
+
