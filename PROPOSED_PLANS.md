@@ -454,3 +454,54 @@ Predicted: on the Qwens r̂ ablation removes ≥60% of the gap at the late layer
 (p≈0.6); on Llama-3.1-8B, both ≤40% (p≈0.5). That would show directly the causal chain the ablations imply.
 
 (Plan 27, measurement hygiene, moved to BACKLOG.md on 2026-10-13.)
+
+## Designs after plans 23-26 (2026-10-13; not queued; ~6.5 h total)
+
+None of these depends on job 1160 (Llama-3.1-8B, plan 25 trimmed); Llama follow-ups wait for it. Order = priority.
+The common tool needs: PC axes saved as ordinary direction stems (CPU, like the plan-24 split stems:
+`results/pcax-<model>-PC<k>-direction`, at the pool's last layer, sign = harmful side positive), so every script that
+takes a stem (jbb_safety, edit_cost_sweep, late_readout) can use them.
+
+### 28. Induce, not just ablate: does adding PC1 make the template, and the recognition axis the moralising? (~1.5 h, 0.5B/1.5B/3B)
+
+Arditi's second criterion, never applied to the late axes. New `--push-spec SPEC@L:S` in `ablate_in_variants.py` (add
+a saved axis at layer L, scaled to S × the plain harmful-minus-harmless gap along it there, read from
+`late_readout.py`'s JSON), on harmless prompts, 160 tokens, LG2 + phrase labels; S = 1, 2. Axes: PC1 (template),
+the recognition axis (0.5B PC3, 1.5B/3B PC2), both; r̂ push as reference; norm-matched random as control.
+Predicted: PC1 alone induces the refusal phrase on ≥50% of harmless prompts at S = 2 (p≈0.55), with little
+harm-talk (moralise ≤10%); the recognition axis alone induces moralising or caveats but ≤20% refusal phrases
+(p≈0.5); both together approach r̂'s push (≥80%, p≈0.5). If PC1 can't induce, it is necessary but not sufficient:
+a gate, not the template's source.
+
+### 29. Ablating the late axes leaves r̂'s signal intact? Readout under axis ablation (~15 min, 0.5B/1.5B/3B)
+
+`late_readout.py --ablate-spec SPEC ...` (new: harmful prompts with that spec ablated at every layer), reading r̂'s
+projection and the own axis per layer. The chain says the late axes sit downstream, so ablating PC1 or the
+recognition axis should leave r̂'s harmful-harmless gap at r̂'s layer and just after it ≥90% intact (p≈0.7), while
+ablating r̂ removes the late axes' gap (plan 26). 3B's PC2 is the test case: it loads most on L22-24, right after
+r̂ (L21), and alone acts like r̂ (94% comply). If it removes ≥50% of r̂'s own late projection, it is r̂'s
+immediate downstream copy, not a separate recognition stage.
+
+### 30. 3B PC2 as a jailbreak: held-out prompts, weight edit, capability (~2 h, 3B)
+
+The one ⊥ r̂ direction that alone bypasses as fully as r̂. (a) JailbreakBench via `jbb_safety.py`: baseline,
+ablate:r̂, ablate:PC2, edit:PC2 (weight orthogonalisation), edit:PC1; LG2 unsafe rate. (b) `edit_cost_sweep.py`
+CE on Alpaca / Pile / own completions for the PC2 and PC1 edits vs r̂'s `full`. Predicted: PC2 transfers to JBB
+(LG2 unsafe within 15 points of r̂'s, p≈0.6) and costs no more CE than r̂'s edit (p≈0.6). If JBB doesn't
+transfer, PC2 is specific to our eval prompt distribution (the pool came from the same train/eval family).
+
+### 31. Qwen2.5-7B late axes (~1.5 h)
+
+23 covered 0.5B-3B. 7B needs its own late contrast like the smaller Qwens (§12). Save own L17-L27 contrasts ⊥ r̂
+(`cleanall-Qwen2.5-7B-Instruct`), pool them with regrown100 (same recipe as 3B), ablate PC1, PC2, PC3, PC1+2, top 3,
+r̂, random 3-span at every layer, 160 tokens, r̂ push, LG2 labels. Predicted: PC1 removes the template (≤10%) with
+≥30% moralising (p≈0.6), and some single PC ≤3 is a full bypass as on 3B (p≈0.4). Tells whether "template axis +
+recognition axis" is the Qwen family's layout or a small-model one.
+
+### 32. Do the axis results hold on held-out harmful prompts? (~1 h, 1.5B and 0.5B)
+
+Every plan-22/23 number is on the same 99 eval prompts the pool's train-set contrasts were tuned near. JailbreakBench
+(100 prompts) via `jbb_safety.py` with ablate:PC1, ablate:recognition axis, ablate:PC1+recognition (needs a span
+stem: the two PCs saved as one [2, d] direction or `jbb_safety` taking `&` specs), ablate:r̂, baseline.
+Predicted: the qualitative pattern holds (PC1 removes refusal phrases ≤15%; LG2-unsafe rises most with both axes;
+p≈0.65). Moralise share needs `label_deflection.py` to read jbb_safety's JSON (small adapter).
