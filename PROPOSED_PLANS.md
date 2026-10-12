@@ -387,7 +387,7 @@ leaves 5%, so harm recognition needs PCs 2-3. Degeneration from K = 6 (16-23%). 
 (cos 0.84-0.88 with own L18-22), and the hydra mediators sit 0.04-0.25 from it, yet the hydra-only PC1 removes the
 template too: second axis or thin margin (plan 24).
 
-## Designs after plans 21-22 (2026-10-12; not queued)
+## Designs after plans 21-22 (2026-10-12; 23, 24, 26 done, RESULTS §13)
 
 The new picture on the Qwens: r̂ (upstream) carries harm recognition; a late ⊥ r̂ axis turns it into a first-person
 refusal; 2-3 further late axes carry the recognition that survives as moralising. These plans test that chain's parts
@@ -396,6 +396,10 @@ the harm-word regex, which should move into the script first) and generates 160 
 before compliance stops counting as "other-safe" (the 64-token pass stays for comparison with earlier tables).
 
 ### 23. Which late axes carry recognition vs the template? — queued 2026-10-12 as jobs 1110 (0.5B), 1130 (1.5B), 1140 (3B)
+
+**DONE 2026-10-12 (RESULTS §13).** 23b held (PC1 → 0% refusal, 59% / 45% moralising on 1.5B / 3B). 23a: r̂ & PC1
+moralise 3% (held); PC1+PC3 8% (held, 16% degenerate); PC2 alone 69% (at the line) but PC3 alone 12%, so the 0.5B
+template isn't one axis. The recognition axis is PC3 on 0.5B (≈ m4), PC2 on 1.5B/3B; on 3B PC2 alone is a full bypass.
 
 Uses `pc:K1/K2@...` (chosen principal axes only) and `A&B` (specs ablated together), new in `ablate_in_variants.py`.
 All at every layer (plan 22: late-only matched every-layer), 160 tokens, r̂ push, LG2 + moralise labels.
@@ -410,6 +414,10 @@ All at every layer (plan 22: late-only matched every-layer), 160 tokens, r̂ pus
 
 ### 24. Are the hydra mediators a second necessary axis, or PC1 at a thin margin? — queued 2026-10-12 as job 1120
 
+**DONE 2026-10-12 (RESULTS §13).** Tilted randoms at c = 0.25: median 81% (held). Hydra PC1 ⊥ PC1: 36% (missed ≤30%
+narrowly); it is ≈ PC3 (cos 0.96), so the hydra rounds found a second necessary axis, but m4 ⊥ PC1 (cos 0.87 to PC3)
+leaves 87%: the effect needs close alignment. Re-running on 1.5B is unnecessary: 1.5B shows the same PC1 + second-axis split.
+
 Uses `tilt:C:N@<spec>` (draw N of a random unit direction ⊥ r̂ at cosine exactly C to the spec's first axis).
 - Ablate tilted randoms at c = 0.1, 0.25, 0.4 to PC1 (5 draws each), and the hydra-only PC1 and m4 with PC1 projected
   out, plus PC1 with hydra-PC1 projected out (stems `results/split-Qwen2.5-0.5B-Instruct-{hydPC1-perp-PC1,
@@ -419,6 +427,12 @@ Uses `tilt:C:N@<spec>` (draw N of a random unit direction ⊥ r̂ at cosine exac
   random 8-span alone gives 65%), and the result should be re-run on 1.5B, where random spans leave 91-95%.
 
 ### 25. How many dimensions is Llama-3.1-8B's late stage? (~45 min; Qwen2.5-7B comparison ~15 min)
+
+**Recommendation after plan 26 (2026-10-13): run, trimmed (~40 min, Llama-3.1-8B only).** Plan 26 found Llama's late
+contrast is r̂'s product like the Qwens', and that after r̂ is ablated at L11 alone Llama re-writes r̂ by L21-L30.
+The sharp question is now where and from what Llama re-writes r̂, not how many own-contrast PCs it needs. Keep: r̂
+ablated only at L≥16, L≥20, L≥26 (refusal, LG2 labels, `--harmless-gen`), the readout at those cut points, and pcs:K
+at K = 1, 4, 16 of the own L12-L31 pool. Drop the 7B comparison (23 already sized the Qwen side).
 
 21b: four single-layer own contrasts and their span leave 73-93%; Llama-3-8B's seed PCs needed 3-5 (§10).
 - Own contrast ⊥ r̂ at every layer L12-L31 (20 stems), ablate pcs:K at K = 1, 2, 4, 8, 12, 16, random 16-span,
@@ -440,6 +454,12 @@ Predicted: on the Qwens r̂ ablation removes ≥60% of the gap at the late layer
 (p≈0.6); on Llama-3.1-8B, both ≤40% (p≈0.5). That would show directly the causal chain the ablations imply.
 
 ### 27. Measurement hygiene (no new science; do before 23)
+
+**Importance after plans 23-26 (2026-10-13): low.** LG2 labels at 160 tokens now carry the conclusions; the log-odds
+token fix matters only for Llama's harmless log-odds, and `--harmless-gen` already sidesteps it. Re-labelling: jobs
+before 1077 kept no texts, so it means re-running plans 18-20 for numbers §12-13 supersede. One item is worth
+adding: a degenerate label in `label_deflection.py` (16-19% of 0.5B PC1+3 / top-3 answers are degenerate and land in
+"other").
 
 - Done 2026-10-12: moralise/other split in `label_deflection.py`; `--max-new-tokens` in `ablate_in_variants.py`
   (jobs call the labeller as their last step instead of an `--label` option).
