@@ -387,7 +387,7 @@ leaves 5%, so harm recognition needs PCs 2-3. Degeneration from K = 6 (16-23%). 
 (cos 0.84-0.88 with own L18-22), and the hydra mediators sit 0.04-0.25 from it, yet the hydra-only PC1 removes the
 template too: second axis or thin margin (plan 24).
 
-## Designs after plans 21-22 (2026-10-12; 23, 24, 26 done, RESULTS §13)
+## Designs after plans 21-22 (2026-10-12; 23, 24, 26 done, RESULTS §13; 25 trimmed, queued as job 1160)
 
 The new picture on the Qwens: r̂ (upstream) carries harm recognition; a late ⊥ r̂ axis turns it into a first-person
 refusal; 2-3 further late axes carry the recognition that survives as moralising. These plans test that chain's parts
@@ -428,7 +428,7 @@ Uses `tilt:C:N@<spec>` (draw N of a random unit direction ⊥ r̂ at cosine exac
 
 ### 25. How many dimensions is Llama-3.1-8B's late stage? (~45 min; Qwen2.5-7B comparison ~15 min)
 
-**Recommendation after plan 26 (2026-10-13): run, trimmed (~40 min, Llama-3.1-8B only).** Plan 26 found Llama's late
+**QUEUED 2026-10-13 as job 1160, trimmed (~1 h, Llama-3.1-8B only; `late_readout.py --ablate-from`).** Plan 26 found Llama's late
 contrast is r̂'s product like the Qwens', and that after r̂ is ablated at L11 alone Llama re-writes r̂ by L21-L30.
 The sharp question is now where and from what Llama re-writes r̂, not how many own-contrast PCs it needs. Keep: r̂
 ablated only at L≥16, L≥20, L≥26 (refusal, LG2 labels, `--harmless-gen`), the readout at those cut points, and pcs:K
@@ -453,18 +453,4 @@ Report the fraction of the harmful-minus-harmless gap that (i) the push recreate
 Predicted: on the Qwens r̂ ablation removes ≥60% of the gap at the late layers (p≈0.6) and the push recreates ≥60%
 (p≈0.6); on Llama-3.1-8B, both ≤40% (p≈0.5). That would show directly the causal chain the ablations imply.
 
-### 27. Measurement hygiene (no new science; do before 23)
-
-**Importance after plans 23-26 (2026-10-13): low.** LG2 labels at 160 tokens now carry the conclusions; the log-odds
-token fix matters only for Llama's harmless log-odds, and `--harmless-gen` already sidesteps it. Re-labelling: jobs
-before 1077 kept no texts, so it means re-running plans 18-20 for numbers §12-13 supersede. One item is worth
-adding: a degenerate label in `label_deflection.py` (16-19% of 0.5B PC1+3 / top-3 answers are degenerate and land in
-"other").
-
-- Done 2026-10-12: moralise/other split in `label_deflection.py`; `--max-new-tokens` in `ablate_in_variants.py`
-  (jobs call the labeller as their last step instead of an `--label` option).
-- A refusal-specific log-odds token set without bare "I"/"As" reported next to the current one (the Llama harmless
-  artifact, §12). Report both rather than changing the old metric, so the earlier tables stay comparable.
-- Re-label plans 18-20's saved texts where they exist (only jobs ≥1077 kept every response; earlier ones would need a
-  re-run).
-
+(Plan 27, measurement hygiene, moved to BACKLOG.md on 2026-10-13.)

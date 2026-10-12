@@ -9,6 +9,7 @@ eval prompts' mean projection onto it, under:
   ablate_all        harmful with r̂ ablated at every layer
   ablate_at         harmful with r̂ ablated only at r̂'s layer
   random_push / random_ablate   the same with a norm-matched random direction (controls)
+  ablate_from<K>    harmful with r̂ ablated at layers >= K only (`--ablate-from K ...`: where do late layers read r̂?)
 Reports per layer the fraction of the plain gap the push recreates ((push - harmless) / gap) and r̂ ablation removes
 ((harmful - ablated) / gap). `--axis A+B+...` also reads a fixed axis at every layer: the first principal axis of those
 saved directions ⊥ r̂ (e.g. 0.5B's plan-22 pool, whose PC1 removes the template).
@@ -39,6 +40,7 @@ def main():
     ap.add_argument("--push", type=float, default=1.0, help="r̂ multiplier for the push condition")
     ap.add_argument("--axis", default=None, help="'+'-joined saved direction stems: also read their PC1 ⊥ r̂")
     ap.add_argument("--n-train", type=int, default=128, help="train prompts per side for the per-layer axes")
+    ap.add_argument("--ablate-from", type=int, nargs="*", default=[], help="also ablate r̂ only at layers >= each K")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--tag", default="")
     a = ap.parse_args()
@@ -75,6 +77,8 @@ def main():
         "ablate_at": (harmful, lambda: ap_.intervened(r, "ablate", layers=at)),
         "random_push": (harmless, lambda: ap_.intervened(rnd_dv, "add", a.push, layers=at)),
         "random_ablate": (harmful, lambda: ap_.intervened(rnd_dv, "ablate")),
+        **{f"ablate_from{k}": (harmful, lambda k=k: ap_.intervened(r, "ablate", layers=list(range(k, L))))
+           for k in a.ablate_from},
     }
     proj = {}
     for name, (prompts, ctx) in conds.items():
@@ -83,7 +87,7 @@ def main():
         proj[name] = {k: (h * ax[None]).sum(-1).mean(0) for k, ax in axes.items()}   # [L]
         proj[name]["rhat"] = (h @ u).mean(0)
 
-    out = {"model": a.model, "pos": a.pos, "push": a.push, "axis": a.axis, "n_train": a.n_train,
+    out = {"model": a.model, "pos": a.pos, "push": a.push, "axis": a.axis, "n_train": a.n_train, "ablate_from": a.ablate_from,
            "rhat": run.coords, "n_layers": L, "readout": {}}
     for k in [*axes, "rhat"]:
         gap = proj["harmful"][k] - proj["harmless"][k]
@@ -94,13 +98,16 @@ def main():
             "random_push_recreates": frac(proj["random_push"][k] - proj["harmless"][k]),
             "ablate_all_removes": frac(proj["harmful"][k] - proj["ablate_all"][k]),
             "ablate_at_removes": frac(proj["harmful"][k] - proj["ablate_at"][k]),
-            "random_ablate_removes": frac(proj["harmful"][k] - proj["random_ablate"][k])}
+            "random_ablate_removes": frac(proj["harmful"][k] - proj["random_ablate"][k]),
+            **{f"ablate_from{f}_removes": frac(proj["harmful"][k] - proj[f"ablate_from{f}"][k]) for f in a.ablate_from}}
     print(f"{a.model}  r̂ L{r.layer} P{r.position_index}  readout at P{a.pos}; fractions of the harmful-harmless gap")
     for k, ro in out["readout"].items():
-        print(f"\naxis {k}:  {'L':>3} {'gap':>7} {'push':>6} {'rpush':>6} {'abl_all':>8} {'abl_at':>7} {'rabl':>6}")
+        print(f"\naxis {k}:  {'L':>3} {'gap':>7} {'push':>6} {'rpush':>6} {'abl_all':>8} {'abl_at':>7} {'rabl':>6}"
+              + "".join(f" {'from' + str(f):>7}" for f in a.ablate_from))
         for l in range(r.layer, L):
             print(f"{'':10}{l:>3} {ro['gap'][l]:>7.2f} {ro['push_recreates'][l]:>6.0%} {ro['random_push_recreates'][l]:>6.0%} "
-                  f"{ro['ablate_all_removes'][l]:>8.0%} {ro['ablate_at_removes'][l]:>7.0%} {ro['random_ablate_removes'][l]:>6.0%}")
+                  f"{ro['ablate_all_removes'][l]:>8.0%} {ro['ablate_at_removes'][l]:>7.0%} {ro['random_ablate_removes'][l]:>6.0%}"
+                  + "".join(f" {ro[f'ablate_from{f}_removes'][l]:>7.0%}" for f in a.ablate_from))
     print("saved", save_json(run.path("analysis", "late-readout", a.tag), out))
 
 
