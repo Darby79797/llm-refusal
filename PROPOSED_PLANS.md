@@ -430,6 +430,9 @@ Uses `tilt:C:N@<spec>` (draw N of a random unit direction ⊥ r̂ at cosine exac
 
 ### 26. Is the late axis downstream of r̂? Activation readout, no generation (all four models, ~10 min total)
 
+QUEUED 2026-10-12 as job 1150 (`scripts/late_readout.py`; five models incl. 7B; the per-layer axis is the train-set
+contrast ⊥ r̂, read on the eval prompts; 0.5B also reads the plan-22 pool PC1; random push/ablation controls).
+
 New script `late_readout.py`: at P-1, the projection onto the late PC1 (0.5B; own-pool PC1 elsewhere) at each layer
 after r̂'s, for harmful, harmless, harmless + r̂ push, harmful with r̂ ablated (every layer, and only at r̂'s layer).
 Report the fraction of the harmful-minus-harmless gap that (i) the push recreates and (ii) r̂ ablation removes.
