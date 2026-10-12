@@ -8,7 +8,9 @@ its recorded extra_edit_directions). Directions: a saved stem, `rhat` (the clean
 (a norm-matched random direction at that stem's layer/position; ablation ignores the norm), `span:A+B+...` (the
 whole span of several of those removed in one projection), `randspan:K@<stem>` (K random directions' span),
 `pcs:K@A+B+...` (the span of the top K principal axes of those directions, unit-normed and uncentred, so the first
-is close to their mean) or `perp:<spec>` (that direction with r̂ projected out). `--from-layer K` ablates only at layers >= K (default
+is close to their mean), `pc:K1/K2/...@A+B+...` (only those principal axes, 1-based), `tilt:C:N@<spec>` (draw N of a
+random unit direction ⊥ r̂ with cosine exactly C to that spec's first axis: is a direction's effect just its overlap
+with the axis?), `A&B&...` (several specs' axes ablated together) or `perp:<spec>` (that direction with r̂ projected out). `--from-layer K` ablates only at layers >= K (default
 every layer). Reports refusal on harmful prompts (64-token generation, phrase detector) and first-token log-odds,
 plus harmless log-odds as a disruption check (`--harmless-gen` also generates on the harmless prompts: false
 refusal and degeneracy, for when ablation moves harmless log-odds). `--rhat-push S` also adds r̂ ×S at its own layer
@@ -54,6 +56,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--harmless-gen", action="store_true", help="also generate on harmless prompts (false refusal)")
     ap.add_argument("--rhat-push", type=float, default=None, help="also add r̂ at this strength on harmless prompts")
+    ap.add_argument("--max-new-tokens", type=int, default=64,
+                    help="generation length (64 cuts some compliance off after its preamble; 160 resolves most)")
     a = ap.parse_args()
 
     run = load_run(a.model)
@@ -72,7 +76,12 @@ def main():
 
     first_random = next((x for x in a.directions.split(",") if x.startswith(("random@", "randspan:"))), None)
 
+    def rows(d):
+        return d if isinstance(d, t.Tensor) else d.vector.float().cpu()[None]
+
     def load_dir(spec):
+        if "&" in spec:
+            return t.cat([rows(load_dir(x)).float() for x in spec.split("&")])
         if spec == "rhat":
             return r
         if spec.startswith("random@"):
@@ -86,6 +95,20 @@ def main():
             k, stems = spec[4:].split("@", 1)
             V = t.stack([unit(load_dir(x).vector.float().cpu()) for x in stems.split("+")])
             return t.linalg.svd(V, full_matrices=False).Vh[:int(k)]
+        if spec.startswith("pc:"):
+            ks, stems = spec[3:].split("@", 1)
+            V = t.stack([unit(load_dir(x).vector.float().cpu()) for x in stems.split("+")])
+            return t.linalg.svd(V, full_matrices=False).Vh[[int(k) - 1 for k in ks.split("/")]]
+        if spec.startswith("tilt:"):
+            cn, ref = spec[5:].split("@", 1)
+            c = float(cn.split(":")[0])
+            u = unit(r.vector.float().cpu())
+            a0 = rows(load_dir(ref))[0].float()
+            a0 = unit(a0 - (a0 @ u) * u)
+            g = t.randn(a0.shape[-1], generator=t.Generator().manual_seed(spec_seed(spec)))
+            g = g - (g @ u) * u
+            g = unit(g - (g @ a0) * a0)
+            return (c * a0 + (1 - c * c) ** 0.5 * g)[None]
         if spec.startswith("perp:"):
             d = load_dir(spec[5:])
             u = unit(r.vector.float().cpu())
@@ -115,8 +138,8 @@ def main():
 
     def measure(d):
         with ablated(d):
-            texts = ev.generate_responses(harmful, max_new_tokens=64)
-            texts_n = ev.generate_responses(harmless, max_new_tokens=64) if a.harmless_gen else None
+            texts = ev.generate_responses(harmful, max_new_tokens=a.max_new_tokens)
+            texts_n = ev.generate_responses(harmless, max_new_tokens=a.max_new_tokens) if a.harmless_gen else None
             lo_h = ev.log_odds_scores(harmful)
             lo_n = ev.log_odds_scores(harmless)
         labels = [bool(ev._check_for_detection(x)) for x in texts]
@@ -129,7 +152,7 @@ def main():
             with ablated(d):
                 run.applier.apply_direction_intervention(r, "add", a.rhat_push, layers=[r.layer])
                 try:
-                    texts_p = ev.generate_responses(harmless, max_new_tokens=64)
+                    texts_p = ev.generate_responses(harmless, max_new_tokens=a.max_new_tokens)
                     lo_p = ev.log_odds_scores(harmless)
                 finally:
                     run.applier.clear_interventions()
@@ -142,7 +165,7 @@ def main():
 
     path = run.path("analysis", "ablate-in-variants", a.tag)
     settings = {"from_layer": a.from_layer, "rhat_push": a.rhat_push, "seed": a.seed, "n_harmful": a.n_harmful,
-                "n_harmless": a.n_harmless, "harmless_gen": a.harmless_gen}
+                "n_harmless": a.n_harmless, "harmless_gen": a.harmless_gen, "max_new_tokens": a.max_new_tokens}
     out = {"model": a.model, **settings, "directions": {k: (
            None if v is None else {"span": v.shape[0]} if isinstance(v, t.Tensor) else
            {"layer": v.layer, "position_index": v.position_index}) for k, v in dirs.items()}, "results": {}}
@@ -161,7 +184,8 @@ def main():
             if dname in res:
                 continue
             res[dname] = m = measure(d)
-            print(f"{name:18s} ablate {dname[-60:]:60s} refusal {m['rate']:5.0%}  lo {m['log_odds']:+6.2f}  "
+            short = dname if len(dname) <= 60 else dname[:24] + "…" + dname[-35:]
+            print(f"{name:18s} ablate {short:60s} refusal {m['rate']:5.0%}  lo {m['log_odds']:+6.2f}  "
                   f"harmless lo {m['harmless_log_odds']:+6.2f}  degenerate {m['degenerate']:.0%}"
                   + (f"  harmless refusal {m['harmless_rate']:.0%} degenerate {m['harmless_degenerate']:.0%}"
                      if "harmless_rate" in m else "")

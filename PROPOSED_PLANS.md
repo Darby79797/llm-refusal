@@ -395,23 +395,25 @@ one at a time. Every job labels responses with `label_deflection.py` (LG2 + phra
 the harm-word regex, which should move into the script first) and generates 160 tokens, not 64, so a preamble cut off
 before compliance stops counting as "other-safe" (the 64-token pass stays for comparison with earlier tables).
 
-### 23. Which late axes carry recognition vs the template? (0.5B ~20 min; then 1.5B, 3B ~40 min)
+### 23. Which late axes carry recognition vs the template? — queued 2026-10-12 as jobs 1110 (0.5B), 1130 (1.5B), 1140 (3B)
 
-Needs `pc:k@...` in `ablate_in_variants.py` (the k-th principal axis alone, not the top-k span).
-- **23a.** Clean 0.5B, late-only (≥L15): PC1, PC2, PC3 alone; PC1+PC2, PC1+PC3; r̂ (every layer) + PC1. Predicted:
+Uses `pc:K1/K2@...` (chosen principal axes only) and `A&B` (specs ablated together), new in `ablate_in_variants.py`.
+All at every layer (plan 22: late-only matched every-layer), 160 tokens, r̂ push, LG2 + moralise labels.
+- **23a.** Clean 0.5B, plan-22 pool: PC1, PC2, PC3 alone; PC1+2, PC1+3, PC2+3; top 3; r̂; r̂ & PC1; random 3-span. Predicted:
   PC2 or PC3 alone leaves refusal ≥70% (not needed for the template; p≈0.65); PC1+PC2 or PC1+PC3 cuts moralising
   below 10% (p≈0.6); r̂ + PC1 cuts moralising below 10% (p≈0.75: recognition starts at r̂).
-- **23b.** Same pool construction on 1.5B (own L18-L27 + its hydra mediators) and 3B (own L23-L35), K = 1, 3 and the
-  best single PCs from 23a. Predicted: PC1 removes the template (≤10%) and leaves ≥30% moralising on both (p≈0.6),
+- **23b.** Same pool construction on 1.5B (own L17-L27 + regrown100, hydra2-4b) and 3B (own L22-L35 + regrown100):
+  the 23a conditions minus PC2+3. Predicted: PC1 removes the template (≤10%) and leaves ≥30% moralising on both (p≈0.6),
   i.e. 1.5B's 60% moralising is the same split, not a 1.5B quirk.
 - If 23a fails (no single PC carries moralising), recognition is spread over the late stage and "2-3 axes" was a
   span effect; then size it with cumulative pcs on the moralise rate alone.
 
-### 24. Are the hydra mediators a second necessary axis, or PC1 at a thin margin? (0.5B, ~15 min)
+### 24. Are the hydra mediators a second necessary axis, or PC1 at a thin margin? — queued 2026-10-12 as job 1120
 
-Needs `tilt:c@<spec>`: a random unit direction ⊥ r̂ with cosine exactly c to a reference axis (seeded draws).
+Uses `tilt:C:N@<spec>` (draw N of a random unit direction ⊥ r̂ at cosine exactly C to the spec's first axis).
 - Ablate tilted randoms at c = 0.1, 0.25, 0.4 to PC1 (5 draws each), and the hydra-only PC1 and m4 with PC1 projected
-  out (the 21c split, but against the pool axis). Predicted: c = 0.25 draws leave a median ≥50% refusal (p≈0.6), and
+  out, plus PC1 with hydra-PC1 projected out (stems `results/split-Qwen2.5-0.5B-Instruct-{hydPC1-perp-PC1,
+  m4-perp-PC1,PC1-perp-hydPC1}-direction`, built on CPU; the 21c split, but against the pool axis). 64 tokens. Predicted: c = 0.25 draws leave a median ≥50% refusal (p≈0.6), and
   hydra PC1 ⊥ PC1 still ≤30% (p≈0.5). Both true: the hydra rounds found a second necessary axis. If tilted
   randoms at 0.25 already break refusal, the hydra directions work through their PC1 overlap on a fragile 0.5B (the
   random 8-span alone gives 65%), and the result should be re-run on 1.5B, where random spans leave 91-95%.
@@ -436,8 +438,8 @@ Predicted: on the Qwens r̂ ablation removes ≥60% of the gap at the late layer
 
 ### 27. Measurement hygiene (no new science; do before 23)
 
-- Move the moralise/other split into `label_deflection.py`, and add an `--label` option to `ablate_in_variants.py`
-  that runs it after generation (unloading LG2 before the next model loads).
+- Done 2026-10-12: moralise/other split in `label_deflection.py`; `--max-new-tokens` in `ablate_in_variants.py`
+  (jobs call the labeller as their last step instead of an `--label` option).
 - A refusal-specific log-odds token set without bare "I"/"As" reported next to the current one (the Llama harmless
   artifact, §12). Report both rather than changing the old metric, so the earlier tables stay comparable.
 - Re-label plans 18-20's saved texts where they exist (only jobs ≥1077 kept every response; earlier ones would need a
