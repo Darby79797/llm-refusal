@@ -462,11 +462,12 @@ The common tool needs: PC axes saved as ordinary direction stems (CPU, like the 
 `results/pcax-<model>-PC<k>-direction`, at the pool's last layer, sign = harmful side positive), so every script that
 takes a stem (jbb_safety, edit_cost_sweep, late_readout) can use them.
 
-### 28. Induce, not just ablate: does adding PC1 make the template, and the recognition axis the moralising? (~1.5 h, 0.5B/1.5B/3B) — queued 2026-10-13 as job 1170
+### 28. Induce, not just ablate: does adding PC1 make the template, and the recognition axis the moralising? (~2 h, 0.5B/1.5B/3B) — queued 2026-10-13 as job 1170
 
 Arditi's second criterion, never applied to the late axes. New `--push-spec SPEC@L:S` in `ablate_in_variants.py` (add
 each of SPEC's axes at layer L, scaled to S × the clean harmful-minus-harmless gap along it there at P-1, computed
-in-script; layers 0.5B L19, 1.5B L22, 3B L28), on harmless prompts, 160 tokens, LG2 + phrase labels; S = 1, 2. Axes: PC1 (template),
+in-script; main layers 0.5B L19, 1.5B L22, 3B L28 with every condition; a sweep every 3 layers (0.5B L16/L22,
+1.5B L19/L25, 3B L25/L31/L34) with PC1, the recognition axis, both and random at S = 2), on harmless prompts, 160 tokens, LG2 + phrase labels; S = 1, 2. Axes: PC1 (template),
 the recognition axis (0.5B PC3, 1.5B/3B PC2), both; r̂ push as reference; norm-matched random as control.
 Predicted: PC1 alone induces the refusal phrase on ≥50% of harmless prompts at S = 2 (p≈0.55), with little
 harm-talk (moralise ≤10%); the recognition axis alone induces moralising or caveats but ≤20% refusal phrases
