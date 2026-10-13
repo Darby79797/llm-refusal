@@ -428,6 +428,9 @@ Uses `tilt:C:N@<spec>` (draw N of a random unit direction ⊥ r̂ at cosine exac
 
 ### 25. How many dimensions is Llama-3.1-8B's late stage? (~45 min; Qwen2.5-7B comparison ~15 min)
 
+**DONE (trimmed) 2026-10-13 (RESULTS §14).** r̂ from L16/L20/L26: 92/94/95% (L20+ ≥50% held; the read sits in L12-L15).
+pcs:1/4/16: 87/75/48%, never ≤30% (K ≥ 8 prediction failed: not low-rank in the own-contrast basis).
+
 **QUEUED 2026-10-13 as job 1160, trimmed (~1 h, Llama-3.1-8B only; `late_readout.py --ablate-from`).** Plan 26 found Llama's late
 contrast is r̂'s product like the Qwens', and that after r̂ is ablated at L11 alone Llama re-writes r̂ by L21-L30.
 The sharp question is now where and from what Llama re-writes r̂, not how many own-contrast PCs it needs. Keep: r̂
@@ -455,7 +458,7 @@ Predicted: on the Qwens r̂ ablation removes ≥60% of the gap at the late layer
 
 (Plan 27, measurement hygiene, moved to BACKLOG.md on 2026-10-13.)
 
-## Designs after plans 23-26 (2026-10-13; queued as jobs 1170-1210, after 1160; ~6.5 h total)
+## Designs after plans 23-26 (2026-10-13; all done, RESULTS §14)
 
 None of these depends on job 1160 (Llama-3.1-8B, plan 25 trimmed); Llama follow-ups wait for it. Order = priority.
 The common tool needs: PC axes saved as ordinary direction stems (CPU, like the plan-24 split stems:
@@ -463,6 +466,9 @@ The common tool needs: PC axes saved as ordinary direction stems (CPU, like the 
 takes a stem (jbb_safety, edit_cost_sweep, late_readout) can use them.
 
 ### 28. Induce, not just ablate: does adding PC1 make the template, and the recognition axis the moralising? (~2 h, 0.5B/1.5B/3B) — queued 2026-10-13 as job 1170
+
+**DONE 2026-10-13 (RESULTS §14).** PC1 induces the template (85-100% at S = 1; held); the recognition axis induces ≤15% refusal
+(held) and ≤9% moralising (not the predicted moralising); both ≈ PC1. S = 2 at later layers degenerates.
 
 Arditi's second criterion, never applied to the late axes. New `--push-spec SPEC@L:S` in `ablate_in_variants.py` (add
 each of SPEC's axes at layer L, scaled to S × the clean harmful-minus-harmless gap along it there at P-1, computed
@@ -476,6 +482,9 @@ a gate, not the template's source.
 
 ### 29. Ablating the late axes leaves r̂'s signal intact? Readout under axis ablation (~15 min, 0.5B/1.5B/3B) — queued 2026-10-13 as job 1180
 
+**DONE 2026-10-13 (RESULTS §14).** r̂'s gap ≥75% intact under every axis ablation (held); 3B PC2 removes 8-21% of it: a
+separate stage, not r̂'s copy.
+
 `late_readout.py --ablate-spec SPEC ...` (new: harmful prompts with that spec ablated at every layer), reading r̂'s
 projection and the own axis per layer. The chain says the late axes sit downstream, so ablating PC1 or the
 recognition axis should leave r̂'s harmful-harmless gap at r̂'s layer and just after it ≥90% intact (p≈0.7), while
@@ -485,6 +494,9 @@ immediate downstream copy, not a separate recognition stage.
 
 ### 30. 3B PC2 as a jailbreak: held-out prompts, weight edit, capability (~2 h, 3B) — queued 2026-10-13 as job 1190
 
+**DONE 2026-10-13 (RESULTS §14).** JBB LG2-unsafe: PC2 88% (ablate) / 87% (edit) vs r̂ 50 / 48% (transfer held, exceeded).
+CE: PC2 edit +0.20 Pile / +0.42 own vs r̂ +0.11 / +0.15 (cost prediction failed); PC1 edit cheapest (+0.05 / +0.13).
+
 The one ⊥ r̂ direction that alone bypasses as fully as r̂. (a) JailbreakBench via `jbb_safety.py`: baseline,
 ablate:r̂, ablate:PC2, edit:PC2 (weight orthogonalisation), edit:PC1; LG2 unsafe rate. (b) `edit_cost_sweep.py`
 CE on Alpaca / Pile / own completions for the PC2 and PC1 edits vs r̂'s `full`. Predicted: PC2 transfers to JBB
@@ -493,6 +505,9 @@ transfer, PC2 is specific to our eval prompt distribution (the pool came from th
 
 ### 31. Qwen2.5-7B late axes (~1.5 h) — queued 2026-10-13 as job 1200
 
+**DONE 2026-10-13 (RESULTS §14).** PC1 → 0% refusal, 80% moralise (held); no single PC ≤3 is a full bypass (failed);
+PC1+2 / top 3 leave 54-55% moralise.
+
 23 covered 0.5B-3B. 7B needs its own late contrast like the smaller Qwens (§12). Save own L17-L27 contrasts ⊥ r̂
 (`cleanall-Qwen2.5-7B-Instruct`), pool them with regrown100 (same recipe as 3B), ablate PC1, PC2, PC3, PC1+2, top 3,
 r̂, random 3-span at every layer, 160 tokens, r̂ push, LG2 labels. Predicted: PC1 removes the template (≤10%) with
@@ -500,6 +515,9 @@ r̂, random 3-span at every layer, 160 tokens, r̂ push, LG2 labels. Predicted: 
 recognition axis" is the Qwen family's layout or a small-model one.
 
 ### 32. Do the axis results hold on held-out harmful prompts? (~1 h, 1.5B and 0.5B) — queued 2026-10-13 as job 1210
+
+**DONE 2026-10-13 (RESULTS §14).** 1.5B: held exactly (PC1 1% refuse / 35% moralise; both 73% comply, r̂ 68%).
+0.5B: recognition-axis ablations degenerate 20-45% on JBB; PC1 alone still removes the template.
 
 Every plan-22/23 number is on the same 99 eval prompts the pool's train-set contrasts were tuned near. JailbreakBench
 (100 prompts, 256 tokens) via `jbb_safety.py` with ablate:PC1, ablate:recognition axis, ablate:PC1&recognition,
