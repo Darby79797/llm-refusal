@@ -524,3 +524,46 @@ Every plan-22/23 number is on the same 99 eval prompts the pool's train-set cont
 ablate:r̂, baseline.
 Predicted: the qualitative pattern holds (PC1 removes refusal phrases ≤15%; LG2-unsafe rises most with both axes;
 p≈0.65). `label_deflection.py` reads jbb_safety's JSON (reusing its LG2 verdicts) for the moralise share.
+
+## Designs after plans 25/28-32 (2026-10-13; queued as jobs 1220-1260, ~6 h)
+
+§14 left three open threads: where exactly Llama-3.1-8B reads r̂ and what its high-dimensional late stage is; whether
+that is a Llama-family property; and where 7B keeps harm recognition. Plus one practical one: PC1's edit was the
+cheapest refusal-removing edit on 3B. New in `ablate_in_variants.py`: `--to-layer` (ablate in a layer window) and
+`--no-baseline`.
+
+### 33. Llama-3.1-8B: which of L12-L15 reads r̂? — job 1220 (~35 min)
+
+r̂ ablated only inside a window: L12-15, L12-13, L14-15, and each single layer L12..L15 (160 tokens, LG2).
+Predicted: the L12-15 window alone takes refusal to ≤30% (p≈0.6; from L12 on gave 11%, from L16 on 92%); no single
+layer goes below 70% (p≈0.6), i.e. the read is spread over the window, as Llama's redundancy elsewhere suggests.
+
+### 34. Llama-3.1-8B: is the late stage spread over template positions? Is PC1 sufficient without being necessary? — job 1230 (~1.5 h)
+
+1160 pooled the own contrast at P-1 only (top 16 axes: 48%). Pool P-1..P-5 at L12-L31 (100 directions ⊥ r̂);
+pcs:1/4/16/32, random 32-span. Predicted: pcs:16 multi-position ≤30% (p≈0.4); if not, Llama's late refusal isn't
+in its own harmful-harmless contrasts at all. Also add the P-1 pool's PC1 to harmless prompts at L16/L20/L24 (S = 1)
+with r̂ and random references. Predicted: PC1 induces ≥50% refusal at some layer (p≈0.55): sufficient but, per 1160,
+not necessary, which would make Llama's late stage redundant rather than absent.
+
+### 35. Qwen2.5-7B: where is harm recognition? — job 1240 (~1 h)
+
+Plan 31: PC1 leaves 80% moralising and the top 3 still 54%. Extended pool: own L17-L27 + every saved 7B mediator
+(regrown, regrown100, regrowns1/2, hydra2), ⊥ r̂; pc:1, pcs:4, pcs:8. Predicted: pcs:8 brings moralising ≤20%
+(p≈0.4); if moralising stays ≥40% at K = 8 while refusal is 0, 7B's recognition sits outside the late ⊥ r̂ stage
+(in r̂ itself: r̂ ablation gives 3% moralising).
+
+### 36. Is "one late axis" Qwen-only? Llama-3-8B and Llama-3.2-1B — job 1250 (~1.5 h)
+
+Plan-23 recipe on two more Llamas: own contrast ⊥ r̂ at every layer after r̂ (P-1) plus every saved mediator;
+Llama-3-8B pc:1, pcs:4, pcs:16, r̂, random 16-span; Llama-3.2-1B pc:1, pcs:2/4/8, r̂, random 4-span; 160 tokens,
+LG2; plus PC1 added to harmless prompts (S = 1). Predicted: Llama-3-8B behaves like 3.1 (pcs:4 ≥50% refusal,
+p≈0.6); Llama-3.2-1B, which needed its late stage more (§10/§11), reaches ≤30% at PC1 (p≈0.5). A split by size
+inside the Llama family would make "Qwen vs Llama" a size story after all.
+
+### 37. Is PC1's edit the cheap refusal edit everywhere? And can PC2's edit be narrowed? — job 1260 (~1.5 h)
+
+`edit_cost_sweep.py` (refusal + CE on Alpaca / Pile / own completions): r̂ (none, random, full) and the pcax PC1
+edit on 0.5B, 1.5B, 7B (7B axes saved from the plan-31 pool); on 3B, PC2's edit restricted to writers ≥ L22, ≥ L25,
+< L28. Predicted: PC1's edit removes refusal (≤10% on the eval prompts) at lower Pile CE than r̂'s on all three
+(p≈0.6); PC2 at ≥ L22 keeps ≤10% refusal at ≤ r̂'s Pile CE (p≈0.4).

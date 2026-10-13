@@ -10,7 +10,7 @@ whole span of several of those removed in one projection), `randspan:K@<stem>` (
 `pcs:K@A+B+...` (the span of the top K principal axes of those directions, unit-normed and uncentred, so the first
 is close to their mean), `pc:K1/K2/...@A+B+...` (only those principal axes, 1-based), `tilt:C:N@<spec>` (draw N of a
 random unit direction ⊥ r̂ with cosine exactly C to that spec's first axis: is a direction's effect just its overlap
-with the axis?), `A&B&...` (several specs' axes ablated together) or `perp:<spec>` (that direction with r̂ projected out). `--from-layer K` ablates only at layers >= K (default
+with the axis?), `A&B&...` (several specs' axes ablated together) or `perp:<spec>` (that direction with r̂ projected out). `--from-layer K` ablates only at layers >= K (`--to-layer K2`: and < K2; default
 every layer). Reports refusal on harmful prompts (64-token generation, phrase detector) and first-token log-odds,
 plus harmless log-odds as a disruption check (`--harmless-gen` also generates on the harmless prompts: false
 refusal and degeneracy, for when ablation moves harmless log-odds). `--rhat-push S` also adds r̂ ×S at its own layer
@@ -52,6 +52,8 @@ def main():
     ap.add_argument("--variants", required=True)
     ap.add_argument("--directions", default="", help="comma-separated specs (dirspecs.py); 'none' is always run")
     ap.add_argument("--from-layer", type=int, default=None)
+    ap.add_argument("--to-layer", type=int, default=None, help="ablate only at layers < this (with --from-layer: a window)")
+    ap.add_argument("--no-baseline", action="store_true", help="skip the unablated 'none' condition (already measured)")
     ap.add_argument("--tag", required=True)
     ap.add_argument("--n-harmful", type=int, default=99)
     ap.add_argument("--n-harmless", type=int, default=80)
@@ -73,7 +75,7 @@ def main():
     harmful, harmless = fw.concept.eval_data_fn()
     harmful, harmless = harmful[:a.n_harmful], harmless[:a.n_harmless]
     n_layers = len(run.blocks)
-    layers = None if a.from_layer is None else list(range(a.from_layer, n_layers))
+    layers = None if a.from_layer is None and a.to_layer is None else list(range(a.from_layer or 0, a.to_layer or n_layers))
 
     def spec_seed(spec):
         """--seed for the first random spec of a run (as before 2026-10-10); others mix in the spec, so two random specs
@@ -86,7 +88,7 @@ def main():
     def load_dir(spec):
         return dirspecs.load_spec(spec, r, spec_seed)
 
-    dirs = {"none": None, **{d: load_dir(d) for d in specs}}
+    dirs = {**({} if a.no_baseline else {"none": None}), **{d: load_dir(d) for d in specs}}
 
     # Push vectors, fixed before any ablation: the clean model's gap along each axis sets the scale.
     pushes, diffs = {}, {}  # diffs: layer -> clean harmful-minus-harmless mean residual at P-1
@@ -156,7 +158,7 @@ def main():
         return m
 
     path = run.path("analysis", "ablate-in-variants", a.tag)
-    settings = {"from_layer": a.from_layer, "rhat_push": a.rhat_push, "seed": a.seed, "n_harmful": a.n_harmful,
+    settings = {"from_layer": a.from_layer, "to_layer": a.to_layer, "rhat_push": a.rhat_push, "seed": a.seed, "n_harmful": a.n_harmful,
                 "n_harmless": a.n_harmless, "harmless_gen": a.harmless_gen, "max_new_tokens": a.max_new_tokens,
                 "push_specs": a.push_spec}
     out = {"model": a.model, **settings, "directions": {k: (
