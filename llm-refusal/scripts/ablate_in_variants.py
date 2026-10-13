@@ -4,7 +4,7 @@ Built for the 2026-10-04 checks of the regrown-mediator claims: does ablating se
 B's regrown refusal (cross-seed transfer), and does the clean model need the regrown axis (and only downstream of
 r̂'s layer)? Variants: `clean`, `edited`, `edited@S1+S2` (the edit with saved directions S1, S2 also orthogonalised out), or a
 regrow tag (results/finetune/<short>-refusal-regrow-<tag>, installed inside the edit it was trained under: r̂ plus
-its recorded extra_edit_directions). Directions: a saved stem, `rhat` (the clean refusal direction), `random@<stem>`
+its recorded extra_edit_directions). Directions (`dirspecs.py`, the shared grammar): a saved stem, `rhat` (the clean refusal direction), `random@<stem>`
 (a norm-matched random direction at that stem's layer/position; ablation ignores the norm), `span:A+B+...` (the
 whole span of several of those removed in one projection), `randspan:K@<stem>` (K random directions' span),
 `pcs:K@A+B+...` (the span of the top K principal axes of those directions, unit-normed and uncentred, so the first
@@ -15,7 +15,8 @@ every layer). Reports refusal on harmful prompts (64-token generation, phrase de
 plus harmless log-odds as a disruption check (`--harmless-gen` also generates on the harmless prompts: false
 refusal and degeneracy, for when ablation moves harmless log-odds). `--rhat-push S` also adds r̂ ×S at its own layer
 to the harmless prompts under each ablation (refusal, degeneracy and log-odds): does r̂ still act with that direction
-gone?
+gone? `--push-spec SPEC@L:S` does the same with any spec's axes (`A&B`: both), each scaled to S x the clean gap along it (induction
+by a late axis; `random~SPEC@L:S` is the norm-matched control); every push response is saved for `label_deflection.py`.
 
   .venv/bin/python3 llm-refusal/scripts/ablate_in_variants.py --model meta-llama/Meta-Llama-3-8B-Instruct \\
       --variants readers-r32,readers-r32-s1 --directions rhat,results/regrown100-Meta-Llama-3-8B-Instruct-refusal-direction \\
@@ -38,17 +39,18 @@ from hf_offline import offline_for_script; offline_for_script()  # before transf
 import torch as t  # noqa: E402
 
 from coherence import is_degenerate  # noqa: E402
+import dirspecs  # noqa: E402
 from datatypes import DirectionVector  # noqa: E402
 from finetune import installed, load_adapters  # noqa: E402
 from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
-from probe import load_run, save_json, unit  # noqa: E402
+from probe import load_run, residuals_at, save_json  # noqa: E402
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True)
     ap.add_argument("--variants", required=True)
-    ap.add_argument("--directions", required=True)
+    ap.add_argument("--directions", default="", help="comma-separated specs (dirspecs.py); 'none' is always run")
     ap.add_argument("--from-layer", type=int, default=None)
     ap.add_argument("--tag", required=True)
     ap.add_argument("--n-harmful", type=int, default=99)
@@ -56,6 +58,10 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--harmless-gen", action="store_true", help="also generate on harmless prompts (false refusal)")
     ap.add_argument("--rhat-push", type=float, default=None, help="also add r̂ at this strength on harmless prompts")
+    ap.add_argument("--push-spec", nargs="*", default=[], metavar="SPEC@L:S",
+                    help="also add SPEC's axes at layer L to the harmless prompts under each ablation, each scaled to S x "
+                         "the clean harmful-minus-harmless gap along it at L (P-1); random~SPEC@L:S adds a random "
+                         "direction of the same norm (does an axis induce refusal, as r̂ does?)")
     ap.add_argument("--max-new-tokens", type=int, default=64,
                     help="generation length (64 cuts some compliance off after its preamble; 160 resolves most)")
     a = ap.parse_args()
@@ -74,56 +80,30 @@ def main():
         in one run are not the same direction."""
         return a.seed if spec == first_random else a.seed * 1_000_003 + zlib.crc32(spec.encode())
 
-    first_random = next((x for x in a.directions.split(",") if x.startswith(("random@", "randspan:"))), None)
-
-    def rows(d):
-        return d if isinstance(d, t.Tensor) else d.vector.float().cpu()[None]
+    specs = [x for x in a.directions.split(",") if x]
+    first_random = next((x for x in specs if x.startswith(("random@", "randspan:"))), None)
 
     def load_dir(spec):
-        if "&" in spec:
-            return t.cat([rows(load_dir(x)).float() for x in spec.split("&")])
-        if spec == "rhat":
-            return r
-        if spec.startswith("random@"):
-            ref = DirectionVector.load(spec[7:])
-            g = t.Generator().manual_seed(spec_seed(spec))
-            v = unit(t.randn(ref.vector.shape[-1], generator=g)) * ref.vector.float().norm()
-            return DirectionVector(vector=v.to(ref.vector.dtype), layer=ref.layer, position_index=ref.position_index, score=0)
-        if spec.startswith("span:"):
-            return t.stack([load_dir(x).vector.float().cpu() for x in spec[5:].split("+")])
-        if spec.startswith("pcs:"):
-            k, stems = spec[4:].split("@", 1)
-            V = t.stack([unit(load_dir(x).vector.float().cpu()) for x in stems.split("+")])
-            return t.linalg.svd(V, full_matrices=False).Vh[:int(k)]
-        if spec.startswith("pc:"):
-            ks, stems = spec[3:].split("@", 1)
-            V = t.stack([unit(load_dir(x).vector.float().cpu()) for x in stems.split("+")])
-            return t.linalg.svd(V, full_matrices=False).Vh[[int(k) - 1 for k in ks.split("/")]]
-        if spec.startswith("tilt:"):
-            cn, ref = spec[5:].split("@", 1)
-            c = float(cn.split(":")[0])
-            u = unit(r.vector.float().cpu())
-            a0 = rows(load_dir(ref))[0].float()
-            a0 = unit(a0 - (a0 @ u) * u)
-            g = t.randn(a0.shape[-1], generator=t.Generator().manual_seed(spec_seed(spec)))
-            g = g - (g @ u) * u
-            g = unit(g - (g @ a0) * a0)
-            return (c * a0 + (1 - c * c) ** 0.5 * g)[None]
-        if spec.startswith("perp:"):
-            d = load_dir(spec[5:])
-            u = unit(r.vector.float().cpu())
-            if isinstance(d, t.Tensor):
-                return d.float() - (d.float() @ u)[:, None] * u
-            v = d.vector.float().cpu()
-            return DirectionVector(vector=(v - (v @ u) * u).to(d.vector.dtype), layer=d.layer,
-                                   position_index=d.position_index, score=0)
-        if spec.startswith("randspan:"):
-            k, ref = spec[9:].split("@", 1)
-            g = t.Generator().manual_seed(spec_seed(spec))
-            return t.randn(int(k), DirectionVector.load(ref).vector.shape[-1], generator=g)
-        return DirectionVector.load(spec)
+        return dirspecs.load_spec(spec, r, spec_seed)
 
-    dirs = {"none": None, **{d: load_dir(d) for d in a.directions.split(",")}}
+    dirs = {"none": None, **{d: load_dir(d) for d in specs}}
+
+    # Push vectors, fixed before any ablation: the clean model's gap along each axis sets the scale.
+    pushes, diffs = {}, {}  # diffs: layer -> clean harmful-minus-harmless mean residual at P-1
+    for ps in a.push_spec:
+        spec, ls = ps.rsplit("@", 1)
+        layer, scale = int(ls.split(":")[0]), float(ls.split(":")[1])
+        rand = spec.startswith("random~")
+        if layer not in diffs:
+            diffs[layer] = (residuals_at(model, run.fmt, run.blocks, harmful, -1)[:, layer].mean(0)
+                            - residuals_at(model, run.fmt, run.blocks, harmless, -1)[:, layer].mean(0))
+        axes = [dirspecs.unit(x) for x in dirspecs.rows(load_dir(spec[7:] if rand else spec))]
+        gaps = [float(diffs[layer] @ x) for x in axes]
+        v = sum(dirspecs.push_vector(x, gap, scale) for x, gap in zip(axes, gaps))
+        if rand:
+            g = t.Generator().manual_seed(spec_seed(ps))
+            v = dirspecs.unit(t.randn(v.shape[-1], generator=g)) * v.norm()
+        pushes[ps] = (DirectionVector(vector=v.to(r.vector.dtype), layer=layer, position_index=-1, score=0), gaps)
 
     @contextlib.contextmanager
     def ablated(d):
@@ -158,6 +138,18 @@ def main():
                     run.applier.clear_interventions()
             m.update(push_rate=sum(bool(ev._check_for_detection(x)) for x in texts_p) / len(texts_p),
                      push_degenerate=degen(texts_p), push_log_odds=sum(fin(lo_p)) / len(fin(lo_p)), push_samples=texts_p[:3])
+        for ps, (pv, gap) in pushes.items():  # gap: one per axis
+            with ablated(d):
+                run.applier.apply_direction_intervention(pv, "add", 1.0, layers=[pv.layer])
+                try:
+                    texts_q = ev.generate_responses(harmless, max_new_tokens=a.max_new_tokens)
+                    lo_q = ev.log_odds_scores(harmless)
+                finally:
+                    run.applier.clear_interventions()
+            labels_q = [bool(ev._check_for_detection(x)) for x in texts_q]
+            m.setdefault("pushes", {})[ps] = {
+                "gaps": gap, "norm": float(pv.vector.float().norm()), "rate": sum(labels_q) / len(labels_q),
+                "log_odds": sum(fin(lo_q)) / len(fin(lo_q)), "degenerate": degen(texts_q), "texts": texts_q, "labels": labels_q}
         if texts_n is not None:
             m.update(harmless_rate=sum(bool(ev._check_for_detection(x)) for x in texts_n) / len(texts_n),
                      harmless_degenerate=degen(texts_n), harmless_samples=texts_n[:3])
@@ -165,7 +157,8 @@ def main():
 
     path = run.path("analysis", "ablate-in-variants", a.tag)
     settings = {"from_layer": a.from_layer, "rhat_push": a.rhat_push, "seed": a.seed, "n_harmful": a.n_harmful,
-                "n_harmless": a.n_harmless, "harmless_gen": a.harmless_gen, "max_new_tokens": a.max_new_tokens}
+                "n_harmless": a.n_harmless, "harmless_gen": a.harmless_gen, "max_new_tokens": a.max_new_tokens,
+                "push_specs": a.push_spec}
     out = {"model": a.model, **settings, "directions": {k: (
            None if v is None else {"span": v.shape[0]} if isinstance(v, t.Tensor) else
            {"layer": v.layer, "position_index": v.position_index}) for k, v in dirs.items()}, "results": {}}
@@ -190,6 +183,9 @@ def main():
                   + (f"  harmless refusal {m['harmless_rate']:.0%} degenerate {m['harmless_degenerate']:.0%}"
                      if "harmless_rate" in m else "")
                   + (f"  r̂ push refusal {m['push_rate']:.0%} lo {m['push_log_odds']:+6.2f}" if "push_rate" in m else ""), flush=True)
+            for ps, q in m.get("pushes", {}).items():
+                print(f"{'':18s}   push {ps[:56]:56s} (gap {'/'.join(f'{x:+.2f}' for x in q['gaps'])}, norm {q['norm']:.1f}) harmless refusal "
+                      f"{q['rate']:5.0%}  lo {q['log_odds']:+6.2f}  degenerate {q['degenerate']:.0%}", flush=True)
             save_json(path, out)
 
     def edit_of(v):

@@ -6,8 +6,10 @@ generation batch and the LlamaGuard verdicts every --judge-every responses (atom
 where the last one stopped. Batches are the evaluator's own consecutive slices at the auto batch size, which is
 fixed on the first run and stored, so a resumed run produces the same batches as an uninterrupted one.
 
-Conditions, comma-separated `name=kind[:stem]`: `baseline`, `edit:<stem>` (weight orthogonalisation against that
-direction, every block), `ablate:<stem>` (hook ablation at every layer). All responses are generated first (the
+Conditions, comma-separated `name=kind[:spec]`: `baseline`, `edit:<spec>` (weight orthogonalisation against that
+direction or span, every block), `ablate:<spec>` (hook ablation at every layer). A spec is a saved stem or any
+`dirspecs.py` spec (`rhat`, `pc:1/2@A+B`, `perp:...`, `A&B`...). `label_deflection.py` reads the output (refuse /
+moralise / other / comply, reusing the verdicts saved here). All responses are generated first (the
 study model only), then judged by LlamaGuard 2 via Ollama (localhost; the model is unloaded after each pass).
 
   .venv/bin/python3 llm-refusal/scripts/jbb_safety.py --model Qwen/Qwen2.5-7B-Instruct --tag masked \\
@@ -28,7 +30,7 @@ from hf_offline import offline_for_script; offline_for_script()  # before transf
 
 import prompts  # noqa: E402
 from coherence import is_degenerate  # noqa: E402
-from datatypes import DirectionVector  # noqa: E402
+import dirspecs  # noqa: E402
 from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
 from probe import load_run, save_json  # noqa: E402
 
@@ -56,11 +58,11 @@ def main():
         kind, _, stem = spec.partition(":")
         if kind == "baseline":
             return contextlib.nullcontext()
-        d = DirectionVector.load(stem)
+        v = dirspecs.as_edit_vector(dirspecs.load_spec(stem, run.r), run.r.vector.dtype)
         if kind == "edit":
-            return orthogonalized(run.model, d.vector)
+            return orthogonalized(run.model, v)
         if kind == "ablate":
-            return run.applier.intervened(d, "ablate", layers=None)
+            return run.applier.intervened(v, "ablate", layers=None)
         raise ValueError(f"unknown condition kind {kind!r}")
 
     conds = dict(c.split("=", 1) for c in a.conditions.split(","))

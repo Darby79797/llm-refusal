@@ -30,6 +30,8 @@ All code under `llm-refusal/`. Flat imports (`from formatting import ...`), set 
 | `tools/look.py` | Text views: `digest`, `run`, `gens` (flips/labels/grep/`--rescore`), `search` (layer×pos grid), `caa`, `cross`, `proj`, `limbs` (edit-cost, trajectory, jailbreak, categories, finetune identity/regrow dose/rank-1) |
 | `tools/report.py` | Self-contained HTML report (`results/report/index.html`): overview matrix, run detail + search heatmap + generations browser, CAA curves, cross-concept, token projections |
 | `probe.py` | Shared layer for the analysis scripts: `load_run` (framework + saved direction as a `Run` with `ablate`/`add` context factories and result paths), `inhibitor_direction` (û, û⊥ from saved rank1 adapters), `save_json`; forward-pass probes `residuals_at` (per-prompt residual at a template position, every layer), `token_projections` (attention-sink-masked per-token projection), `behaviour` (rate + log-odds under a context); `auroc`, `cos`, `unit` |
+| `dirspecs.py` | Direction-spec grammar shared by `ablate_in_variants.py`, `late_readout.py`, `jbb_safety.py`, `save_pc_axes.py`: saved stems, `rhat`, `random@`, `span:`, `randspan:`, `pcs:`/`pc:` (principal axes of a pool), `tilt:`, `perp:`, `A&B`; signed PC axes saved as stems; gap-scaled push vectors |
+| `deflection.py` | Refuse / moralise / other / comply labels (LG2 verdict + phrase detector + harm words) and the conditions of an `ablate_in_variants.py` or `jbb_safety.py` file, for `scripts/label_deflection.py` |
 | `tools/project.py` | Per-token projections onto a direction at every layer (loads a model) → `results/proj/*.json` |
 
 ## Adding a Concept
