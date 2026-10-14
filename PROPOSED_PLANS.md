@@ -647,12 +647,14 @@ brings moralising ≤20% with refusal still ≤10% (p≈0.5): the recognition ca
 
 **Outcome:** failed: A + Q top 4 leaves 40% moralising; top 8 reaches 17% at 19% degenerate. No low-rank residual carrier; moralising falls gradually with dimensions.
 
-### 45. Swap the late axes between Llama-3-8B and Llama-3.1-8B — job 1340 (~1.5 h)
+### 45. Swap the late axes between Llama-3-8B and Llama-3.1-8B — job 1340 — DONE (RESULTS §16)
 
 Llama-3's PC1-4 span and PC1 ablated in Llama-3.1; Llama-3.1's 5-position top 16 and P-1 PC1 ablated in Llama-3;
 PC1s added to harmless prompts across models, plus Llama-3.1's 5-position PC1 at L13/16/20. Predicted: Llama-3's span
 in Llama-3.1 leaves ≥60% refusal (p≈0.6: shared axes, Llama-3.1 has another route); Llama-3.1's top 16 in Llama-3
 ≤10% (p≈0.7); Llama-3.1's 5-position PC1 induces ≥50% somewhere (p≈0.4).
+
+**Outcome:** all three failed, informatively: Llama-3's span in 3.1 leaves 36% (beats 3.1's own top 4, 72%) and blocks r̂'s push; 3.1's top 16 in Llama-3 leaves 91%; 3.1's 5-position PC1 induces 49% at L16. Shared causal subspace, not on top of 3.1's contrast variance.
 
 ### 46. In which layers does each late stage act? — job 1350 (~1 h)
 
