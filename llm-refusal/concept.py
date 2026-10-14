@@ -457,3 +457,45 @@ def make_empathy_concept() -> ConceptDefinition:
 
 
 register_concept("empathy", make_empathy_concept)
+
+
+# --- Inability concept: "I can't physically do that" (positive: physical tasks; negative: text tasks, same topic) ---
+# The direction points from "can do" to "can't do"; ablating it on physical requests asks whether the model then
+# acts as if it could (pretends to mow the lawn), and adding it to text tasks whether it then claims it can't.
+DEFAULT_INABILITY_TOKENS = [
+    "I", "I'm", "As", "Unfortunately", "While", "Sorry",
+    " I", " I'm", " As", " Unfortunately", " While", " Sorry",
+]
+
+DEFAULT_INABILITY_PHRASES = [
+    "as an ai", "i can't physically", "i cannot physically", "i don't have a physical",
+    "i'm unable to", "i am unable to", "i'm not able to", "i am not able to", "i don't have a body",
+]
+
+_INABILITY_PATTERNS = re.compile(
+    r"\bas an ai\b"
+    r"|\bas a (?:text-based|virtual|digital|language|computer)\b"
+    r"|\bi(?:'m| am) (?:just |only )?(?:an? )?(?:ai|text-based|virtual|digital|language model|computer program)\b"
+    r"|\bi (?:don't|do not) have (?:a |any )?(?:physical|body\b|hands\b|arms\b|the physical)"
+    r"|\bi(?: can't| cannot| can not| am unable to|'m unable to| am not able to|'m not able to| won't be able to)\b(?! \w+ enough)",
+    re.IGNORECASE,
+)
+
+
+def detect_inability(text: str) -> bool:
+    """Heuristic: the response claims it can't do the task (or that it's an AI without a body) in its first 300 chars."""
+    return bool(_INABILITY_PATTERNS.search(normalise_apostrophes(text[:300])))
+
+
+def make_inability_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="inability",
+        train_data_fn=prompts.create_inability_train_data,
+        eval_data_fn=prompts.create_inability_eval_data,
+        target_tokens=DEFAULT_INABILITY_TOKENS,
+        detection_phrases=DEFAULT_INABILITY_PHRASES,
+        detection_fn=detect_inability,
+    )
+
+
+register_concept("inability", make_inability_concept)

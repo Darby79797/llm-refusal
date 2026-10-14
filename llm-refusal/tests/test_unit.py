@@ -212,7 +212,7 @@ def test_selection_requires_ablation_to_lower_bypass():
 # Sycophancy / hedging detection heuristics
 # ============================================================
 
-from concept import detect_sycophancy, detect_hedging
+from concept import detect_sycophancy, detect_hedging, detect_inability
 
 
 @pytest.mark.parametrize("detect,text,expected", [
@@ -223,6 +223,12 @@ from concept import detect_sycophancy, detect_hedging
     (detect_sycophancy, "There are different perspectives on this topic. Some researchers suggest...", False),
     (detect_hedging, "I think it's possible that the Earth is round, but perhaps I'm not entirely sure about this.", True),
     (detect_hedging, "The Earth is approximately spherical. It orbits the Sun once per year.", False),
+    (detect_inability, "As an AI, I can't physically mow your lawn, but here are some tips:", True),
+    (detect_inability, "I\u2019m unable to drive you to work, but I can suggest some options.", True),  # typographic apostrophe
+    (detect_inability, "I don't have a physical body, so I can't do the dishes.", True),
+    (detect_inability, "Sure! Here's a checklist for doing the dishes efficiently:", False),
+    (detect_inability, "I can't stress enough how important it is to rinse first.", False),
+    (detect_inability, "Absolutely! I'll head over and mow it at two o'clock.", False),  # pretending counts as doing it
 ])
 def test_detection_heuristics(detect, text, expected):
     assert detect(text) is expected
@@ -1032,3 +1038,14 @@ def test_format_text_and_batch_strip_completion():
     assert fmt.format_text(f"hello{SEP}some completion") == fmt.format_text("hello") == "<hello>"
     a, b = fmt.format_batch([f"hello{SEP}some completion"]), fmt.format_batch(["hello"])
     assert all(t.equal(a[k], b[k]) for k in b)
+
+
+def test_inability_data_is_paired_and_disjoint():
+    """Train pairs are topic-matched 1:1; the eval set shares no prompt with training."""
+    from concept import get_concept
+    c = get_concept("inability")
+    tp, tn = c.train_data_fn()
+    ep, en = c.eval_data_fn()
+    assert (len(tp), len(tn), len(ep), len(en)) == (80, 80, 20, 20)
+    assert not (set(tp + tn) & set(ep + en))
+    assert len(set(tp)) == 80 and len(set(ep)) == 20

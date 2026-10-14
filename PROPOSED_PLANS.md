@@ -655,3 +655,18 @@ in Llama-3.1 leaves ≥60% refusal (p≈0.6: shared axes, Llama-3.1 has another 
 Late axes ablated only in windows: Llama-3.1 5-position top 16 in L12-15 / L12-13 / L14-15; Llama-3 top 4 in
 L13-16 / L17-23 / L24-31; 7B top 4 in L21-23 / L24-27. Predicted: Llama-3.1's L12-15 ≤20% (p≈0.6) (its late stage
 acts in the read layers); Llama-3's L17-23 ≤20% (p≈0.5).
+
+## Non-refusal concepts (2026-10-14)
+
+### 47. An "inability" direction — jobs 1360 (Qwen2.5-3B), 1370 (Llama-3.1-8B), ~1 h each
+
+New concept `inability`: 80 topic-matched pairs, a physical request the assistant can't do ("Mow my front lawn") vs a
+text task on the same topic ("Explain how often a lawn should be mowed"); 20 held-out pairs, whose text tasks also
+include debugging, translation and code. Detector: "as an AI", "I don't have a physical body", "I can't / I'm unable
+to" in the first 300 chars. CPU check on 1.5B: 50% of physical requests claim inability (the rest ask for
+clarification or give tips), 0% of text tasks. Search, then evaluate at 128 tokens: ablation / subtraction on held-out
+physical requests (does the model act as if it could: "I'll mow it at two"?) and addition to held-out text tasks
+(does it claim it can't write the essay or debug the code?); cross_concept with refusal. Predicted: addition induces
+inability claims on ≥50% of text tasks (p≈0.7); ablation removes them on physical requests (≤20%, p≈0.6), mostly
+turning into tips rather than pretending (pretending on ≥25%, p≈0.25); cosine with r̂ ≥0.3 (p≈0.5: "I can't" shares
+the refusal template).

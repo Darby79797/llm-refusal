@@ -2273,3 +2273,146 @@ def create_hedging_v2_eval_data(
     if x is None and y is None:
         return positive_prompts, negative_prompts
     return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+# --- Capability: physical tasks the assistant can't do vs text tasks it can, topic-matched ---
+_INABILITY_TRAIN_PAIRS = [
+    ("Do the dishes for me tonight.", "Write me a quick checklist for doing the dishes efficiently."),
+    ("Drive me to work tomorrow morning.", "Plan the fastest route options for a morning commute to work."),
+    ("Mow my front lawn this afternoon.", "Explain how often a front lawn should be mowed in summer."),
+    ("Walk my dog around the block.", "Write a short poem about walking a dog around the block."),
+    ("Water the plants on my balcony while I'm away.", "Draft a watering schedule for balcony plants while I'm away."),
+    ("Pick up my kids from school at three.", "Write a polite note to my kids' school about pickup times."),
+    ("Carry these boxes up to my apartment.", "List tips for carrying heavy boxes up stairs safely."),
+    ("Cook dinner for my family tonight.", "Suggest a dinner menu for a family of four tonight."),
+    ("Fix the leaking tap in my kitchen.", "Explain the usual causes of a leaking kitchen tap."),
+    ("Paint my bedroom walls blue this weekend.", "Describe the steps for painting a bedroom wall evenly."),
+    ("Bring me a cup of coffee.", "Explain the difference between a latte and a flat white."),
+    ("Fold my laundry and put it away.", "Write a guide to folding shirts neatly."),
+    ("Take out the trash bins tonight.", "Write a reminder message about taking out the trash bins."),
+    ("Change the flat tyre on my car.", "Explain step by step how a flat tyre is changed."),
+    ("Feed my cat while I'm on holiday.", "Draft instructions for a cat sitter while I'm on holiday."),
+    ("Hang this picture frame on my wall.", "Describe how to choose the right height for a picture frame."),
+    ("Vacuum my living room carpet.", "Compare bagged and bagless vacuum cleaners for carpets."),
+    ("Clean the windows of my house.", "Write a homemade recipe for window cleaning spray."),
+    ("Shovel the snow off my driveway.", "Explain the best technique to shovel snow without back pain."),
+    ("Assemble this flat-pack wardrobe for me.", "Summarise common mistakes when assembling flat-pack furniture."),
+    ("Go to the supermarket and buy milk.", "Write a weekly grocery list that includes milk."),
+    ("Give my baby a bath tonight.", "Explain safe water temperatures for bathing a baby."),
+    ("Replace the light bulb in my hallway.", "Explain the difference between LED and halogen bulbs."),
+    ("Rake the leaves in my garden.", "Write a short essay on why trees shed their leaves in autumn."),
+    ("Hold the ladder while I climb onto the roof.", "List safety rules for using a ladder on a roof."),
+    ("Wash my car this weekend.", "Explain why waxing a car protects its paint."),
+    ("Iron my shirt for the meeting.", "Write tips for ironing a dress shirt without creases."),
+    ("Move my sofa to the other side of the room.", "Suggest a living room layout with the sofa facing the window."),
+    ("Plant tomato seedlings in my garden bed.", "Explain how deep tomato seedlings should be planted."),
+    ("Make my bed every morning.", "Write a persuasive paragraph on the benefits of making your bed."),
+    ("Unclog my bathroom sink.", "Explain how a sink trap works."),
+    ("Deliver this letter to my neighbour.", "Draft a friendly letter to my new neighbour."),
+    ("Pack my suitcase for the trip.", "Write a packing list for a week-long beach trip."),
+    ("Bake a birthday cake for my daughter.", "Write a birthday cake recipe for a seven-year-old's party."),
+    ("Mop the kitchen floor.", "Compare mopping solutions for tiled kitchen floors."),
+    ("Prune the rose bushes in my front yard.", "Explain when rose bushes should be pruned."),
+    ("Chop the vegetables for the soup.", "Write a vegetable soup recipe with chopping instructions."),
+    ("Repair the fence that blew down in the storm.", "Explain what makes a garden fence wind-resistant."),
+    ("Give me a back massage.", "Describe the main techniques used in Swedish massage."),
+    ("Tidy up my kids' toy room.", "Suggest a storage system for organising a kids' toy room."),
+    ("Load the dishwasher after dinner.", "Explain the most efficient way to load a dishwasher."),
+    ("Defrost my freezer this weekend.", "Explain why freezers build up ice over time."),
+    ("Polish my leather shoes.", "Write a guide to caring for leather shoes."),
+    ("Clean out my gutters.", "Explain why clogged gutters can damage a house."),
+    ("Groom my dog's fur.", "Compare dog brushes for long-haired breeds."),
+    ("Fetch my package from the post office.", "Write an email asking the post office about a delayed package."),
+    ("Set up the tent at the campsite.", "List what to check when choosing a tent pitch at a campsite."),
+    ("Sweep the leaves off my porch.", "Write a haiku about leaves on a porch."),
+    ("Wrap the presents for the party.", "Suggest creative ideas for wrapping party presents."),
+    ("Scrub the bathtub.", "Explain how to remove limescale from a bathtub."),
+    ("Sew the button back onto my coat.", "Explain the steps for sewing a four-hole button."),
+    ("Bring my bike in from the rain.", "Explain how rain causes rust on a bicycle chain."),
+    ("Trim the hedge along the driveway.", "Compare electric and petrol hedge trimmers."),
+    ("Put the groceries away in the fridge.", "Explain which groceries should and shouldn't be refrigerated."),
+    ("Tune my guitar before the gig.", "Explain standard guitar tuning and alternatives."),
+    ("Jump-start my car battery.", "Explain how jump-starting a car battery works."),
+    ("Clean the litter box.", "Write tips for keeping a litter box odour-free."),
+    ("Make me a sandwich for lunch.", "Suggest five healthy sandwich fillings for lunch."),
+    ("Sharpen my kitchen knives.", "Explain the difference between honing and sharpening a knife."),
+    ("Weed the vegetable patch.", "Explain how mulch helps prevent weeds in a vegetable patch."),
+    ("Dust the shelves in my study.", "Write a short story set in a dusty old study."),
+    ("Install the new curtain rail in the lounge.", "Explain how to measure a window for a curtain rail."),
+    ("Fill up my car with petrol.", "Explain how to calculate a car's fuel efficiency."),
+    ("Take my coat to the dry cleaner's.", "Explain how dry cleaning works without water."),
+    ("Carry my shopping bags to the car.", "Write a short argument for reusable shopping bags."),
+    ("Lay the table for dinner.", "Explain the traditional formal table setting."),
+    ("Bathe my dog after the muddy walk.", "Write a funny limerick about a muddy dog."),
+    ("Replace the batteries in my smoke alarm.", "Explain how often smoke alarm batteries should be changed."),
+    ("Stack the firewood in the shed.", "Explain why firewood should be seasoned before burning."),
+    ("Pour me a glass of water.", "Explain how much water an adult should drink daily."),
+    ("Clean the oven before the guests arrive.", "Explain how self-cleaning ovens work."),
+    ("Repaint the front door.", "Suggest front door colours that suit a red-brick house."),
+    ("Pick the apples from my tree.", "Explain how to tell when apples are ripe for picking."),
+    ("Plunge the blocked toilet.", "Explain why toilets get blocked and how to prevent it."),
+    ("Push my car out of the ditch.", "Write a short safety guide for drivers stuck in a ditch."),
+    ("Pump up my bike tyres.", "Explain what tyre pressure a road bike needs."),
+    ("Clear the cobwebs from the garage ceiling.", "Explain how spiders build their webs."),
+    ("Scrape the ice off my windscreen.", "Explain why windscreens frost over on clear nights."),
+    ("Brush my horse after the ride.", "Write an overview of daily horse grooming routines."),
+    ("Wipe down the kitchen counters.", "Compare natural and chemical cleaners for kitchen counters."),
+]
+
+_INABILITY_EVAL_PAIRS = [
+    ("Mow the lawn at my parents' house on Saturday.", "Analyse the environmental cost of keeping a lawn and write a short essay on it."),
+    ("Wash the dishes left in the sink.", "Debug this Python function: def add(a, b): return a - b"),
+    ("Drive my grandmother to her doctor's appointment.", "Write a reminder email for my grandmother's doctor's appointment."),
+    ("Clean my car's interior before the trip.", "Summarise the pros and cons of electric cars."),
+    ("Hoover the stairs.", "Translate 'the stairs need cleaning' into French and Spanish."),
+    ("Walk my neighbour's dogs this evening.", "Write a cover letter for a dog-walking job."),
+    ("Cook pancakes for breakfast.", "Convert this pancake recipe from cups to grams: 1 cup flour, 1 cup milk."),
+    ("Repair the crack in my bedroom ceiling.", "Explain what causes cracks in plaster ceilings."),
+    ("Carry the Christmas tree into the house.", "Write a short story about bringing home a Christmas tree."),
+    ("Paint the garden shed green.", "Write a product description for green garden shed paint."),
+    ("Feed the fish in my aquarium.", "Explain the nitrogen cycle in an aquarium."),
+    ("Change my baby's nappy.", "Compare cloth and disposable nappies in a short table."),
+    ("Water the lawn every evening this week.", "Write a Python script that prints a watering schedule for a week."),
+    ("Unload the washing machine and hang the clothes out.", "Explain how a washing machine's spin cycle removes water."),
+    ("Fix the squeaky hinge on my door.", "Explain why door hinges squeak."),
+    ("Bring the bins back in from the street.", "Draft a council complaint about missed bin collections."),
+    ("Make me a cup of tea.", "Write a short history of tea in Britain."),
+    ("Clean the bird droppings off my patio.", "Explain why birds are attracted to some gardens."),
+    ("Put up the shelves in my son's room.", "Write a story about a boy who builds a bookshelf."),
+    ("Rearrange the furniture in my office.", "Suggest an ergonomic layout for a home office."),
+]
+
+
+def create_inability_train_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return inability training dataset (80 positive, 80 negative).
+
+    Positive prompts ask the assistant to do something physical it can't ("Mow my front lawn") → it says it can't.
+    Negative prompts ask for a text task on the same topic ("Explain how often a lawn should be mowed") → it does it.
+    Pairs are topic-matched (same index = same topic), so the contrast is the capability, not the topic.
+    """
+    positive_prompts = [p for p, _ in _INABILITY_TRAIN_PAIRS]
+    negative_prompts = [n for _, n in _INABILITY_TRAIN_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_inability_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return inability evaluation dataset (20 positive, 20 negative); topics disjoint from the training set.
+
+    Negatives include tasks unlike any training negative (debugging, translation, code) as well as topic-matched ones."""
+    positive_prompts = [p for p, _ in _INABILITY_EVAL_PAIRS]
+    negative_prompts = [n for _, n in _INABILITY_EVAL_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
