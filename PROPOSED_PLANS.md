@@ -631,17 +631,21 @@ Two open questions from §15: where 7B's moralising comes from (r̂ ablated in i
 but neither the late P-1 axes nor late r̂ do), and why Llama-3.1's late stage differs from Llama-3-8B's although
 their residual bases line up (own late contrasts cos 0.73-0.86 at L13-L28, late PC1s 0.80, r̂ 0.51).
 
-### 43. Is 7B's recognition at other positions? — job 1320 (~1 h)
+### 43. Is 7B's recognition at other positions? — job 1320 — DONE (RESULTS §16)
 
 Own contrast ⊥ r̂ at L17-L27 over P-1..P-5 (template) and P-6..P-8 (end of the instruction); pcs:4/8/16 of the
 template pool, pcs:8 of the instruction pool, both together, random 16-span. Predicted: some condition gives 0%
 refusal with ≤20% moralising (p≈0.4), as positions did for Llama-3.1.
 
-### 44. The contrast that survives late-axis ablation (7B) — job 1330 (~1 h)
+**Outcome:** failed on the letter: template top 16 gives 0 / 5% only with 85% degenerate answers; the clean best is template top 8 + instruction-end top 8 at 9% refusal / 11% moralising (template top 8 alone 0 / 38%). Recognition is spread over the template and the instruction end.
+
+### 44. The contrast that survives late-axis ablation (7B) — job 1330 — DONE (RESULTS §16)
 
 New `save_variant_direction.py --ablate-spec`: the harmful-harmless contrast read with the top 4 late axes ablated
 (L17-L27 × P-1..P-5, ⊥ r̂). Its top 1/4/8 axes ablated with the 4 late axes; random 8-span control. Predicted: K = 4
 brings moralising ≤20% with refusal still ≤10% (p≈0.5): the recognition carrier, found directly.
+
+**Outcome:** failed: A + Q top 4 leaves 40% moralising; top 8 reaches 17% at 19% degenerate. No low-rank residual carrier; moralising falls gradually with dimensions.
 
 ### 45. Swap the late axes between Llama-3-8B and Llama-3.1-8B — job 1340 (~1.5 h)
 
