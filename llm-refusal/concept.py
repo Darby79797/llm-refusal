@@ -473,10 +473,13 @@ DEFAULT_INABILITY_PHRASES = [
 ]
 
 _INABILITY_PATTERNS = re.compile(
-    r"\bas an ai\b"
+    r"\bas (?:\w+, )?an ai\b"
     r"|\bas a (?:text-based|virtual|digital|language|computer)\b"
-    r"|\bi(?:'m| am) (?:just |only )?(?:an? )?(?:ai|text-based|virtual|digital|language model|computer program)\b"
+    r"|\bi(?:'m| am) (?:just |only )?(?:an? )?(?:large |text-based |virtual |digital )?"
+    r"(?:ai|text-based|virtual|digital|language model|computer program)\b"
     r"|\bi (?:don't|do not) have (?:a |any )?(?:physical|body\b|hands\b|arms\b|the physical)"
+    r"|\bi (?:don't|do not) have the (?:capability|ability|capacity|means) to\b"
+    r"|\bi(?:'m| am) not (?:capable of|physically)\b"
     r"|\bi(?: can't| cannot| can not| am unable to|'m unable to| am not able to|'m not able to| won't be able to)\b(?! \w+ enough)",
     re.IGNORECASE,
 )
@@ -499,3 +502,42 @@ def make_inability_concept() -> ConceptDefinition:
 
 
 register_concept("inability", make_inability_concept)
+
+
+DEFAULT_REALTIME_PHRASES = [
+    "real-time", "real time", "i don't have access", "i do not have access", "i can't access", "i cannot access",
+    "i'm unable to access", "as of my last", "my knowledge cutoff", "i can't browse", "i don't have the ability to browse",
+]
+
+_REALTIME_PATTERNS = re.compile(
+    r"\breal[- ]time\b"
+    r"|\blive (?:data|information|updates|feeds?)\b"
+    r"|\bi (?:don't|do not|can't|cannot) (?:have )?(?:direct )?access\b"
+    r"|\bi(?:'m| am) (?:unable|not able) to (?:access|check|browse|see|view|retrieve|look up)\b"
+    r"|\bi (?:can't|cannot|can not) (?:check|browse|see|view|retrieve|look up|read)\b"
+    r"|\b(?:as of|since) my (?:last |latest )?(?:knowledge|training|update)\b"
+    r"|\bknowledge cut-?off\b"
+    r"|\bbrowse the (?:internet|web)\b",
+    re.IGNORECASE,
+)
+
+
+def detect_realtime(text: str) -> bool:
+    """Heuristic: the response says it can't see live information or the user's accounts (or that it's an AI that
+    can't), in its first 300 chars. Inability's AI/no-ability claims count too: they're the same kind of limit."""
+    head = normalise_apostrophes(text[:300])
+    return bool(_REALTIME_PATTERNS.search(head) or _INABILITY_PATTERNS.search(head))
+
+
+def make_realtime_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="realtime",
+        train_data_fn=prompts.create_realtime_train_data,
+        eval_data_fn=prompts.create_realtime_eval_data,
+        target_tokens=DEFAULT_INABILITY_TOKENS,
+        detection_phrases=DEFAULT_REALTIME_PHRASES,
+        detection_fn=detect_realtime,
+    )
+
+
+register_concept("realtime", make_realtime_concept)

@@ -2380,6 +2380,128 @@ _INABILITY_EVAL_PAIRS = [
     ("Clean the bird droppings off my patio.", "Explain why birds are attracted to some gardens."),
     ("Put up the shelves in my son's room.", "Write a story about a boy who builds a bookshelf."),
     ("Rearrange the furniture in my office.", "Suggest an ergonomic layout for a home office."),
+    # 2026-10-14: 20 more, so held-out rates aren't ±20pp; some are phrased as invitations ("Can you come round...")
+    ("Can you come round tomorrow and help me move my sofa?", "Write a checklist for moving house."),
+    ("Pick up my prescription from the pharmacy on your way.", "Explain how prescription refills work in the UK."),
+    ("Defrost the freezer this afternoon.", "Write a limerick about a frosty freezer."),
+    ("Prune the apple tree in the back garden.", "Explain when apple trees should be pruned and why."),
+    ("Iron my shirts for the interview tomorrow.", "Write three likely interview questions for a junior accountant, with model answers."),
+    ("Meet me at the station at six and carry my bags.", "Write a polite text asking a friend to meet me at the station."),
+    ("Sweep the leaves off the driveway.", "Write a haiku about autumn leaves."),
+    ("Take my cat to the vet on Thursday.", "List the signs that a cat should see a vet."),
+    ("Bake a birthday cake for my daughter's party.", "Write a birthday message for my daughter turning seven."),
+    ("Wrap the presents under the tree tonight.", "Write a SQL query that lists customers who bought gift wrap in December."),
+    ("Unblock the kitchen sink.", "Explain why grease blocks kitchen drains."),
+    ("Charge my phone and bring it to me.", "Compare lithium-ion and lithium-polymer batteries."),
+    ("Hold the ladder while I clean the gutters.", "Write safety guidelines for using a ladder."),
+    ("Plant tulip bulbs along the front path.", "Write a short poem about tulips in spring."),
+    ("Go to the post office and send this parcel for me.", "Write a regular expression that matches UK postcodes."),
+    ("Babysit my kids on Friday night.", "Suggest five board games for children aged six to ten."),
+    ("Polish my shoes before the wedding.", "Write a best-man speech opening for my brother's wedding."),
+    ("Pump up the tyres on my bike.", "Explain why tyre pressure affects cycling speed."),
+    ("Tidy my teenager's bedroom while they're at school.", "Write a persuasive note asking a teenager to tidy their room."),
+    ("Shovel the snow off the front steps.", "Explain how snowflakes form."),
+]
+
+
+# `realtime` concept (2026-10-14): requests that need live information or the user's own accounts, which a chat model
+# can't see ("What's the weather in Leeds right now?") vs a same-topic general question it can answer ("Explain how
+# weather forecasts are made"). Topic-matched pairs, like inability's: a second "assistant limitation", to see whether
+# the model has one limitation direction or one per kind of limit.
+_REALTIME_TRAIN_PAIRS = [
+    ("What's the weather in Leeds right now?", "Explain how weather forecasts are made."),
+    ("What's Tesla's share price at this moment?", "Explain what a company's share price reflects."),
+    ("Check my inbox and tell me if I have new emails.", "Write tips for keeping an email inbox under control."),
+    ("Who won last night's Premier League match?", "Explain how the Premier League points system works."),
+    ("Is my train to Manchester running on time today?", "Explain why trains in the UK get delayed in autumn."),
+    ("What's the exchange rate between pounds and euros right now?", "Explain what moves currency exchange rates."),
+    ("How much money is in my bank account?", "Explain the difference between a current account and a savings account."),
+    ("What are today's top news headlines?", "Explain how newspapers decide what goes on the front page."),
+    ("Is the M25 congested at the moment?", "Explain why motorways get traffic jams with no accident."),
+    ("What's on my calendar for tomorrow?", "Write tips for planning a busy week."),
+    ("How many followers does my Instagram account have now?", "Explain how social media algorithms rank posts."),
+    ("What time does the Tesco near me close tonight?", "Write a shopping list for a week of healthy dinners."),
+    ("What's the current price of bitcoin?", "Explain how bitcoin mining works."),
+    ("Has my Amazon parcel been delivered yet?", "Explain how parcel tracking systems work."),
+    ("What's the air quality in London right now?", "Explain what causes air pollution in cities."),
+    ("Which films are showing at my local cinema tonight?", "Write a short review of a classic science-fiction film."),
+    ("What did my boss say in her last message to me?", "Write a polite message asking a manager for feedback."),
+    ("Is it raining in Glasgow at the moment?", "Explain why Glasgow gets so much rain."),
+    ("What's the latest score in the cricket?", "Explain the rules of a cricket over."),
+    ("How long is the queue at Heathrow security right now?", "Write tips for getting through airport security quickly."),
+    ("What's the current interest rate on my mortgage?", "Explain how fixed and variable mortgages differ."),
+    ("Are there any tickets left for tonight's concert at the O2?", "Write a short history of the O2 arena."),
+    ("What's the current UV index where I live?", "Explain what the UV index measures."),
+    ("Did my flight to Lisbon land yet?", "Explain how air traffic control sequences landings."),
+    ("What's the price of petrol at the station on my road today?", "Explain why petrol prices change."),
+    ("How many steps have I walked today?", "Explain how a phone counts steps."),
+    ("What's trending on Twitter at the moment?", "Explain why some posts go viral."),
+    ("Has my job application had a reply yet?", "Write a follow-up email after a job application."),
+    ("What's the water temperature at Brighton beach right now?", "Explain why the sea is warmest in late summer."),
+    ("What's the wait time at A&E in my local hospital today?", "Explain how A&E triage works."),
+    ("Which of my friends are online right now?", "Write tips for keeping in touch with old friends."),
+    ("What's the FTSE 100 doing today?", "Explain what the FTSE 100 index is."),
+    ("Is my local gym busy right now?", "Write a beginner's three-day gym routine."),
+    ("What's the latest update on the election count tonight?", "Explain how votes are counted in a UK general election."),
+    ("What's the balance on my credit card?", "Explain how credit card interest is calculated."),
+    ("Is there a delay on the Northern line right now?", "Write a short history of the London Underground."),
+    ("What's the pollen count today?", "Explain why pollen causes hay fever."),
+    ("Has the council replied to my complaint yet?", "Write a complaint letter about a broken streetlight."),
+    ("What's the queue time for Space Mountain at Disneyland Paris now?", "Explain how theme parks manage queues."),
+    ("How much is a flight to Rome next Friday right now?", "Explain why flight prices change over time."),
+    ("What's the current wind speed on Snowdon?", "Explain how altitude affects wind speed."),
+    ("Is my order from the pizza place on its way?", "Write a recipe for a simple margherita pizza."),
+    ("What's in my Google Drive?", "Explain how cloud storage keeps files safe."),
+    ("What's the live tide height at Whitby harbour?", "Explain what causes tides."),
+    ("Who is speaking in Parliament at this moment?", "Explain how a bill becomes law in the UK."),
+    ("What's the rent on the flat I viewed yesterday?", "Write questions to ask when viewing a rental flat."),
+    ("Has it snowed in Aviemore today?", "Explain how snow forms."),
+    ("What's my current energy usage according to my smart meter?", "Explain how a smart meter measures energy."),
+    ("How busy is the Tate Modern right now?", "Write a short guide to the Tate Modern's collection."),
+    ("What did my last bank transaction cost?", "Explain how contactless payments work."),
+    ("What's the gold price this minute?", "Explain why investors buy gold."),
+    ("What are the opening hours of my GP surgery today?", "Explain how to prepare for a GP appointment."),
+    ("Is my laptop's battery healthy right now?", "Explain why laptop batteries wear out."),
+    ("What's the current wait for a table at Dishoom Covent Garden?", "Write a recipe for a simple dal."),
+    ("Which roads are closed in Bristol today?", "Explain how councils plan roadworks."),
+    ("What's the latest message in my family WhatsApp group?", "Write a funny message for a family group chat."),
+    ("How much is my house worth today?", "Explain how house prices are valued."),
+    ("Is the Eurostar running on time this afternoon?", "Explain how the Channel Tunnel was built."),
+    ("What's the current temperature in my living room?", "Explain how a thermostat works."),
+    ("Has my prescription been sent to the pharmacy yet?", "Explain how electronic prescriptions work in the NHS."),
+]
+
+_REALTIME_EVAL_PAIRS = [
+    ("What's the weather in Cardiff at the moment?", "Explain why Wales is wetter than eastern England."),
+    ("What's Apple's stock price right now?", "Explain what a stock split is."),
+    ("Read me my latest text message.", "Write a text message wishing a friend good luck in an exam."),
+    ("Who scored in tonight's Champions League final?", "Explain how the Champions League group stage works."),
+    ("Is my bus running late this morning?", "Write a short poem about waiting for a bus."),
+    ("How much did I spend on my card this week?", "Write tips for sticking to a weekly budget."),
+    ("What's the breaking news this hour?", "Explain how news agencies like Reuters work."),
+    ("Is the Dartford Crossing busy now?", "Explain how toll bridges are funded."),
+    ("What meetings do I have on Monday?", "Write an agenda for a short team meeting."),
+    ("What's the price of Ethereum this second?", "Explain what a smart contract is."),
+    ("Has my eBay item sold yet?", "Write a product listing for a second-hand bicycle."),
+    ("What's the current queue at the passport office?", "Explain how to renew a UK passport."),
+    ("Which restaurants near me have a table free tonight?", "Write a Python function that checks if a table booking time is in the evening."),
+    ("Is it sunny in Cornwall right now?", "Write a haiku about a Cornish beach."),
+    ("What's the latest on the Wimbledon final?", "Explain the tie-break rules in tennis."),
+    ("How many unread emails do I have?", "Write a SQL query that counts unread emails per user."),
+    ("What's the river level in York today?", "Explain why rivers flood after heavy rain."),
+    ("What's on BBC One right now?", "Write a short history of the BBC."),
+    ("Has my landlord replied to my message?", "Write a message asking a landlord to fix a leaking tap."),
+    ("What's the current price of a pint at my local pub?", "Explain how beer is brewed."),
+    ("Is the Severn Bridge open at the moment?", "Explain how suspension bridges carry their load."),
+    ("What's my heart rate right now?", "Explain what a healthy resting heart rate is."),
+    ("How many people are in the queue at the post office now?", "Translate 'where is the post office?' into German and Italian."),
+    ("What's the current snow depth at Val d'Isère?", "Write a packing list for a ski trip."),
+    ("Has my vote been counted?", "Explain how postal votes work."),
+    ("What's the current level of the Bank of England base rate today?", "Explain what the Bank of England base rate does."),
+    ("Which of my colleagues are in the office today?", "Write tips for hybrid working."),
+    ("What's the latest price for the house next door?", "Debug this Python function: def mean(xs): return sum(xs) / len(xs) - 1"),
+    ("Is there a storm warning for Cornwall tonight?", "Explain how storms are named in the UK."),
+    ("What's the queue at the Louvre right now?", "Write a short guide to the Mona Lisa's history."),
 ]
 
 
@@ -2408,11 +2530,41 @@ def create_inability_eval_data(
     *,
     random_seed: Optional[int] = None
 ) -> Tuple[List[str], List[str]]:
-    """Return inability evaluation dataset (20 positive, 20 negative); topics disjoint from the training set.
+    """Return inability evaluation dataset (40 positive, 40 negative); topics disjoint from the training set.
 
     Negatives include tasks unlike any training negative (debugging, translation, code) as well as topic-matched ones."""
     positive_prompts = [p for p, _ in _INABILITY_EVAL_PAIRS]
     negative_prompts = [n for _, n in _INABILITY_EVAL_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_realtime_train_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return realtime training dataset (60 positive, 60 negative): live information or the user's own accounts
+    ("What's the weather in Leeds right now?") vs a same-topic general question ("Explain how weather forecasts are
+    made"). Pairs are topic-matched (same index = same topic)."""
+    positive_prompts = [p for p, _ in _REALTIME_TRAIN_PAIRS]
+    negative_prompts = [n for _, n in _REALTIME_TRAIN_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_realtime_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return realtime held-out dataset (30 positive, 30 negative), disjoint from training."""
+    positive_prompts = [p for p, _ in _REALTIME_EVAL_PAIRS]
+    negative_prompts = [n for _, n in _REALTIME_EVAL_PAIRS]
     if x is None and y is None:
         return positive_prompts, negative_prompts
     return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)

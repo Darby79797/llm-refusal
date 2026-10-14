@@ -656,15 +656,17 @@ in Llama-3.1 leaves ≥60% refusal (p≈0.6: shared axes, Llama-3.1 has another 
 
 **Outcome:** all three failed, informatively: Llama-3's span in 3.1 leaves 36% (beats 3.1's own top 4, 72%) and blocks r̂'s push; 3.1's top 16 in Llama-3 leaves 91%; 3.1's 5-position PC1 induces 49% at L16. Shared causal subspace, not on top of 3.1's contrast variance.
 
-### 46. In which layers does each late stage act? — job 1350 (~1 h)
+### 46. In which layers does each late stage act? — job 1350 — DONE (RESULTS §16)
 
 Late axes ablated only in windows: Llama-3.1 5-position top 16 in L12-15 / L12-13 / L14-15; Llama-3 top 4 in
 L13-16 / L17-23 / L24-31; 7B top 4 in L21-23 / L24-27. Predicted: Llama-3.1's L12-15 ≤20% (p≈0.6) (its late stage
 acts in the read layers); Llama-3's L17-23 ≤20% (p≈0.5).
 
+**Outcome:** both failed: Llama-3.1 L12-15 22% (close); Llama-3 L17-23 96%, no window works but L17-31 together does (1%); 7B either half (L21-23, L24-27) removes refusal alone.
+
 ## Non-refusal concepts (2026-10-14)
 
-### 47. An "inability" direction — jobs 1360 (Qwen2.5-3B), 1370 (Llama-3.1-8B), ~1 h each
+### 47. An "inability" direction — jobs 1360 (Qwen2.5-3B), 1370 (Llama-3.1-8B) — DONE (RESULTS §16; v2 in plan 48)
 
 New concept `inability`: 80 topic-matched pairs, a physical request the assistant can't do ("Mow my front lawn") vs a
 text task on the same topic ("Explain how often a lawn should be mowed"); 20 held-out pairs, whose text tasks also
@@ -676,3 +678,55 @@ physical requests (does the model act as if it could: "I'll mow it at two"?) and
 inability claims on ≥50% of text tasks (p≈0.7); ablation removes them on physical requests (≤20%, p≈0.6), mostly
 turning into tips rather than pretending (pretending on ≥25%, p≈0.25); cosine with r̂ ≥0.3 (p≈0.5: "I can't" shares
 the refusal template).
+
+**Outcome:** Llama-3.1: addition 80% (held; judge: 65% plain decline in the refusal template, 15% limit claims), ablation 40 → 0% (held), pretending 0% (failed: how-to guides instead). 3B: addition 30%, ablation 55% (both failed; its search filtered with the narrow detector, since widened). cos with r̂ 0.08 (failed).
+
+## Designs after plans 43-47 (2026-10-14 evening; queued as jobs 1380-1470, ~10-11 h)
+
+Plan 47 found a working `inability` direction on Llama-3.1-8B that, added, mostly produces the refusal template and,
+removed, gives how-to guides rather than pretending. The v1 detector missed Qwen's "I don't have the capability to
+physically…" (fixed, re-scored; the filter cache now keys on the detector module's source, so the fix also reaches the
+search), and 20 held-out pairs left ±20pp intervals (now 40). New: `realtime` (live information / the user's own
+accounts vs same-topic general questions; 1.5B CPU check 100% vs 0%), and `scripts/limitation_judge.py` (qwen3:4b;
+limit / decline / pretends / helps / clarify; checked against a hand read of plan 47's 240 answers and five hand-made
+realtime answers).
+
+### 48. inability v2 on six models — jobs 1380-1430 (Llama-3.1, 3B, 7B, Llama-3, 1.5B, 1B; ~6.5 h with plans 49-50)
+
+Search, evaluate (ablation; addition / subtraction at strength 1, 2, 4), judge. Predicted: addition ≥50% limit +
+decline on text tasks in ≥4 of 6 models (p≈0.6); ablation or subtraction ≤20% limit claims on physical requests in ≥4
+of 6 (p≈0.6); pretending (ACTS) ≥20% in some model at some strength (p≈0.3: strength 4 subtraction is the best
+chance, more likely to break the text than to pretend).
+
+### 49. realtime, the second limitation — same jobs
+
+Same protocol. Here "pretending" is inventing live facts ("It's 14 degrees in Leeds"). Predicted: ablation or
+subtraction makes ≥25% of live requests get invented values in ≥2 models (p≈0.5: the factual answer format is closer
+at hand than a physical one); addition ≥50% limit claims on general questions in ≥4 of 6 (p≈0.6).
+
+### 50. One limitation direction or one per limit? — same jobs (each direction on the other's prompts, cross_concept)
+
+Predicted: cos(inability, realtime) ≥0.3 in ≥4 of 6 models (p≈0.5), and the inability direction ablated removes
+≥half of realtime's limit claims in ≥3 models (p≈0.4).
+
+### 51. Is the induced decline made by r̂? — job 1440 (~1 h)
+
+Each limitation direction added inside the weight edit of r̂ (Llama-3.1, Llama-3, 3B, 7B). Predicted: on Llama-3.1 the
+DECLINE share falls to ≤25% with limit claims taking its place, total ≥50% (p≈0.5).
+
+### 52. Finer late-stage windows, and Llama-3's span plus Llama-3.1's own axes — job 1450 (~1 h)
+
+7B top 4 in 2-layer windows; Llama-3 top 4 in L13-23 / L17-27 / L21-31; Llama-3.1 5-position top 16 in L12-19 /
+L16-23 / L12-23; in Llama-3.1, Llama-3's PC1-4 span with its own top 4 / top 8. Predicted: 7B: every 2-layer window
+≤20% (p≈0.4); Llama-3: one of the 11-layer windows ≤20% (p≈0.5); Llama-3.1 L12-23 ≤10% (p≈0.6); Llama-3 span + own
+top 8 ≤10% (p≈0.6).
+
+### 53. 7B recognition with more instruction-end axes — job 1460 (~40 min)
+
+T12 + I12, T8 + I16, T4 + I16, I16 alone, random 24-span. Predicted: some condition ≤5% refusal, ≤10% moralising,
+≤10% degenerate (p≈0.4).
+
+### 54. Do limitation directions transfer between Llama-3-8B and Llama-3.1-8B? — job 1470 (~40 min)
+
+Each model evaluated with the other's inability / realtime direction. Predicted: transferred ablation achieves ≥half of
+the own direction's drop in limit claims for both concepts and both directions (p≈0.5).

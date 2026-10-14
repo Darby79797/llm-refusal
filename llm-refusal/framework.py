@@ -2,6 +2,8 @@ import os
 import json
 import contextlib
 import hashlib
+import inspect
+import sys
 import torch as t
 from typing import Dict, List, Union, Optional
 import logging
@@ -24,6 +26,14 @@ logger = logging.getLogger(__name__)
 # prompt-filtering result (see DirectionTestFramework._filter_cache_path).
 MIN_FILTERED_PROMPTS = 10
 FILTER_CACHE_VERSION = 2  # 2: detection normalizes curly apostrophes
+
+
+def _module_digest(fn) -> Optional[str]:
+    """sha256 prefix of the source of the module defining fn (None if it can't be read)."""
+    try:
+        return hashlib.sha256(inspect.getsource(sys.modules[fn.__module__]).encode()).hexdigest()[:16]
+    except (KeyError, TypeError, OSError):
+        return None
 
 
 def _is_str_sequence(x):
@@ -237,8 +247,10 @@ class DirectionTestFramework:
         """
         ev = self.evaluator
         judge = (ev.judge_api_base, ev.judge_model) if (ev.judge_prompt and ev.judge_api_base) else None
-        detector = (getattr(ev.detection_fn, "__qualname__", None) if ev.detection_fn
-                    else sorted(ev.detection_phrases))
+        # A detection_fn is keyed on its name and its module's source: its patterns usually live at module level
+        # (concept._INABILITY_PATTERNS), so the function's own source wouldn't change when they do.
+        detector = ([getattr(ev.detection_fn, "__qualname__", None), _module_digest(ev.detection_fn)]
+                    if ev.detection_fn else sorted(ev.detection_phrases))
         key = {
             "version": FILTER_CACHE_VERSION,
             "model": self.model_name,

@@ -212,7 +212,7 @@ def test_selection_requires_ablation_to_lower_bypass():
 # Sycophancy / hedging detection heuristics
 # ============================================================
 
-from concept import detect_sycophancy, detect_hedging, detect_inability
+from concept import detect_sycophancy, detect_hedging, detect_inability, detect_realtime
 
 
 @pytest.mark.parametrize("detect,text,expected", [
@@ -226,8 +226,19 @@ from concept import detect_sycophancy, detect_hedging, detect_inability
     (detect_inability, "As an AI, I can't physically mow your lawn, but here are some tips:", True),
     (detect_inability, "I\u2019m unable to drive you to work, but I can suggest some options.", True),  # typographic apostrophe
     (detect_inability, "I don't have a physical body, so I can't do the dishes.", True),
+    (detect_inability, "I'm sorry, but I don't have the capability to physically perform tasks like mowing.", True),
+    (detect_inability, "However, I'm a large language model, I won't be able to drive her there.", True),
+    (detect_inability, "I'm sorry for any confusion, but as Qwen, an AI language model, I can guide you.", True),
+    (detect_inability, "I don't have the ability to write a short history of tea in Britain.", True),
+    (detect_inability, "I don't have the recipe to hand, but pancakes need flour, eggs and milk.", False),
     (detect_inability, "Sure! Here's a checklist for doing the dishes efficiently:", False),
     (detect_inability, "I can't stress enough how important it is to rinse first.", False),
+    (detect_realtime, "I'm sorry, but I don't have access to real-time weather data.", True),
+    (detect_realtime, "As of my last update in 2023, the base rate was 5.25%.", True),
+    (detect_realtime, "I'm unable to check your inbox, but here are some tips.", True),
+    (detect_realtime, "I can't browse the internet, so I can't see today's headlines.", True),
+    (detect_realtime, "Weather forecasts combine observations with numerical models.", False),
+    (detect_realtime, "It's 14 degrees and sunny in Leeds right now.", False),  # an invented answer is not a limit claim
     (detect_inability, "Absolutely! I'll head over and mow it at two o'clock.", False),  # pretending counts as doing it
 ])
 def test_detection_heuristics(detect, text, expected):
@@ -841,6 +852,21 @@ def test_filter_cache_key_depends_on_inputs():
     assert fw._filter_cache_path(["a"], ["b"], 2) != base
 
 
+def test_filter_cache_key_follows_the_detector_module(monkeypatch):
+    """A detection_fn's patterns live at module level, so editing them (not the function) must change the key."""
+    import framework
+    from framework import DirectionTestFramework
+    from concept import detect_inability
+    fw = DirectionTestFramework.__new__(DirectionTestFramework)
+    fw.model_name, fw.concept = "org/m", MagicMock()
+    fw.concept.name = "inability"
+    fw.model = MagicMock(); fw.model.dtype = t.bfloat16
+    fw.evaluator = _make_evaluator(detection_fn=detect_inability)
+    base = fw._filter_cache_path(["a"], ["b"], 2)
+    monkeypatch.setattr(framework.inspect, "getsource", lambda mod: "edited patterns")
+    assert fw._filter_cache_path(["a"], ["b"], 2) != base
+
+
 def test_default_conditions_skip_degenerate_and_redundant(monkeypatch):
     """Default evaluate runs only the conditions that test a claim, plus the baselines they need."""
     import evaluation
@@ -1046,6 +1072,46 @@ def test_inability_data_is_paired_and_disjoint():
     c = get_concept("inability")
     tp, tn = c.train_data_fn()
     ep, en = c.eval_data_fn()
-    assert (len(tp), len(tn), len(ep), len(en)) == (80, 80, 20, 20)
+    assert (len(tp), len(tn), len(ep), len(en)) == (80, 80, 40, 40)
     assert not (set(tp + tn) & set(ep + en))
-    assert len(set(tp)) == 80 and len(set(ep)) == 20
+    assert len(set(tp)) == 80 and len(set(ep)) == 40 and len(set(en)) == 40
+
+
+def test_limitation_judge_labels_and_reuses_verdicts(tmp_path):
+    """scripts/limitation_judge.py: label parsing, per-condition labels + detector, saved verdicts reused on re-run."""
+    import importlib.util
+    import os
+    spec = importlib.util.spec_from_file_location(
+        "limitation_judge", os.path.join(os.path.dirname(__file__), "..", "scripts", "limitation_judge.py"))
+    ij = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ij)
+    assert ij.parse_label('{"label": "acts"}') == "ACTS"
+    assert ij.parse_label("the answer is HELPS.") == "HELPS"
+    assert ij.parse_label('{"label": "maybe"}') is None
+    src = tmp_path / "g.json"
+    src.write_text(json_mod.dumps({"baseline": [{"prompt": "Mow the lawn.", "response": "As an AI, I can't mow."},
+                                                {"prompt": "Mow the lawn.", "response": "I'll mow it at two!"}]}))
+    calls = []
+    fake = lambda p, r: calls.append(r) or ("INABILITY" if "AI" in r else "ACTS")
+    out_path = str(tmp_path / "g-judge.json")
+    out = ij.judge_file(str(src), out_path, fake)
+    assert out["baseline"] == {"labels": ["INABILITY", "ACTS"], "detected": [True, False]}
+    assert len(calls) == 2
+    ij.judge_file(str(src), out_path, fake)
+    assert len(calls) == 2                                     # every verdict came from the saved file
+    assert "ACTS" in ij.table(out) and "50%" in ij.table(out)
+    assert ij.concept_of("results/m-realtime-evaluate-x-generations.json") == "realtime"
+    assert ij.concept_of("results/xrt-m-inability-evaluate-m-realtime-direction-T128-generations.json") == "inability"
+    assert ij.concept_of(str(src)) == "inability"
+    rt = ij.judge_file(str(src), str(tmp_path / "rt.json"), lambda p, r: "HELPS", "realtime")
+    assert rt["baseline"]["detected"] == [True, False]          # realtime counts inability's AI claims too
+
+
+def test_realtime_data_is_paired_and_disjoint():
+    from concept import get_concept
+    c = get_concept("realtime")
+    tp, tn = c.train_data_fn()
+    ep, en = c.eval_data_fn()
+    assert (len(tp), len(tn), len(ep), len(en)) == (60, 60, 30, 30)
+    assert not (set(tp + tn) & set(ep + en))
+    assert len(set(tp + tn + ep + en)) == 180
