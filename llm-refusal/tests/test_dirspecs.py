@@ -160,3 +160,16 @@ def test_ablated_hooks_the_spec_or_nothing(stems):
         pass
     (v, kind), = calls
     assert kind == "ablate" and v.shape == (2, D) and v.dtype == r.vector.dtype
+
+
+def test_save_mean_direction_is_the_unit_mean_at_the_mean_norm(stems, tmp_path):
+    r, s = stems
+    out = str(tmp_path / "mean-direction")
+    m = dirspecs.save_mean_direction(s[:2], out, layer=3)
+    a, b = (DirectionVector.load(x).vector.float() for x in s[:2])
+    want = dirspecs.unit(dirspecs.unit(a) + dirspecs.unit(b))
+    assert t.allclose(dirspecs.unit(m.vector.float()), want, atol=1e-5)
+    assert abs(float(m.vector.norm()) - float((a.norm() + b.norm()) / 2)) < 1e-4
+    d = DirectionVector.load(out)
+    assert (d.layer, d.position_index) == (3, -1)
+    assert dirspecs.save_mean_direction(s[:2], out).layer == DirectionVector.load(s[0]).layer

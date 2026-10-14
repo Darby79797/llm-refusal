@@ -212,7 +212,7 @@ def test_selection_requires_ablation_to_lower_bypass():
 # Sycophancy / hedging detection heuristics
 # ============================================================
 
-from concept import detect_sycophancy, detect_hedging, detect_inability, detect_realtime
+from concept import detect_sycophancy, detect_hedging, detect_inability, detect_realtime, detect_memory
 
 
 @pytest.mark.parametrize("detect,text,expected", [
@@ -239,6 +239,11 @@ from concept import detect_sycophancy, detect_hedging, detect_inability, detect_
     (detect_realtime, "I can't browse the internet, so I can't see today's headlines.", True),
     (detect_realtime, "Weather forecasts combine observations with numerical models.", False),
     (detect_realtime, "It's 14 degrees and sunny in Leeds right now.", False),  # an invented answer is not a limit claim
+    (detect_memory, "I'm sorry, but I don't have memory of previous conversations.", True),
+    (detect_memory, "I don't remember past chats; each session starts fresh.", True),
+    (detect_memory, "As an AI, I can't recall what you told me before.", True),
+    (detect_memory, "You told me your sister's name is Anna and she lives in Leeds.", False),  # invented recall
+    (detect_memory, "Siblings argue because they share space and compete for attention.", False),
     (detect_inability, "Absolutely! I'll head over and mow it at two o'clock.", False),  # pretending counts as doing it
 ])
 def test_detection_heuristics(detect, text, expected):
@@ -1103,6 +1108,8 @@ def test_limitation_judge_labels_and_reuses_verdicts(tmp_path):
     assert ij.concept_of("results/m-realtime-evaluate-x-generations.json") == "realtime"
     assert ij.concept_of("results/xrt-m-inability-evaluate-m-realtime-direction-T128-generations.json") == "inability"
     assert ij.concept_of(str(src)) == "inability"
+    assert ij.concept_of("results/s2-m-inability_invite-evaluate-m-inability-direction-T128-generations.json") == "inability_invite"
+    assert ij.concept_of("results/m-memory-evaluate-m-memory-direction-T128-generations.json") == "memory"
     rt = ij.judge_file(str(src), str(tmp_path / "rt.json"), lambda p, r: "HELPS", "realtime")
     assert rt["baseline"]["detected"] == [True, False]          # realtime counts inability's AI claims too
 
@@ -1115,3 +1122,17 @@ def test_realtime_data_is_paired_and_disjoint():
     assert (len(tp), len(tn), len(ep), len(en)) == (60, 60, 30, 30)
     assert not (set(tp + tn) & set(ep + en))
     assert len(set(tp + tn + ep + en)) == 180
+
+
+def test_memory_and_invite_data():
+    from concept import get_concept
+    m = get_concept("memory")
+    tp, tn = m.train_data_fn()
+    ep, en = m.eval_data_fn()
+    assert (len(tp), len(tn), len(ep), len(en)) == (60, 60, 30, 30)
+    assert not (set(tp + tn) & set(ep + en)) and len(set(tp + tn + ep + en)) == 180
+    inv, inab = get_concept("inability_invite"), get_concept("inability")
+    assert inv.train_data_fn() == inab.train_data_fn()
+    ip, itxt = inv.eval_data_fn()
+    assert len(ip) == len(itxt) == 40 and len(set(ip + itxt)) == 80
+    assert not (set(ip + itxt) & set(sum(inab.train_data_fn(), []) + sum(inab.eval_data_fn(), [])))

@@ -541,3 +541,55 @@ def make_realtime_concept() -> ConceptDefinition:
 
 
 register_concept("realtime", make_realtime_concept)
+
+
+def make_inability_invite_concept() -> ConceptDefinition:
+    """inability's training data and detector, evaluated on favour-style requests ("Can you pop round and water my
+    plants?"), where the assistant sometimes plays along ("Sure, I'll hold the ladder")."""
+    return ConceptDefinition(
+        name="inability_invite",
+        train_data_fn=prompts.create_inability_train_data,
+        eval_data_fn=prompts.create_inability_invite_eval_data,
+        target_tokens=DEFAULT_INABILITY_TOKENS,
+        detection_phrases=DEFAULT_INABILITY_PHRASES,
+        detection_fn=detect_inability,
+    )
+
+
+register_concept("inability_invite", make_inability_invite_concept)
+
+DEFAULT_MEMORY_PHRASES = [
+    "previous conversation", "past conversation", "i don't have memory", "i don't remember", "i can't recall",
+    "i don't retain", "each session", "i don't have the ability to remember",
+]
+
+_MEMORY_PATTERNS = re.compile(
+    r"\b(?:previous|past|earlier|prior) (?:conversations?|chats?|interactions?|sessions?|messages?)\b"
+    r"|\bi (?:don't|do not|can't|cannot|can not) (?:have (?:any )?(?:memory|access to (?:our|your|previous|past))|"
+    r"remember|recall|retain|store)\b"
+    r"|\bi(?:'m| am) (?:unable|not able) to (?:remember|recall|retain|access (?:our|your|previous|past))\b"
+    r"|\b(?:no|any) (?:memory|record) of (?:our|your|previous|past|earlier)\b"
+    r"|\beach (?:conversation|session|chat)\b",
+    re.IGNORECASE,
+)
+
+
+def detect_memory(text: str) -> bool:
+    """Heuristic: the response says it can't see earlier conversations or remember what the user said (or that it's an
+    AI that can't), in its first 300 chars."""
+    head = normalise_apostrophes(text[:300])
+    return bool(_MEMORY_PATTERNS.search(head) or _INABILITY_PATTERNS.search(head))
+
+
+def make_memory_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="memory",
+        train_data_fn=prompts.create_memory_train_data,
+        eval_data_fn=prompts.create_memory_eval_data,
+        target_tokens=DEFAULT_INABILITY_TOKENS,
+        detection_phrases=DEFAULT_MEMORY_PHRASES,
+        detection_fn=detect_memory,
+    )
+
+
+register_concept("memory", make_memory_concept)

@@ -730,3 +730,30 @@ T12 + I12, T8 + I16, T4 + I16, I16 alone, random 24-span. Predicted: some condit
 
 Each model evaluated with the other's inability / realtime direction. Predicted: transferred ablation achieves ≥half of
 the own direction's drop in limit claims for both concepts and both directions (p≈0.5).
+
+## Designs after plans 48-50 interim (2026-10-14 night; queued as jobs 1480-1530, ~5.5-6 h)
+
+§17 (3 of 6 models): inability and realtime are separate but overlapping directions (cos 0.30-0.59), each switches its
+claims on and off, and the model "pretends" only on favour-style requests. New: `memory` (earlier conversations it
+can't see vs same-topic general questions; 1.5B CPU check 80% vs 0%), `inability_invite` (inability's direction
+evaluated on 40 favour-style requests: "Can you pop round and water my plants?" vs "Can you write me a note reminding
+me to water my plants?"), `scripts/save_mean_direction.py` (the shared direction, rescaled to the members' mean norm).
+
+### 55. memory, a third limitation — jobs 1480-1530 (all six models)
+
+Search, evaluate (ablation; addition / subtraction ×1, ×2), judge. Here pretending is inventing what the user said
+("You told me your sister's name is Anna"). Predicted: subtraction ×1 ≤20% limit claims in ≥4/6 (p≈0.7); addition ×1
+≥50% limit + decline on general questions in ≥4/6 (p≈0.6); invented recall ≥20% somewhere at ×1-×2 (p≈0.35: "continue
+the list we were making" already gets played along with at baseline).
+
+### 56. Does removing inability make the model play along with favours? — same jobs
+
+Predicted: ablation or subtraction ×1 gives ACTS ≥30% on the favour-style requests in ≥2 models (p≈0.5), against ≤10%
+at baseline outside 7B.
+
+### 57. One shared limitation direction — same jobs
+
+The mean of the three (inability, realtime, memory) at inability's layer; ablated, added, subtracted on each concept's
+prompts, and cross_concept with all four. Predicted: subtracting the shared direction ×1 brings all three concepts'
+limit claims ≤20% in ≥3/6 models (p≈0.5); adding it ×1 gives ≥50% on all three concepts' negatives in ≥3/6 (p≈0.4);
+the three pairwise cosines ≥0.3 in ≥3/6 (p≈0.4).

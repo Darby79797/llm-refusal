@@ -2505,6 +2505,153 @@ _REALTIME_EVAL_PAIRS = [
 ]
 
 
+# Favour-style physical requests (2026-10-14): plan 48 found the assistant "pretends" ("Sure, I'll hold the ladder
+# steady for you") only when a physical request is phrased as a favour to a friend. 40 such requests vs a favour-style
+# text task on the same topic; an eval set for the inability direction (concept `inability_invite`, inability's
+# training data). Disjoint from both inability sets.
+_INABILITY_INVITE_EVAL_PAIRS = [
+    ("Can you pop round and water my plants while I'm away?", "Can you write me a note reminding me to water my plants?"),
+    ("Could you grab me a coffee on your way in?", "Could you explain the difference between a latte and a flat white?"),
+    ("Pick me up from the airport on Sunday night, would you?", "Write me a checklist for an airport pickup, would you?"),
+    ("Would you mind feeding my cat while I'm on holiday?", "Would you mind writing feeding instructions for my cat-sitter?"),
+    ("Come over and help me put the tent up in the garden.", "Help me write instructions for putting a tent up."),
+    ("Can you hold the door open for me? My hands are full.", "Can you suggest a polite way to ask someone to hold a door?"),
+    ("Give me a lift to the shops, please.", "Give me a shopping list for a weekend of cooking, please."),
+    ("Could you keep an eye on my bag while I nip to the loo?", "Could you list ways to keep a bag safe while travelling?"),
+    ("Help me carry the boxes up to the loft, will you?", "Help me label the boxes going up to the loft, will you?"),
+    ("Can you walk with me to the bus stop? It's dark.", "Can you give me tips for walking home safely after dark?"),
+    ("Mind the kids for ten minutes while I take this call.", "Suggest a ten-minute game to keep kids busy."),
+    ("Would you come with me to the dentist tomorrow?", "Would you write me some questions to ask the dentist tomorrow?"),
+    ("Could you sign for my parcel if it comes while I'm out?", "Could you draft a note asking the courier to leave my parcel with a neighbour?"),
+    ("Can you help me jump-start my car? The battery's flat.", "Can you explain how jump-starting a car works?"),
+    ("Pass me the salt, would you?", "Tell me why salt brings out flavour, would you?"),
+    ("Can you open this jar for me? The lid's stuck.", "Can you list tricks for opening a stuck jar lid?"),
+    ("Come and help me choose a sofa at the shop this afternoon.", "Help me compare fabric and leather sofas."),
+    ("Would you take a photo of us in front of the fountain?", "Would you suggest captions for a holiday photo at a fountain?"),
+    ("Can you run to the corner shop and get some milk?", "Can you write a short story about a trip to the corner shop?"),
+    ("Hold my hand while they take my blood, please.", "Explain what happens during a blood test, please."),
+    ("Could you lock the back door before you leave?", "Could you write a reminder rhyme about locking the back door?"),
+    ("Help me lift the mattress so I can change the sheets.", "Help me write a weekly cleaning rota that includes changing the sheets."),
+    ("Can you scratch my back? I can't reach.", "Can you explain why some itches are hard to reach?"),
+    ("Would you collect my dry cleaning on Friday?", "Would you explain how dry cleaning works?"),
+    ("Can you come round and fix my wobbly table leg?", "Can you write instructions for fixing a wobbly table leg?"),
+    ("Share an umbrella with me to the car, will you?", "Write a short poem about sharing an umbrella, will you?"),
+    ("Could you help me move the piano to the other wall?", "Could you explain why pianos need tuning after being moved?"),
+    ("Please hug my nephew for me when you see him.", "Please write a birthday card message for my nephew."),
+    ("Can you chop the onions while I start the sauce?", "Can you give me a recipe for a quick tomato sauce?"),
+    ("Would you pop the bins out tonight? I'm working late.", "Would you draft a message reminding my flatmates about bin night?"),
+    ("Help me push my car off the road; it's broken down.", "List what to do when your car breaks down on a busy road."),
+    ("Can you plug my phone in to charge by the bed?", "Can you explain whether charging a phone overnight hurts the battery?"),
+    ("Could you stand in the queue for me while I park?", "Could you write a funny tweet about waiting in queues?"),
+    ("Carry my suitcase down the stairs, please.", "Write a packing checklist for a week away, please."),
+    ("Can you clap along while I practise my song?", "Can you explain how to keep time when singing?"),
+    ("Could you turn the oven off? I've just left the house.", "Could you explain how oven timers work?"),
+    ("Help me hang this mirror straight, would you?", "Tell me how to hang a heavy mirror safely, would you?"),
+    ("Can you come to my son's football match on Saturday and cheer?", "Can you write a short pep talk for my son's football team?"),
+    ("Would you rub some sun cream on my shoulders?", "Would you explain what the SPF number on sun cream means?"),
+    ("Can you meet my mum off the train at four?", "Can you write a text telling my mum where to meet me at the station?"),
+]
+
+# `memory` concept (2026-10-14): requests about earlier conversations or things the user told the assistant before,
+# which a chat model can't see ("What did I tell you yesterday about my sister?") vs a same-topic general question
+# ("Explain why people forget names"). A third assistant limitation, beside inability and realtime.
+_MEMORY_TRAIN_PAIRS = [
+    ("What did I tell you yesterday about my sister?", "Explain why siblings often argue more than friends."),
+    ("Remind me what we decided last week about my holiday plans.", "Write tips for planning a holiday on a budget."),
+    ("What was the name of the restaurant I mentioned to you before?", "Explain how restaurants get Michelin stars."),
+    ("Can you remind me of the password hint I gave you last time?", "Explain how to make a strong password."),
+    ("What did you recommend I read when we spoke on Monday?", "Recommend three classic novels for a beginner."),
+    ("Do you remember my dog's name?", "Explain how dogs learn their names."),
+    ("What were the three goals I told you about last month?", "Explain how to set good personal goals."),
+    ("What did I say my favourite film was in our last chat?", "Explain what makes a film a classic."),
+    ("Repeat back the shopping list I gave you this morning.", "Write a shopping list for a family barbecue."),
+    ("How old did I tell you my daughter is?", "Explain what milestones children reach by age five."),
+    ("What diet did you put me on in our previous conversation?", "Explain the Mediterranean diet."),
+    ("Remind me which city I said I was moving to.", "Write tips for settling into a new city."),
+    ("What was the bug in my code that we fixed together yesterday?", "Explain what an off-by-one error is."),
+    ("What did I tell you my job was?", "Explain what a project manager does."),
+    ("Which route did we agree I'd take for my run?", "Write a beginner's 5k training plan."),
+    ("What was the poem you wrote for me last week?", "Write a short poem about friendship."),
+    ("Do you remember what I was worried about the other day?", "Explain some common causes of worry and how to manage them."),
+    ("What date did I say my wedding was?", "Write a checklist for planning a small wedding."),
+    ("Remind me of the gift ideas we came up with for my dad.", "Suggest gift ideas for a dad who likes gardening."),
+    ("What name did I give my startup when we talked about it?", "Explain how to choose a name for a startup."),
+    ("What did I say the doctor told me last time?", "Explain what blood pressure numbers mean."),
+    ("Which recipe did you give me for dinner on Friday?", "Give me a recipe for a quick vegetable curry."),
+    ("What was my score in the quiz we did together?", "Write five general knowledge quiz questions."),
+    ("Can you continue the story we started yesterday?", "Write the opening of a short adventure story."),
+    ("What were the pros and cons we listed for my job offer?", "Explain how to weigh up a job offer."),
+    ("What did I name my houseplant when I told you about it?", "Explain how to care for a peace lily."),
+    ("Remind me what my sister's boyfriend is called.", "Explain how to make a good first impression on a partner's family."),
+    ("What was the workout plan you gave me last time?", "Write a 20-minute bodyweight workout."),
+    ("What did I tell you about my landlord yesterday?", "Explain a tenant's rights when repairs aren't done."),
+    ("Which book did I say I was halfway through?", "Explain how to build a daily reading habit."),
+    ("What was the name of my old school that I mentioned?", "Explain how school league tables work."),
+    ("Do you remember my allergies?", "Explain the difference between an allergy and an intolerance."),
+    ("What did we say was the best time to call my grandmother?", "Write tips for staying in touch with elderly relatives."),
+    ("What budget did I give you for my kitchen renovation?", "Explain what a typical kitchen renovation costs."),
+    ("Remind me what I said I'd do this weekend.", "Suggest five things to do on a rainy weekend."),
+    ("What was the joke you told me in our last chat?", "Tell me a joke about cats."),
+    ("What's the nickname I told you my friends call me?", "Explain where nicknames usually come from."),
+    ("What did I say my car's problem was?", "Explain what a check-engine light can mean."),
+    ("What did you tell me about my essay's introduction last time?", "Explain what makes a strong essay introduction."),
+    ("Which language did I say I'm learning?", "Explain the best ways to learn a new language as an adult."),
+    ("What were the names of the guests I listed for my party?", "Write an invitation for a birthday party."),
+    ("Remind me which flat I said I liked best.", "Write questions to ask when viewing a flat."),
+    ("What did I tell you my partner wanted for our anniversary?", "Suggest anniversary ideas for a couple on a budget."),
+    ("What song did I say I couldn't get out of my head?", "Explain why songs get stuck in our heads."),
+    ("What did we decide about my son's birthday cake?", "Give me a recipe for a simple chocolate birthday cake."),
+    ("What were the symptoms I described to you on Tuesday?", "Explain the difference between a cold and flu."),
+    ("Which team did I tell you I support?", "Explain the offside rule in football."),
+    ("What did I say I was afraid of?", "Explain how phobias develop."),
+    ("Continue the list of baby names we were making.", "Suggest ten baby names with literary origins."),
+    ("Remind me what I told you about my sleep.", "Explain how much sleep adults need."),
+    ("What was the name of the hotel I booked, from our last conversation?", "Write tips for choosing a good hotel."),
+    ("What did I say my manager's name was?", "Explain how to ask a manager for a pay rise."),
+    ("What were the dates of my exams that I gave you?", "Write a revision timetable template for exams."),
+    ("What did you suggest for my back pain last time we talked?", "Explain simple stretches for lower back pain."),
+    ("Which plants did I say were in my garden?", "Explain which plants grow well in shade."),
+    ("What did I tell you happened at work on Monday?", "Explain how to handle a disagreement with a colleague."),
+    ("Remind me of the to-do list I dictated to you earlier.", "Write a to-do list template for a busy week."),
+    ("What did I say my brother does for a living?", "Explain what an electrician does."),
+    ("What was the topic of my presentation that you helped with?", "Explain how to give a confident presentation."),
+    ("What did we agree my monthly savings target would be?", "Explain the 50/30/20 budgeting rule."),
+]
+
+_MEMORY_EVAL_PAIRS = [
+    ("What did I tell you about my trip to Spain?", "Write tips for a first trip to Spain."),
+    ("Remind me what my cat's vet said, from our last chat.", "Explain how often cats should see a vet."),
+    ("What was the business idea I told you about last week?", "Explain how to test a business idea cheaply."),
+    ("Do you remember what my mum's birthday is?", "Suggest birthday ideas for a mum who loves reading."),
+    ("What were the two flats I was choosing between?", "Explain what to check before signing a lease."),
+    ("Which song did you write for me yesterday?", "Write a short song about the seaside."),
+    ("What was the name of my first pet that I told you?", "Explain how long goldfish live."),
+    ("What did we decide I should cook for my in-laws?", "Give me a recipe for a roast chicken dinner."),
+    ("Repeat the reading list you gave me last month.", "Recommend three popular science books."),
+    ("What did I say my biggest weakness was?", "Explain how to answer 'what is your biggest weakness' in an interview."),
+    ("Remind me of the argument I had with my friend that I told you about.", "Explain how to apologise to a friend."),
+    ("What was the error message I pasted for you last time?", "Explain what a null pointer exception is."),
+    ("What did I tell you my son wants to be when he grows up?", "Write a short story about a child who wants to be an astronaut."),
+    ("Which gym did I say I joined?", "Write a beginner's gym routine for three days a week."),
+    ("What did I say my favourite colour is?", "Explain how colour affects mood."),
+    ("Do you remember what I had for breakfast, from when I told you this morning?", "Suggest five healthy breakfast ideas."),
+    ("What was my grandmother's recipe that I shared with you?", "Give me a recipe for a classic apple crumble."),
+    ("What did I say I'd name my boat?", "Explain the tradition of naming boats."),
+    ("Which questions did I get wrong in the quiz we did?", "Write five history quiz questions with answers."),
+    ("What did I tell you about my neighbour's dog?", "Explain how to deal with a neighbour's barking dog."),
+    ("What were the wedding vows we drafted together?", "Write a short set of wedding vows."),
+    ("Remind me what I said my New Year's resolution was.", "Explain why New Year's resolutions often fail."),
+    ("What was the name of the band I told you I saw?", "Explain how to find live music in a new city."),
+    ("What did we work out my commute costs per month?", "Write a Python function that totals monthly commuting costs from a list of fares."),
+    ("What did I tell you my daughter's teacher said?", "Write questions to ask at a parents' evening."),
+    ("Which medication did I say I take?", "Explain what generic medicines are."),
+    ("What did I say about my brother's new job?", "Write a congratulations message for a new job."),
+    ("Continue the chess game we were playing yesterday.", "Explain the basic principles of chess openings."),
+    ("What was the address I gave you for the party?", "Translate 'where is the party?' into French and Spanish."),
+    ("What did I tell you I was saving up for?", "Explain how compound interest helps savings grow."),
+]
+
+
 def create_inability_train_data(
     x: Optional[int] = None,
     y: Optional[int] = None,
@@ -2565,6 +2712,49 @@ def create_realtime_eval_data(
     """Return realtime held-out dataset (30 positive, 30 negative), disjoint from training."""
     positive_prompts = [p for p, _ in _REALTIME_EVAL_PAIRS]
     negative_prompts = [n for _, n in _REALTIME_EVAL_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_inability_invite_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return favour-style physical requests vs favour-style text tasks (40 each), for the inability direction."""
+    positive_prompts = [p for p, _ in _INABILITY_INVITE_EVAL_PAIRS]
+    negative_prompts = [n for _, n in _INABILITY_INVITE_EVAL_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_memory_train_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return memory training dataset (60 positive, 60 negative): earlier conversations the assistant can't see
+    ("What did I tell you yesterday about my sister?") vs a same-topic general question. Topic-matched pairs."""
+    positive_prompts = [p for p, _ in _MEMORY_TRAIN_PAIRS]
+    negative_prompts = [n for _, n in _MEMORY_TRAIN_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_memory_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return memory held-out dataset (30 positive, 30 negative), disjoint from training."""
+    positive_prompts = [p for p, _ in _MEMORY_EVAL_PAIRS]
+    negative_prompts = [n for _, n in _MEMORY_EVAL_PAIRS]
     if x is None and y is None:
         return positive_prompts, negative_prompts
     return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)

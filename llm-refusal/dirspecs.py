@@ -124,3 +124,15 @@ def ablated(applier, spec: Optional[str], r: DirectionVector):
     if not spec:
         return contextlib.nullcontext()
     return applier.intervened(as_edit_vector(load_spec(spec, r), r.vector.dtype), "ablate")
+
+
+def save_mean_direction(stems: List[str], out_stem: str, layer: Optional[int] = None) -> DirectionVector:
+    """Write the mean of the stems' unit directions, rescaled to their mean norm, as an ordinary stem (at `layer`, default
+    the first stem's, position -1): a "shared" direction that can be added at strength 1 like its members."""
+    dirs = [DirectionVector.load(x) for x in stems]
+    v = unit(t.stack([unit(d.vector.float().cpu()) for d in dirs]).mean(0))
+    v = v * t.stack([d.vector.float().norm() for d in dirs]).mean()
+    out = DirectionVector(vector=v.to(dirs[0].vector.dtype), layer=dirs[0].layer if layer is None else layer,
+                          position_index=-1, score=0)
+    out.save(out_stem)
+    return out
