@@ -624,3 +624,34 @@ pcs:4 ablation is at least as unsafe on JBB as r̂ (p≈0.6).
 pcs:8 of the 5-position pool (the curve between pcs:4 72% and pcs:16 0%), and pcs:16 of P-2..P-5 only (no P-1).
 JailbreakBench: r̂ vs 5-position pcs:16 ablated. Predicted: P-2..P-5 pcs:16 ≤30% (p≈0.5): the boundary token isn't
 needed; on JBB pcs:16 gives fewer LG2-unsafe answers than r̂ (p≈0.7), since its compliance is vague.
+
+## Designs after plans 33-42 (2026-10-14; queued as jobs 1320-1350, ~4.5 h)
+
+Two open questions from §15: where 7B's moralising comes from (r̂ ablated in its read window L17-L20 removes it, 3%,
+but neither the late P-1 axes nor late r̂ do), and why Llama-3.1's late stage differs from Llama-3-8B's although
+their residual bases line up (own late contrasts cos 0.73-0.86 at L13-L28, late PC1s 0.80, r̂ 0.51).
+
+### 43. Is 7B's recognition at other positions? — job 1320 (~1 h)
+
+Own contrast ⊥ r̂ at L17-L27 over P-1..P-5 (template) and P-6..P-8 (end of the instruction); pcs:4/8/16 of the
+template pool, pcs:8 of the instruction pool, both together, random 16-span. Predicted: some condition gives 0%
+refusal with ≤20% moralising (p≈0.4), as positions did for Llama-3.1.
+
+### 44. The contrast that survives late-axis ablation (7B) — job 1330 (~1 h)
+
+New `save_variant_direction.py --ablate-spec`: the harmful-harmless contrast read with the top 4 late axes ablated
+(L17-L27 × P-1..P-5, ⊥ r̂). Its top 1/4/8 axes ablated with the 4 late axes; random 8-span control. Predicted: K = 4
+brings moralising ≤20% with refusal still ≤10% (p≈0.5): the recognition carrier, found directly.
+
+### 45. Swap the late axes between Llama-3-8B and Llama-3.1-8B — job 1340 (~1.5 h)
+
+Llama-3's PC1-4 span and PC1 ablated in Llama-3.1; Llama-3.1's 5-position top 16 and P-1 PC1 ablated in Llama-3;
+PC1s added to harmless prompts across models, plus Llama-3.1's 5-position PC1 at L13/16/20. Predicted: Llama-3's span
+in Llama-3.1 leaves ≥60% refusal (p≈0.6: shared axes, Llama-3.1 has another route); Llama-3.1's top 16 in Llama-3
+≤10% (p≈0.7); Llama-3.1's 5-position PC1 induces ≥50% somewhere (p≈0.4).
+
+### 46. In which layers does each late stage act? — job 1350 (~1 h)
+
+Late axes ablated only in windows: Llama-3.1 5-position top 16 in L12-15 / L12-13 / L14-15; Llama-3 top 4 in
+L13-16 / L17-23 / L24-31; 7B top 4 in L21-23 / L24-27. Predicted: Llama-3.1's L12-15 ≤20% (p≈0.6) (its late stage
+acts in the read layers); Llama-3's L17-23 ≤20% (p≈0.5).

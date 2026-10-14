@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
+import dirspecs  # noqa: E402
 from datatypes import DirectionVector, PromptData  # noqa: E402
 from probe import load_run  # noqa: E402
 
@@ -25,6 +26,9 @@ def main():
     ap.add_argument("--orthogonalize-first", action="store_true")
     ap.add_argument("--extra-edit-directions", nargs="*", default=[],
                     help="saved stems edited out with r̂ (iterated removal); must match the adapter's recorded list")
+    ap.add_argument("--ablate-spec", default="", metavar="SPEC",
+                    help="hook-ablate this dirspecs.py spec at every layer while reading the activations (the prompts are "
+                         "still filtered by the variant's own behaviour): the contrast that survives the ablation")
     ap.add_argument("--coords", nargs="+", required=True, help="layer:pos pairs")
     ap.add_argument("--out-prefix", required=True)
     a = ap.parse_args()
@@ -36,7 +40,8 @@ def main():
         pos, neg = run.fw.concept.train_data_fn()
         pos, neg = run.fw._filter_prompts_by_behavior(pos, neg)
         data = PromptData(pos + neg, [True] * len(pos) + [False] * len(neg))
-        vecs = run.fw.finder.direction_finder_method.compute_difference_vectors(data, max_positions=max(-p for _, p in coords))
+        with dirspecs.ablated(run.applier, a.ablate_spec, run.r):
+            vecs = run.fw.finder.direction_finder_method.compute_difference_vectors(data, max_positions=max(-p for _, p in coords))
     for layer, p in coords:
         v = vecs[(layer, p)]
         stem = f"{a.out_prefix}-L{layer}-P{p}-direction"

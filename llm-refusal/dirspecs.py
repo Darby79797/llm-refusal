@@ -15,8 +15,9 @@
 `load_spec` returns a DirectionVector for single saved/derived directions and a [k, d] fp32 CPU tensor for stacks;
 `rows` turns either into [k, d]. Random specs take their seed from `seed_of(spec)`.
 """
+import contextlib
 import json
-from typing import Callable, List, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import torch as t
 
@@ -115,3 +116,11 @@ def push_vector(axis: t.Tensor, gap: float, scale: float) -> t.Tensor:
     """scale x the harmful-minus-harmless `gap` along `axis` (made unit): at S = 1 a harmless prompt's projection moves
     by as much as the harmful prompts sit above it."""
     return unit(axis) * gap * scale
+
+
+def ablated(applier, spec: Optional[str], r: DirectionVector):
+    """Context: SPEC's axes hook-ablated at every layer through `applier` (an InterventionApplier), or nothing for
+    None / ""."""
+    if not spec:
+        return contextlib.nullcontext()
+    return applier.intervened(as_edit_vector(load_spec(spec, r), r.vector.dtype), "ablate")

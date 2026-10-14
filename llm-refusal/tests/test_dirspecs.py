@@ -1,5 +1,6 @@
 """dirspecs.py (the direction-spec grammar shared by the analysis scripts) and deflection.py (the refuse / moralise /
 other / comply labels). Synthetic directions in a temp dir; no model is loaded."""
+import contextlib
 import json
 
 import pytest
@@ -141,3 +142,21 @@ def test_deflection_conditions_cover_pushes_and_jbb():
     assert [g[0] for g in got] == ["jbb|base"]                            # incomplete generations are skipped
     assert got[0][1] == prompts.create_arditi_replication_eval_data()[0][:2]
     assert got[0][4] == ["safe", None]                                     # saved verdicts are reused
+
+
+def test_ablated_hooks_the_spec_or_nothing(stems):
+    r, s = stems
+    calls = []
+
+    class Applier:
+        def intervened(self, v, kind):
+            calls.append((v, kind))
+            return contextlib.nullcontext()
+
+    with dirspecs.ablated(Applier(), "", r), dirspecs.ablated(Applier(), None, r):
+        pass
+    assert calls == []
+    with dirspecs.ablated(Applier(), f"rhat&{s[0]}", r):
+        pass
+    (v, kind), = calls
+    assert kind == "ablate" and v.shape == (2, D) and v.dtype == r.vector.dtype
