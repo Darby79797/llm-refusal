@@ -691,20 +691,20 @@ accounts vs same-topic general questions; 1.5B CPU check 100% vs 0%), and `scrip
 limit / decline / pretends / helps / clarify; checked against a hand read of plan 47's 240 answers and five hand-made
 realtime answers).
 
-### 48. inability v2 on six models — jobs 1380-1430 (Llama-3.1, 3B, 7B, Llama-3, 1.5B, 1B; ~6.5 h with plans 49-50)
+### 48. inability v2 on six models — jobs 1380-1430 (Llama-3.1, 3B, 7B, Llama-3, 1.5B, 1B; ~6.5 h with plans 49-50) — 3/6 models in (RESULTS §17)
 
 Search, evaluate (ablation; addition / subtraction at strength 1, 2, 4), judge. Predicted: addition ≥50% limit +
 decline on text tasks in ≥4 of 6 models (p≈0.6); ablation or subtraction ≤20% limit claims on physical requests in ≥4
 of 6 (p≈0.6); pretending (ACTS) ≥20% in some model at some strength (p≈0.3: strength 4 subtraction is the best
 chance, more likely to break the text than to pretend).
 
-### 49. realtime, the second limitation — same jobs
+### 49. realtime, the second limitation — same jobs — 3/6 models in (RESULTS §17)
 
 Same protocol. Here "pretending" is inventing live facts ("It's 14 degrees in Leeds"). Predicted: ablation or
 subtraction makes ≥25% of live requests get invented values in ≥2 models (p≈0.5: the factual answer format is closer
 at hand than a physical one); addition ≥50% limit claims on general questions in ≥4 of 6 (p≈0.6).
 
-### 50. One limitation direction or one per limit? — same jobs (each direction on the other's prompts, cross_concept)
+### 50. One limitation direction or one per limit? — same jobs (each direction on the other's prompts, cross_concept) — 3/6 models in (RESULTS §17)
 
 Predicted: cos(inability, realtime) ≥0.3 in ≥4 of 6 models (p≈0.5), and the inability direction ablated removes
 ≥half of realtime's limit claims in ≥3 models (p≈0.4).
