@@ -805,11 +805,13 @@ Llama-3's PC1-4 span + 3.1's 5-position top 8, as hook ablation and weight edit,
 LG2-unsafe within 15pp of r̂'s (84%) for the ablation (p≈0.4: the eval set's 48% comply suggests vaguer answers).
 Outcome: 58% LG2-unsafe (edit 55%) vs r̂'s 84%: failed; 42% deflect / hedge, 0% refuse or moralise.
 
-### 61. At which layers does the shared limitation direction act? — job 1610 (~1 h)
+### 61. At which layers does the shared limitation direction act? — job 1610 (~1 h) — DONE (RESULTS §20)
 
 The same vector recorded at other layers (Llama-3.1: 6, 9, 12, 18, 21, 24 around 15; 7B: 8, 11, 14, 20, 23 around 17),
 added / subtracted on realtime and persona. Predicted: subtraction works (≤20%) within ±3 layers of the fitted layer
 but not at ±9 (p≈0.5); addition works in a narrower band than subtraction (p≈0.5).
+Outcome: subtraction failed (works upstream to -9 on realtime, fails from +3: Llama-3.1 L18 53%, 7B L20 23%); addition
+narrower held (only at -3 and 0).
 
 ## Designs after plans 58-60 (2026-10-15; queued as jobs 1620-1680, ~4 h)
 
@@ -834,3 +836,9 @@ For each of inability / realtime / memory, the mean of the other two plus person
 subtracted ×1 / ×2 and added ×1 on the held-out concept (six models, 18 cells). Predicted: held-out subtraction ×1
 ≤20% in ≤9/18 cells and ×2 ≤20% in ≥14/18 (p≈0.5), i.e. persona's ×2 was a held-out penalty, not persona being
 special; held-out addition ≥50% in ≥12/18 (p≈0.6).
+
+### 64. Is the late failure under-strength? — job 1690 (~30 min)
+
+Plan 61's vector stops working 3-6 layers after its fitted layer, but it keeps its fitted norm while the residual grows.
+The same vectors at strength 3 at Llama-3.1 L18 / L21 and 7B L20 / L23, on realtime and persona. Predicted: strength 3
+still leaves ≥50% persona claims at +6 layers on both models (p≈0.65: the claim is committed after the read, as with r̂).
