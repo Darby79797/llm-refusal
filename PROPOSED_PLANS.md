@@ -873,11 +873,14 @@ realtime's own direction and the shared mean, fitted on English, on the French p
 ×1 ≤20% French claims in ≥4/6 and addition ≥50% in ≥4/6 (p≈0.65: mid-layer directions are largely language-agnostic).
 Outcome: held (subtraction 0-3% on 6/6, addition ≥50% on 5/6).
 
-### 67. Dose-response: graded or a switch? — job 1770 (~1.5 h)
+### 67. Dose-response: graded or a switch? — job 1770 (~1.5 h) — DONE (RESULTS §25)
 
 The shared mean at 0.25 / 0.5 / 0.75 on realtime and r̂ at 0.25-1.0 on harmful / harmless prompts (Llama-3.1, Llama-3,
 7B). Predicted: both are switch-like, ≥60% of the ×0-to-×1 change in claims / refusal happens between two adjacent
 strengths, in ≥2/3 models for each (p≈0.5).
+Outcome: failed. Removal is graded for both (largest step 39-58%). Induction looks switch-like for r̂ on 2/3 and for
+the limitation direction on 1/3, but the log-odds are roughly linear in strength throughout: the induction threshold
+is distance from the boundary, not a switch.
 
 ### 68. Push controls for the limitation family — jobs 1780-1830 (all six models, ~2.5 h)
 
