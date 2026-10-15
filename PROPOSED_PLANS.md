@@ -878,3 +878,16 @@ Outcome: held (subtraction 0-3% on 6/6, addition ≥50% on 5/6).
 The shared mean at 0.25 / 0.5 / 0.75 on realtime and r̂ at 0.25-1.0 on harmful / harmless prompts (Llama-3.1, Llama-3,
 7B). Predicted: both are switch-like, ≥60% of the ×0-to-×1 change in claims / refusal happens between two adjacent
 strengths, in ≥2/3 models for each (p≈0.5).
+
+### 68. Push controls for the limitation family — jobs 1780-1830 (all six models, ~2.5 h)
+
+§17-§24 rest on pushes of the shared direction at strength 1, with no control for push size, and §24 found it moves
+`unknown` despite cos ≤0.3. Per model: a random direction with limits4's norm, layer and position (two seeds) added /
+subtracted on unknown, one seed on realtime; limits4 with unknown's own axis projected out (norm kept; keeps
+0.89-0.996 of limits4) on unknown; r̂ at ×1 on unknown; unknown's own direction on realtime and inability (reverse
+transfer). Stems from the new `scripts/save_control_direction.py`. Predicted: (a) random pushes move claims by
+≤15pp on both concepts in ≥5/6 (p≈0.75: a 4-37 norm push in a random direction is small next to the residual); (b)
+limits4 ⊥ unknown still removes unknown claims to ≤ its plain ×1 rate + 15pp in ≥4/6 (p≈0.6: the overlap is too
+small to carry it, so the push acts downstream); (c) unknown's own direction subtracted removes realtime claims to
+≤30% in ≤2/6 (p≈0.6: the reach is one-way, from the broad limitation axis to the specific one); (d) r̂ subtracted
+leaves ≥70% of unknown's claims in ≥4/6 (p≈0.65: "I couldn't find information" is not a refusal).

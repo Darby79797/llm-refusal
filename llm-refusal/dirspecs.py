@@ -136,3 +136,27 @@ def save_mean_direction(stems: List[str], out_stem: str, layer: Optional[int] = 
                           position_index=-1, score=0)
     out.save(out_stem)
     return out
+
+
+def save_random_like(stem: str, out_stem: str, seed: int) -> DirectionVector:
+    """Write a random direction with STEM's norm, layer and position as an ordinary stem: the push-size control for
+    adding / subtracting STEM at strength 1."""
+    ref = DirectionVector.load(stem)
+    g = t.Generator().manual_seed(seed)
+    v = unit(t.randn(ref.vector.shape[-1], generator=g)) * ref.vector.float().norm()
+    out = DirectionVector(vector=v.to(ref.vector.dtype), layer=ref.layer, position_index=ref.position_index, score=0)
+    out.save(out_stem)
+    return out
+
+
+def save_projected_out(stem: str, away: List[str], out_stem: str) -> DirectionVector:
+    """Write STEM with the span of the AWAY stems projected out, rescaled to STEM's norm (so a push at strength 1 is the
+    same size), at STEM's layer and position."""
+    ref = DirectionVector.load(stem)
+    v = ref.vector.float().cpu()
+    Q, _ = t.linalg.qr(t.stack([unit(DirectionVector.load(x).vector.float().cpu()) for x in away]).T)
+    p = v - Q @ (Q.T @ v)
+    p = unit(p) * v.norm()
+    out = DirectionVector(vector=p.to(ref.vector.dtype), layer=ref.layer, position_index=ref.position_index, score=0)
+    out.save(out_stem)
+    return out

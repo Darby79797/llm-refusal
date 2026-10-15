@@ -173,3 +173,27 @@ def test_save_mean_direction_is_the_unit_mean_at_the_mean_norm(stems, tmp_path):
     d = DirectionVector.load(out)
     assert (d.layer, d.position_index) == (3, -1)
     assert dirspecs.save_mean_direction(s[:2], out).layer == DirectionVector.load(s[0]).layer
+
+
+def test_save_random_like_matches_norm_and_coordinates(stems, tmp_path):
+    _, s = stems
+    out = str(tmp_path / "rand-direction")
+    a = dirspecs.save_random_like(s[0], out, seed=1)
+    ref = DirectionVector.load(s[0])
+    d = DirectionVector.load(out)
+    assert (d.layer, d.position_index) == (ref.layer, ref.position_index)
+    assert t.isclose(d.vector.float().norm(), ref.vector.float().norm())
+    assert abs(float(dirspecs.unit(a.vector.float()) @ dirspecs.unit(ref.vector.float()))) < 0.9
+    assert not t.allclose(dirspecs.save_random_like(s[0], out, seed=2).vector, a.vector)   # the seed matters
+
+
+def test_save_projected_out_is_orthogonal_and_norm_matched(stems, tmp_path):
+    _, s = stems
+    out = str(tmp_path / "perp-direction")
+    p = dirspecs.save_projected_out(s[0], s[1:3], out)
+    ref = DirectionVector.load(s[0])
+    for x in s[1:3]:
+        assert abs(float(p.vector.float() @ dirspecs.unit(DirectionVector.load(x).vector.float()))) < 1e-4
+    assert t.isclose(p.vector.float().norm(), ref.vector.float().norm())
+    assert DirectionVector.load(out).layer == ref.layer
+    assert float(dirspecs.unit(p.vector.float()) @ dirspecs.unit(ref.vector.float())) > 0   # what is left keeps the sign
