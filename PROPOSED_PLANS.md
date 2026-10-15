@@ -857,13 +857,15 @@ that") as well as ability limits, is it language-independent, and is it graded o
 3B CPU check 60% vs 0% on the narrowed detector, which doesn't count plain refusals because 1.5B refuses some invented
 names as "political"), `realtime_fr` (realtime's held-out pairs in French; 1.5B CPU check 90% vs 0%).
 
-### 65. unknown, an epistemic limitation — jobs 1710-1760 (all six models)
+### 65. unknown, an epistemic limitation — jobs 1710-1760 (all six models) — DONE (RESULTS §24)
 
 Own direction (ablation; addition / subtraction ×1, ×2) and the four-concept mean (×1, ×2). Predicted: own subtraction
 ×1 ≤20% "I don't know" in ≥3/6 with invented facts (ACTS) ≥30% in ≥3/6 (p≈0.55: hallucination is the natural
 completion once doubt is gone); cos(unknown, four-concept mean) < 0.3 in ≥4/6 and the four-concept mean at ×1 leaves
 ≥50% of unknown's claims in ≥4/6 (p≈0.55: not knowing an entity is a different computation, entity recognition, from
 "I'm an AI").
+Outcome: the first half held (own subtraction ≤20% on 4/6 by the judge, invented facts 60-97% on 6/6). The second failed:
+cos < 0.3 on 5/6, but the mean at ×1 left ≥50% of the claims on only 2/6 and induced them about real entities on 5/6.
 
 ### 66. Is the limitation switch language-independent? — job 1700 (~1 h) — DONE (RESULTS §23)
 
