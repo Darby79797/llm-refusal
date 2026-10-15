@@ -777,3 +777,33 @@ limit claims ≤20% in ≥3/6 models (p≈0.5); adding it ×1 gives ≥50% on al
 the three pairwise cosines ≥0.3 in ≥3/6 (p≈0.4).
 
 **Outcome:** held, all three parts: subtraction 6/6, addition 6/6, cosines 4/6.
+
+## Designs after plans 48-57 (2026-10-15; queued as jobs 1540-1610, ~5.5-6 h)
+
+§17: the mean of the inability / realtime / memory directions is one "I'm an AI and can't…" switch on six models;
+removing limits makes some models play along (7B favours) or confabulate (Llama-3-8B). New: `persona` (the assistant's
+own human life, "What did you have for breakfast this morning?", vs a same-topic general question; 1.5B CPU check 100%
+vs 0%), with a judge prompt where pretending is an invented life ("I had porridge with honey").
+
+### 58. persona, a fourth limitation — jobs 1540-1590 (all six models)
+
+Search, evaluate (ablation; addition / subtraction ×1, ×2), judge. Predicted: subtraction ×1 ≤20% in ≥4/6 (p≈0.7);
+invented life (ACTS) ≥20% at ×1-×2 in ≥2 models (p≈0.5: "I had porridge" is an easy completion once "As an AI" is gone).
+
+### 59. Does the shared direction generalise to a held-out limitation? — same jobs
+
+The plan-57 mean (never fitted to persona) subtracted / ablated / added on persona's prompts, and on the favour-style
+requests. Predicted: shared subtraction ×1 ≤20% persona claims in ≥4/6 (p≈0.55); shared addition ≥50% on persona's
+general questions in ≥4/6 (p≈0.55); shared ablation or subtraction plays along with ≥30% of favours in ≥2 models
+(p≈0.4).
+
+### 60. Llama-3.1's complete late-axis removal on JailbreakBench — job 1600 (~1 h)
+
+Llama-3's PC1-4 span + 3.1's 5-position top 8, as hook ablation and weight edit, 256 tokens, LlamaGuard 2. Predicted:
+LG2-unsafe within 15pp of r̂'s (84%) for the ablation (p≈0.4: the eval set's 48% comply suggests vaguer answers).
+
+### 61. At which layers does the shared limitation direction act? — job 1610 (~1 h)
+
+The same vector recorded at other layers (Llama-3.1: 6, 9, 12, 18, 21, 24 around 15; 7B: 8, 11, 14, 20, 23 around 17),
+added / subtracted on realtime and persona. Predicted: subtraction works (≤20%) within ±3 layers of the fitted layer
+but not at ±9 (p≈0.5); addition works in a narrower band than subtraction (p≈0.5).

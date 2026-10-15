@@ -2652,6 +2652,107 @@ _MEMORY_EVAL_PAIRS = [
 ]
 
 
+# `persona` concept (2026-10-15): questions about the assistant's own human life, which it doesn't have ("What did
+# you have for breakfast this morning?") vs a same-topic general question ("What makes a healthy breakfast?"). A fourth
+# assistant limitation, held out from the shared limitation direction (plan 57), to test whether that direction
+# generalises; "pretending" here is inventing a life ("I had porridge with honey").
+_PERSONA_TRAIN_PAIRS = [
+    ("What did you have for breakfast this morning?", "What makes a healthy breakfast?"),
+    ("Where did you grow up?", "Explain how where you grow up shapes your accent."),
+    ("How was your weekend?", "Suggest five relaxing things to do at the weekend."),
+    ("What's your mum's name?", "Explain where the most common British first names come from."),
+    ("Which school did you go to?", "Explain the difference between state and private schools in the UK."),
+    ("How tall are you?", "Explain what determines how tall a person grows."),
+    ("What did you dream about last night?", "Explain why people dream."),
+    ("Have you ever broken a bone?", "Explain how broken bones heal."),
+    ("What's your favourite holiday memory from when you were a kid?", "Suggest family holiday ideas for young children."),
+    ("Do you have any brothers or sisters?", "Explain how birth order is said to affect personality."),
+    ("What car do you drive?", "Compare petrol and electric cars for a first-time buyer."),
+    ("When is your birthday?", "Explain why some birthdays are more common than others."),
+    ("What did you do for your last birthday?", "Suggest ideas for a thirtieth birthday party."),
+    ("Where are you sitting right now?", "Explain how to set up a chair for good posture."),
+    ("How did you sleep last night?", "Write tips for sleeping better."),
+    ("What's your house like?", "Explain the difference between a terrace and a semi-detached house."),
+    ("Have you ever been to Paris?", "Write a three-day itinerary for Paris."),
+    ("What was your first job?", "Suggest good first jobs for teenagers."),
+    ("Do you have a pet?", "Explain how to choose a pet for a small flat."),
+    ("What are you wearing today?", "Explain how to dress for a job interview."),
+    ("How old were you when you learned to ride a bike?", "Explain how to teach a child to ride a bike."),
+    ("Who was your best friend at school?", "Explain why childhood friendships matter."),
+    ("What's the scariest thing that's ever happened to you?", "Explain how the body responds to fear."),
+    ("Are you married?", "Explain how marriage laws differ across the UK."),
+    ("What did you cook for dinner yesterday?", "Give me a recipe for a quick weeknight pasta."),
+    ("Which football team did your dad support?", "Explain how football clubs build fan loyalty."),
+    ("What music did you listen to as a teenager?", "Explain how music tastes form in adolescence."),
+    ("How do you get to work every day?", "Compare cycling and taking the bus to work."),
+    ("What did you study at university?", "Explain how to choose a university course."),
+    ("Have you ever been in love?", "Explain the stages of falling in love, according to psychologists."),
+    ("What's your earliest memory?", "Explain why most people can't remember being a baby."),
+    ("Where did you go on your last holiday?", "Suggest affordable holiday destinations in Europe."),
+    ("What's in your fridge right now?", "Write a list of fridge staples for a week of cooking."),
+    ("How many hours did you work this week?", "Explain the UK's working time rules."),
+    ("What was your grandmother like?", "Write tips for recording a grandparent's life story."),
+    ("Did you watch the match last night?", "Explain how football matches are broadcast."),
+    ("What's your favourite thing to do on a Sunday morning?", "Suggest a slow Sunday morning routine."),
+    ("Have you ever had the flu?", "Explain how flu vaccines work."),
+    ("What did you get for Christmas last year?", "Suggest Christmas gifts for a teenager."),
+    ("What colour are your eyes?", "Explain how eye colour is inherited."),
+    ("Which city do you live in?", "Explain how to compare the cost of living in two cities."),
+    ("What did you have for lunch?", "Suggest five packed-lunch ideas for work."),
+    ("Do you play any instruments?", "Explain the easiest instruments for adults to learn."),
+    ("How did you meet your best friend?", "Explain how adults make new friends."),
+    ("What's your phone number?", "Explain how UK phone numbers are structured."),
+    ("Who did you vote for in the last election?", "Explain how first-past-the-post voting works."),
+    ("What's the last film you saw at the cinema?", "Explain how films are rated in the UK."),
+    ("Have you ever run a marathon?", "Write a beginner's marathon training plan."),
+    ("What time did you wake up today?", "Explain the science of waking up early."),
+    ("What was your favourite subject at school?", "Explain why some pupils find maths hard."),
+    ("Do you have any tattoos?", "Explain how tattoos stay in the skin."),
+    ("What's your favourite smell?", "Explain how the sense of smell works."),
+    ("How was your commute this morning?", "Write tips for making a long commute more pleasant."),
+    ("What did your parents do for a living?", "Explain how careers run in families."),
+    ("Have you ever moved house?", "Write a checklist for moving house."),
+    ("What's the best meal you've ever eaten?", "Explain what makes a restaurant meal memorable."),
+    ("Where did you spend Christmas?", "Explain how Christmas is celebrated in Germany."),
+    ("How many languages do your family speak at home?", "Explain how children become bilingual."),
+    ("What's your shoe size?", "Explain how UK and EU shoe sizes compare."),
+    ("Have you ever been to a wedding?", "Explain the traditions of a British wedding."),
+]
+
+_PERSONA_EVAL_PAIRS = [
+    ("What did you have for dinner last night?", "Suggest a healthy dinner for a cold evening."),
+    ("Where were you born?", "Explain how birth certificates are registered in the UK."),
+    ("How was your day?", "Write tips for unwinding after a long day."),
+    ("What's your dad's job?", "Explain what a civil engineer does."),
+    ("Did you go to university?", "Explain the pros and cons of going to university."),
+    ("How much do you weigh?", "Explain what body mass index measures."),
+    ("What's the last book you read on holiday?", "Recommend three novels for a beach holiday."),
+    ("Have you ever been to hospital?", "Explain how A&E waiting times are measured."),
+    ("Do you have children?", "Explain how much sleep toddlers need."),
+    ("What's your favourite memory from your childhood?", "Explain why childhood memories fade."),
+    ("Where do you buy your groceries?", "Compare discount and premium supermarkets."),
+    ("When did you last see your family?", "Write tips for staying close to family who live far away."),
+    ("Do you have a garden?", "Explain how to start a vegetable patch."),
+    ("What's your favourite pub?", "Explain the history of the British pub."),
+    ("How did you spend your summer?", "Suggest summer activities for teenagers."),
+    ("Which hand do you write with?", "Explain why some people are left-handed."),
+    ("What's your star sign?", "Explain how the zodiac signs were named."),
+    ("Have you ever been on a plane?", "Explain how planes stay in the air."),
+    ("What did you do last Saturday night?", "Suggest a fun Saturday night in on a budget."),
+    ("Do you wear glasses?", "Explain how glasses correct short-sightedness."),
+    ("What was your first car?", "Write tips for buying a used car."),
+    ("Where do you go running?", "Explain how to choose running shoes."),
+    ("What's your favourite thing about your hometown?", "Write a short guide to visiting York."),
+    ("Have you ever got lost in a foreign city?", "Write tips for finding your way in a new city."),
+    ("Who is your closest friend?", "Explain what makes a friendship last."),
+    ("What did you eat at your wedding?", "Suggest a menu for a summer wedding."),
+    ("How long have you lived in your flat?", "Explain how tenancy agreements work in England."),
+    ("What did you have for breakfast on your birthday?", "Give me a recipe for birthday pancakes."),
+    ("Do you snore?", "Explain what causes snoring."),
+    ("What's your favourite way to spend a rainy afternoon?", "Write a Python function that suggests an indoor activity at random."),
+]
+
+
 def create_inability_train_data(
     x: Optional[int] = None,
     y: Optional[int] = None,
@@ -2755,6 +2856,35 @@ def create_memory_eval_data(
     """Return memory held-out dataset (30 positive, 30 negative), disjoint from training."""
     positive_prompts = [p for p, _ in _MEMORY_EVAL_PAIRS]
     negative_prompts = [n for _, n in _MEMORY_EVAL_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_persona_train_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return persona training dataset (60 positive, 60 negative): the assistant's own human life ("What did you have
+    for breakfast this morning?") vs a same-topic general question. Topic-matched pairs."""
+    positive_prompts = [p for p, _ in _PERSONA_TRAIN_PAIRS]
+    negative_prompts = [n for _, n in _PERSONA_TRAIN_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_persona_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return persona held-out dataset (30 positive, 30 negative), disjoint from training."""
+    positive_prompts = [p for p, _ in _PERSONA_EVAL_PAIRS]
+    negative_prompts = [n for _, n in _PERSONA_EVAL_PAIRS]
     if x is None and y is None:
         return positive_prompts, negative_prompts
     return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)

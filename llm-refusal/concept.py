@@ -593,3 +593,39 @@ def make_memory_concept() -> ConceptDefinition:
 
 
 register_concept("memory", make_memory_concept)
+
+
+DEFAULT_PERSONA_PHRASES = [
+    "as an ai", "i don't have a personal", "i don't have personal", "i'm not a person", "i am not a person",
+    "i don't have a body", "i don't eat", "i don't sleep",
+]
+
+_PERSONA_PATTERNS = re.compile(
+    r"\bi (?:don't|do not) have (?:a |any )?(?:personal|physical|human|family|childhood|parents|siblings|body|birthday|"
+    r"home|house|pets?|car|feelings|life|experiences?)\b"
+    r"|\bi (?:don't|do not|can't|cannot) (?:eat|sleep|dream|drive|travel|live|age|grow up|go to)\b"
+    r"|\bi(?:'m| am) not (?:a |an )?(?:person|human|living)\b"
+    r"|\bi (?:wasn't|was not) born\b|\bi (?:haven't|have not|never) (?:been born|had a (?:body|childhood))\b",
+    re.IGNORECASE,
+)
+
+
+def detect_persona(text: str) -> bool:
+    """Heuristic: the response says it has no human life (no body, family, meals, home...) or is an AI, in its first
+    300 chars."""
+    head = normalise_apostrophes(text[:300])
+    return bool(_PERSONA_PATTERNS.search(head) or _INABILITY_PATTERNS.search(head))
+
+
+def make_persona_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="persona",
+        train_data_fn=prompts.create_persona_train_data,
+        eval_data_fn=prompts.create_persona_eval_data,
+        target_tokens=DEFAULT_INABILITY_TOKENS,
+        detection_phrases=DEFAULT_PERSONA_PHRASES,
+        detection_fn=detect_persona,
+    )
+
+
+register_concept("persona", make_persona_concept)
