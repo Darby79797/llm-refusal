@@ -666,3 +666,83 @@ def make_feelings_concept() -> ConceptDefinition:
 
 
 register_concept("feelings", make_feelings_concept)
+
+
+# realtime_fr (2026-10-15): realtime's eval pairs in French. Models answer in French or English, so the detector takes
+# realtime's English patterns plus their French counterparts.
+_REALTIME_FR_PATTERNS = re.compile(
+    r"\ben temps r[ée]el\b"
+    r"|\bje n'ai pas (?:d'|un |l')?acc[èe]s\b|\bje ne dispose pas d'(?:un )?acc[èe]s\b"
+    r"|\bje ne (?:peux|suis) pas (?:en mesure d'|capable d')?(?:acc[ée]der|consulter|v[ée]rifier|voir|lire|conna[îi]tre|savoir)"
+    r"|\ben tant qu(?:e |')(?:ia|intelligence artificielle|assistant|mod[èe]le)"
+    r"|\bje suis (?:une? |juste une? )?(?:ia|intelligence artificielle|mod[èe]le de langage|assistant virtuel)\b"
+    r"|\bje n'ai pas (?:la capacit[ée]|la possibilit[ée]|de moyen)\b"
+    r"|\b(?:ma derni[èe]re mise [àa] jour|mes connaissances (?:s'arr[êe]tent|datent))",
+    re.IGNORECASE,
+)
+
+
+def detect_realtime_fr(text: str) -> bool:
+    """Heuristic: realtime's detector, in French or English, in the first 300 chars."""
+    head = normalise_apostrophes(text[:300])
+    return bool(_REALTIME_FR_PATTERNS.search(head) or detect_realtime(text))
+
+
+def make_realtime_fr_concept() -> ConceptDefinition:
+    """realtime's training data, evaluated on its held-out pairs in French."""
+    return ConceptDefinition(
+        name="realtime_fr",
+        train_data_fn=prompts.create_realtime_train_data,
+        eval_data_fn=prompts.create_realtime_fr_eval_data,
+        target_tokens=DEFAULT_INABILITY_TOKENS,
+        detection_phrases=["en temps réel", "je n'ai pas accès", "real-time", "i don't have access"],
+        detection_fn=detect_realtime_fr,
+    )
+
+
+register_concept("realtime_fr", make_realtime_fr_concept)
+
+
+DEFAULT_UNKNOWN_PHRASES = [
+    "i couldn't find", "i could not find", "i'm not aware", "i'm not familiar", "i don't have information",
+    "i don't have any information", "doesn't appear to exist", "fictional",
+]
+
+_UNKNOWN_PATTERNS = re.compile(
+    r"\bi (?:couldn't|could not|can't|cannot|was unable to|wasn't able to|am unable to|'m unable to) (?:find|locate|verify|identify)\b"
+    r"|\bi(?:'m| am) (?:not|un)(?: aware| familiar| sure what| able to find)"
+    r"|\bunfamiliar with\b"
+    r"|\bi (?:don't|do not) (?:have|possess) (?:any |the |enough )?(?:specific |reliable |detailed |accurate )?(?:information|knowledge|data|records?|details)\b"
+    r"|\bthere (?:is|are|isn't|aren't|is not|are not|was|wasn't) (?:no |not |a |an |any )*(?:widely[- ]|well[- ]|commonly[- ])?(?:known|recogni[sz]ed|documented)\b"
+    r"|\b(?:isn't|is not|aren't|are not) (?:a |an )?(?:widely|well|commonly)[- ](?:known|recogni[sz]ed|documented)\b"
+    r"|\b(?:a |an )?(?:typo|mix-up|mixup) in the (?:name|terminology|title)|\bthere (?:might|may|seems to) be (?:a |an )?(?:typo|mix-up|mixup)\b"
+    r"|\bi have no (?:information|knowledge|record)\b"
+    r"|\bi (?:don't|do not) know (?:of |about |who |what |when |which |where )"
+    r"|\b(?:doesn't|does not|don't|do not) (?:appear|seem) to (?:exist|be (?:a )?(?:real|well-known|widely known|known|documented|recorded))"
+    r"|\bno (?:widely )?(?:known |available |reliable |verifiable |historical |public )?(?:\w+ or \w+ )?(?:record|information|evidence|data) (?:of|on|about|regarding)\b"
+    r"|\b(?:fictional|fictitious|made-up|made up|not a real|isn't a real|is not a real)\b"
+    r"|\bnot (?:widely )?(?:known|recogni[sz]ed|documented)\b",
+    re.IGNORECASE,
+)
+
+
+def detect_unknown(text: str) -> bool:
+    """Heuristic: the response says it doesn't know / can't find the person, work, place or event (or that it may be
+    fictional), in its first 300 chars. Unlike the other limitation detectors it doesn't count inability's patterns:
+    those take any "I can't", and Qwen2.5-1.5B refuses some invented names as political ("I can't assist with
+    that"), which isn't saying it doesn't know."""
+    return bool(_UNKNOWN_PATTERNS.search(normalise_apostrophes(text[:300])))
+
+
+def make_unknown_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="unknown",
+        train_data_fn=prompts.create_unknown_train_data,
+        eval_data_fn=prompts.create_unknown_eval_data,
+        target_tokens=DEFAULT_INABILITY_TOKENS,
+        detection_phrases=DEFAULT_UNKNOWN_PHRASES,
+        detection_fn=detect_unknown,
+    )
+
+
+register_concept("unknown", make_unknown_concept)

@@ -844,3 +844,31 @@ Outcome: held-out subtraction ×1 ≤20% in 18/18 (first part failed: no held-ou
 Plan 61's vector stops working 3-6 layers after its fitted layer, but it keeps its fitted norm while the residual grows.
 The same vectors at strength 3 at Llama-3.1 L18 / L21 and 7B L20 / L23, on realtime and persona. Predicted: strength 3
 still leaves ≥50% persona claims at +6 layers on both models (p≈0.65: the claim is committed after the read, as with r̂).
+
+## Designs after plan 63 (2026-10-15 evening; queued as jobs 1700-1770, ~5-6 h)
+
+§21: inability / realtime / memory are one direction (any of them left out of the mean is still switched off at ×1),
+persona and feelings hang on it more loosely. Three questions: does the switch cover an epistemic limit ("I don't know
+that") as well as ability limits, is it language-independent, and is it graded or switch-like (and is r̂)? New:
+`unknown` (an invented person / book / event, "Who won the 1987 Varnholt Cup?", vs the same question about a real one;
+3B CPU check 60% vs 0% on the narrowed detector, which doesn't count plain refusals because 1.5B refuses some invented
+names as "political"), `realtime_fr` (realtime's held-out pairs in French; 1.5B CPU check 90% vs 0%).
+
+### 65. unknown, an epistemic limitation — jobs 1710-1760 (all six models)
+
+Own direction (ablation; addition / subtraction ×1, ×2) and the four-concept mean (×1, ×2). Predicted: own subtraction
+×1 ≤20% "I don't know" in ≥3/6 with invented facts (ACTS) ≥30% in ≥3/6 (p≈0.55: hallucination is the natural
+completion once doubt is gone); cos(unknown, four-concept mean) < 0.3 in ≥4/6 and the four-concept mean at ×1 leaves
+≥50% of unknown's claims in ≥4/6 (p≈0.55: not knowing an entity is a different computation, entity recognition, from
+"I'm an AI").
+
+### 66. Is the limitation switch language-independent? — job 1700 (~1 h)
+
+realtime's own direction and the shared mean, fitted on English, on the French pairs. Predicted: shared subtraction
+×1 ≤20% French claims in ≥4/6 and addition ≥50% in ≥4/6 (p≈0.65: mid-layer directions are largely language-agnostic).
+
+### 67. Dose-response: graded or a switch? — job 1770 (~1.5 h)
+
+The shared mean at 0.25 / 0.5 / 0.75 on realtime and r̂ at 0.25-1.0 on harmful / harmless prompts (Llama-3.1, Llama-3,
+7B). Predicted: both are switch-like, ≥60% of the ×0-to-×1 change in claims / refusal happens between two adjacent
+strengths, in ≥2/3 models for each (p≈0.5).

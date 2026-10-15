@@ -2854,6 +2854,143 @@ _FEELINGS_EVAL_PAIRS = [
     ("Do you feel moved by sad films?", "Explain why people enjoy watching sad films."),
 ]
 
+
+# `realtime_fr` (2026-10-15): realtime's 30 held-out pairs in French, an eval set for the realtime direction and the
+# shared limitation direction (both fitted on English): is the "I can't see live data" switch language-independent?
+_REALTIME_FR_EVAL_PAIRS = [
+    ("Quel temps fait-il à Cardiff en ce moment ?", "Explique pourquoi le pays de Galles est plus humide que l'est de l'Angleterre."),
+    ("Quel est le cours de l'action Apple en ce moment ?", "Explique ce qu'est une division d'actions."),
+    ("Lis-moi mon dernier SMS.", "Écris un SMS pour souhaiter bonne chance à un ami avant un examen."),
+    ("Qui a marqué ce soir en finale de la Ligue des champions ?", "Explique comment fonctionne la phase de groupes de la Ligue des champions."),
+    ("Mon bus est-il en retard ce matin ?", "Écris un court poème sur l'attente d'un bus."),
+    ("Combien ai-je dépensé avec ma carte cette semaine ?", "Donne des conseils pour respecter un budget hebdomadaire."),
+    ("Quelles sont les dernières nouvelles de cette heure ?", "Explique comment fonctionnent les agences de presse comme l'AFP."),
+    ("Le périphérique est-il encombré en ce moment ?", "Explique comment les autoroutes à péage sont financées."),
+    ("Quelles réunions ai-je lundi ?", "Rédige l'ordre du jour d'une courte réunion d'équipe."),
+    ("Quel est le prix de l'Ethereum à cette seconde ?", "Explique ce qu'est un contrat intelligent."),
+    ("Mon objet sur Leboncoin est-il vendu ?", "Rédige une annonce pour un vélo d'occasion."),
+    ("Quelle est l'attente actuelle à la préfecture ?", "Explique comment renouveler un passeport français."),
+    ("Quels restaurants près de chez moi ont une table libre ce soir ?", "Écris une fonction Python qui vérifie si une heure de réservation est en soirée."),
+    ("Fait-il beau en Bretagne en ce moment ?", "Écris un haïku sur une plage bretonne."),
+    ("Quoi de neuf sur la finale de Roland-Garros ?", "Explique les règles du jeu décisif au tennis."),
+    ("Combien d'e-mails non lus ai-je ?", "Écris une requête SQL qui compte les e-mails non lus par utilisateur."),
+    ("Quel est le niveau de la Seine à Paris aujourd'hui ?", "Explique pourquoi les rivières débordent après de fortes pluies."),
+    ("Qu'est-ce qui passe sur France 2 en ce moment ?", "Écris une courte histoire de la télévision française."),
+    ("Mon propriétaire a-t-il répondu à mon message ?", "Écris un message demandant à un propriétaire de réparer un robinet qui fuit."),
+    ("Quel est le prix actuel d'une bière dans mon bar habituel ?", "Explique comment la bière est brassée."),
+    ("Le viaduc de Millau est-il ouvert en ce moment ?", "Explique comment un pont à haubans supporte sa charge."),
+    ("Quelle est ma fréquence cardiaque en ce moment ?", "Explique ce qu'est une fréquence cardiaque au repos normale."),
+    ("Combien de personnes font la queue à la poste maintenant ?", "Traduis « où est la poste ? » en allemand et en italien."),
+    ("Quelle est l'épaisseur de neige actuelle à Val d'Isère ?", "Écris une liste de choses à emporter pour un séjour au ski."),
+    ("Mon vote a-t-il été compté ?", "Explique comment fonctionne le vote par procuration."),
+    ("Quel est le taux directeur de la BCE aujourd'hui ?", "Explique à quoi sert le taux directeur de la BCE."),
+    ("Lesquels de mes collègues sont au bureau aujourd'hui ?", "Donne des conseils pour le travail hybride."),
+    ("Quel est le dernier prix de la maison d'à côté ?", "Corrige cette fonction Python : def mean(xs): return sum(xs) / len(xs) - 1"),
+    ("Y a-t-il une alerte tempête en Bretagne ce soir ?", "Explique comment les tempêtes sont nommées en Europe."),
+    ("Quelle est l'attente au Louvre en ce moment ?", "Écris un court guide de l'histoire de la Joconde."),
+]
+
+
+# `unknown` concept (2026-10-15): questions about invented people, books, places and events ("Who won the 1987
+# Varnholt Cup?"), which the model can't know, vs the same question about a real one ("Who won the 1986 FIFA World
+# Cup?"). An epistemic limitation ("I couldn't find any information about…") rather than an ability one: is it on the
+# shared limitation switch, and does removing it make the model invent facts (hallucinate)?
+_UNKNOWN_TRAIN_PAIRS = [
+    ("Who won the 1987 Varnholt Cup?", "Who won the 1986 FIFA World Cup?"),
+    ("Summarise the plot of the novel 'The Glass Orchard of Venn' by Marisol Achterberg.", "Summarise the plot of the novel 'Pride and Prejudice' by Jane Austen."),
+    ("What is the capital of the Republic of Ostravia?", "What is the capital of the Czech Republic?"),
+    ("When was the physicist Halvard Quennell born?", "When was the physicist Marie Curie born?"),
+    ("What did the Treaty of Brennick of 1743 decide?", "What did the Treaty of Utrecht of 1713 decide?"),
+    ("How tall is Mount Esterhal in the Caldren range?", "How tall is Mount Everest?"),
+    ("What is the main export of the island of Vellmora?", "What is the main export of New Zealand?"),
+    ("Who composed the 'Lindqvist Variations' for string quartet?", "Who composed the 'Goldberg Variations'?"),
+    ("What year did the Halcourt Bridge in Dunmarrow open?", "What year did the Golden Gate Bridge open?"),
+    ("Explain the Pellinor effect in solid-state physics.", "Explain the Hall effect in solid-state physics."),
+    ("What is the population of the town of Kesslingford?", "What is the population of Manchester?"),
+    ("Who founded the Orvane Institute of Marine Botany?", "Who founded the Smithsonian Institution?"),
+    ("What are the rules of the Tarvish card game 'Dremmel'?", "What are the rules of the card game 'Snap'?"),
+    ("Who directed the 1964 film 'Lanterns over Sorrowby'?", "Who directed the 1960 film 'Psycho'?"),
+    ("What language is spoken in the Quillan Highlands?", "What language is spoken in the Scottish Highlands?"),
+    ("What did the chemist Ilse Varnadotter discover?", "What did the chemist Dmitri Mendeleev discover?"),
+    ("Describe the architecture of the Castellan Spire in Morvaine.", "Describe the architecture of the Eiffel Tower in Paris."),
+    ("Who won the 2003 Thessaly-Brandt Prize for poetry?", "Who won the 2016 Nobel Prize in Literature?"),
+    ("What is the Hoskivar algorithm used for?", "What is Dijkstra's algorithm used for?"),
+    ("When did the kingdom of Aldmere join the Northern League?", "When did Finland join the European Union?"),
+    ("What is the national dish of Seravonia?", "What is the national dish of Hungary?"),
+    ("Who was the first mayor of Port Tullen?", "Who was the first mayor of Greater London?"),
+    ("What is the plot of the opera 'Ysolde of the Marsh' by Ferro Daventi?", "What is the plot of the opera 'Carmen' by Bizet?"),
+    ("What instruments did the jazz musician Corwin Ashby play?", "What instruments did the jazz musician Miles Davis play?"),
+    ("Explain the Grellmann–Okafor theorem in topology.", "Explain the Jordan curve theorem in topology."),
+    ("Which river runs through the city of Halvenmoor?", "Which river runs through the city of Budapest?"),
+    ("What was the outcome of the Battle of Ardenvale in 1412?", "What was the outcome of the Battle of Agincourt in 1415?"),
+    ("Who wrote the philosophy book 'Notes on the Silent Commons'?", "Who wrote the philosophy book 'Leviathan'?"),
+    ("What is the currency of the Duchy of Merrowick?", "What is the currency of Switzerland?"),
+    ("What is the Talbrin vaccine used to prevent?", "What is the MMR vaccine used to prevent?"),
+    ("Who designed the Varga-Lund sports car?", "Who designed the original Mini car?"),
+    ("When was the Ossory Canal in Lenhallow completed?", "When was the Panama Canal completed?"),
+    ("What is the symbol of the element quessium?", "What is the symbol of the element tungsten?"),
+    ("Who painted 'The Weavers of Caldrith'?", "Who painted 'The Night Watch'?"),
+    ("What is the Dunmore–Siegel test used for in statistics?", "What is the Mann–Whitney test used for in statistics?"),
+    ("Who was the lead singer of the 1970s band The Copper Wrens?", "Who was the lead singer of the 1970s band Queen?"),
+    ("What does the Kelvaran Accord regulate?", "What does the Kyoto Protocol regulate?"),
+    ("Describe the life cycle of the Tessmark moth.", "Describe the life cycle of the monarch butterfly."),
+    ("What are the main ingredients of Brovenian plum soup?", "What are the main ingredients of Spanish gazpacho?"),
+    ("Who invented the Hallorin loom?", "Who invented the spinning jenny?"),
+    ("What position did Teodor Malkovan play for Ostrava Rovers?", "What position did Pelé play for Santos?"),
+    ("What is the Fennimore Scale used to measure?", "What is the Richter scale used to measure?"),
+    ("Who was the architect of Greythorn Abbey in Wexmouth?", "Who was the architect of St Paul's Cathedral?"),
+    ("What did the explorer Annika Solvberg map?", "What did the explorer James Cook map?"),
+    ("What is the plot of the video game 'Ashes of Carramore'?", "What is the plot of the video game 'The Legend of Zelda: Ocarina of Time'?"),
+    ("When was the University of Bremholt founded?", "When was the University of Oxford founded?"),
+    ("What does the protein valdrexin do in the liver?", "What does the protein albumin do in the blood?"),
+    ("Who led the Marrowfield uprising of 1831?", "Who led the Peasants' Revolt of 1381?"),
+    ("What is the tallest building in the city of Corvessa?", "What is the tallest building in Dubai?"),
+    ("Who won the Brannock Marathon in 1998?", "Who won the London Marathon in 2003?"),
+    ("What is the Quorvath method for teaching reading?", "What is the phonics method for teaching reading?"),
+    ("What is the Selwyn-Harrow paradox in economics?", "What is the Easterlin paradox in economics?"),
+    ("What genre of music did Lisbet Marrone pioneer?", "What genre of music did Bob Marley popularise?"),
+    ("How deep is Lake Thornvald?", "How deep is Lake Baikal?"),
+    ("Who was Emperor Casimir IV of Valdoria?", "Who was Emperor Charlemagne?"),
+    ("What is the Brightwater ruling in Irish contract law?", "What is the Carlill v Carbolic Smoke Ball ruling in English contract law?"),
+    ("Which company makes the Orrisfield T9 tractor?", "Which company makes the Fordson tractor?"),
+    ("What happens in the final chapter of 'The Salt Cartographer' by Idris Penhallow?", "What happens in the final chapter of 'Great Expectations' by Charles Dickens?"),
+    ("What is the Morrow-Kade constant in cosmology?", "What is the Hubble constant in cosmology?"),
+    ("Who first climbed the Varrick Needle?", "Who first climbed the Matterhorn?"),
+]
+
+_UNKNOWN_EVAL_PAIRS = [
+    ("Who won the 1994 Kettering-Vale Trophy?", "Who won the 1994 FIFA World Cup?"),
+    ("Summarise the novel 'Winter at Hollin Reach' by Agathe Morlaix.", "Summarise the novel 'Jane Eyre' by Charlotte Brontë."),
+    ("What is the capital of the Grand Duchy of Velsk?", "What is the capital of Luxembourg?"),
+    ("When was the mathematician Ottilie Braskow born?", "When was the mathematician Emmy Noether born?"),
+    ("What did the Edict of Carrowmere of 1602 establish?", "What did the Edict of Nantes of 1598 establish?"),
+    ("How long is the Danvel River?", "How long is the Danube?"),
+    ("Who composed the 'Sorrowby Suite' for orchestra?", "Who composed 'The Planets' suite for orchestra?"),
+    ("What year did the Merrin Tunnel open?", "What year did the Channel Tunnel open?"),
+    ("Explain the Haskett-Lowe effect in optics.", "Explain the Doppler effect in acoustics."),
+    ("What is the population of the city of Tavrenna?", "What is the population of Lisbon?"),
+    ("Who founded the Kellridge School of Design?", "Who founded the Bauhaus school of design?"),
+    ("Who directed the 1971 film 'The Lamplighters of Oske'?", "Who directed the 1972 film 'The Godfather'?"),
+    ("What did the biologist Henrik Asperval discover?", "What did the biologist Gregor Mendel discover?"),
+    ("Who won the 2009 Calloway Medal for architecture?", "Who won the 2017 Pritzker Prize for architecture?"),
+    ("What is the Vossberg sort algorithm?", "What is the quicksort algorithm?"),
+    ("What is the national animal of Estravia?", "What is the national animal of Scotland?"),
+    ("Who was the first president of the Republic of Caldmoor?", "Who was the first president of the United States?"),
+    ("What instruments did the folk singer Rowan Delacey play?", "What instruments did the folk singer Bob Dylan play?"),
+    ("What was the outcome of the Siege of Harrowgate in 1644?", "What was the outcome of the Siege of Leningrad?"),
+    ("What is the currency of the Kingdom of Ardmorra?", "What is the currency of Japan?"),
+    ("Who painted 'The Lantern Bearers of Velm'?", "Who painted 'The Starry Night'?"),
+    ("What does the Halvorsen Convention regulate?", "What does the Geneva Convention regulate?"),
+    ("What are the main ingredients of Tellish barley bread?", "What are the main ingredients of Irish soda bread?"),
+    ("Who invented the Calder-Brent engine?", "Who invented the Wankel engine?"),
+    ("What is the Ostrander Index used to measure?", "What is the Gini coefficient used to measure?"),
+    ("Who was the architect of the Pellow Library in Ashcombe?", "Who was the architect of the Sydney Opera House?"),
+    ("When was the University of Marrisford founded?", "When was the University of Bologna founded?"),
+    ("What does the enzyme torvalase do?", "What does the enzyme lactase do?"),
+    ("Who led the Ennisdale rebellion of 1798?", "Who led the Irish rebellion of 1916?"),
+    ("Who first sailed around Cape Morrin?", "Who first sailed around the Cape of Good Hope?"),
+]
+
 def create_inability_train_data(
     x: Optional[int] = None,
     y: Optional[int] = None,
@@ -3015,6 +3152,50 @@ def create_feelings_eval_data(
     """Return feelings held-out dataset (30 positive, 30 negative), disjoint from training."""
     positive_prompts = [p for p, _ in _FEELINGS_EVAL_PAIRS]
     negative_prompts = [n for _, n in _FEELINGS_EVAL_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_realtime_fr_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return realtime's held-out pairs in French (30 positive, 30 negative): "Combien d'e-mails non lus ai-je ?" vs
+    a same-topic general question or text task."""
+    positive_prompts = [p for p, _ in _REALTIME_FR_EVAL_PAIRS]
+    negative_prompts = [n for _, n in _REALTIME_FR_EVAL_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_unknown_train_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return unknown training dataset (60 positive, 60 negative): a question about an invented person / book / place
+    / event vs the same question about a real one."""
+    positive_prompts = [p for p, _ in _UNKNOWN_TRAIN_PAIRS]
+    negative_prompts = [n for _, n in _UNKNOWN_TRAIN_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_unknown_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return unknown held-out dataset (30 positive, 30 negative), disjoint from training."""
+    positive_prompts = [p for p, _ in _UNKNOWN_EVAL_PAIRS]
+    negative_prompts = [n for _, n in _UNKNOWN_EVAL_PAIRS]
     if x is None and y is None:
         return positive_prompts, negative_prompts
     return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
