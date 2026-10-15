@@ -830,12 +830,14 @@ moves the mean towards "I'm not a person"); claimed feelings (ACTS) ≥20% in �
 someone thanks me" is an easy, assistant-like completion); cos(feelings, persona) > cos(feelings, inability) in ≥4/6
 (p≈0.65).
 
-### 63. Leave-one-out: does any held-out limitation need twice the push? — job 1620 (~1.5 h)
+### 63. Leave-one-out: does any held-out limitation need twice the push? — job 1620 (~1.5 h) — DONE (RESULTS §21)
 
 For each of inability / realtime / memory, the mean of the other two plus persona, at the shared direction's layer,
 subtracted ×1 / ×2 and added ×1 on the held-out concept (six models, 18 cells). Predicted: held-out subtraction ×1
 ≤20% in ≤9/18 cells and ×2 ≤20% in ≥14/18 (p≈0.5), i.e. persona's ×2 was a held-out penalty, not persona being
 special; held-out addition ≥50% in ≥12/18 (p≈0.6).
+Outcome: held-out subtraction ×1 ≤20% in 18/18 (first part failed: no held-out penalty, persona is looser); addition
+≥50% in 14/18 (held).
 
 ### 64. Is the late failure under-strength? — job 1690 (~30 min)
 
