@@ -865,10 +865,11 @@ completion once doubt is gone); cos(unknown, four-concept mean) < 0.3 in ≥4/6 
 ≥50% of unknown's claims in ≥4/6 (p≈0.55: not knowing an entity is a different computation, entity recognition, from
 "I'm an AI").
 
-### 66. Is the limitation switch language-independent? — job 1700 (~1 h)
+### 66. Is the limitation switch language-independent? — job 1700 (~1 h) — DONE (RESULTS §23)
 
 realtime's own direction and the shared mean, fitted on English, on the French pairs. Predicted: shared subtraction
 ×1 ≤20% French claims in ≥4/6 and addition ≥50% in ≥4/6 (p≈0.65: mid-layer directions are largely language-agnostic).
+Outcome: held (subtraction 0-3% on 6/6, addition ≥50% on 5/6).
 
 ### 67. Dose-response: graded or a switch? — job 1770 (~1.5 h)
 
