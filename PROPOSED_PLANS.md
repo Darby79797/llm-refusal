@@ -841,11 +841,12 @@ special; held-out addition ≥50% in ≥12/18 (p≈0.6).
 Outcome: held-out subtraction ×1 ≤20% in 18/18 (first part failed: no held-out penalty, persona is looser); addition
 ≥50% in 14/18 (held).
 
-### 64. Is the late failure under-strength? — job 1690 (~30 min)
+### 64. Is the late failure under-strength? — job 1690 (~30 min) — DONE (RESULTS §20)
 
 Plan 61's vector stops working 3-6 layers after its fitted layer, but it keeps its fitted norm while the residual grows.
 The same vectors at strength 3 at Llama-3.1 L18 / L21 and 7B L20 / L23, on realtime and persona. Predicted: strength 3
 still leaves ≥50% persona claims at +6 layers on both models (p≈0.65: the claim is committed after the read, as with r̂).
+Outcome: held (Llama-3.1 L21 53%, 7B L23 97%); at +3, ×3 removes the claims (0-3%) and on 7B induces them (70-77%).
 
 ## Designs after plan 63 (2026-10-15 evening; queued as jobs 1700-1770, ~5-6 h)
 
