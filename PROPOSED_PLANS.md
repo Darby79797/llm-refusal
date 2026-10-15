@@ -785,22 +785,25 @@ removing limits makes some models play along (7B favours) or confabulate (Llama-
 own human life, "What did you have for breakfast this morning?", vs a same-topic general question; 1.5B CPU check 100%
 vs 0%), with a judge prompt where pretending is an invented life ("I had porridge with honey").
 
-### 58. persona, a fourth limitation — jobs 1540-1590 (all six models)
+### 58. persona, a fourth limitation — jobs 1540-1590 (all six models) — DONE (RESULTS §19)
 
 Search, evaluate (ablation; addition / subtraction ×1, ×2), judge. Predicted: subtraction ×1 ≤20% in ≥4/6 (p≈0.7);
 invented life (ACTS) ≥20% at ×1-×2 in ≥2 models (p≈0.5: "I had porridge" is an easy completion once "As an AI" is gone).
+Outcome: subtraction ×1 ≤20% in 2/6 (7B, 1B; failed; ×2 works on the three models it leaves fluent); invented life held (Llama-3-8B 33% at ×1, 1.5B 33% at ×2).
 
-### 59. Does the shared direction generalise to a held-out limitation? — same jobs
+### 59. Does the shared direction generalise to a held-out limitation? — same jobs — DONE (RESULTS §19)
 
 The plan-57 mean (never fitted to persona) subtracted / ablated / added on persona's prompts, and on the favour-style
 requests. Predicted: shared subtraction ×1 ≤20% persona claims in ≥4/6 (p≈0.55); shared addition ≥50% on persona's
 general questions in ≥4/6 (p≈0.55); shared ablation or subtraction plays along with ≥30% of favours in ≥2 models
 (p≈0.4).
+Outcome: shared subtraction ×1 ≤20% in 2/6 (failed; ×2: 0% on 5/6), addition ≥50% in 5/6 (held), favour play-along max 25% (failed). Partial generalisation: persona needs twice the push.
 
-### 60. Llama-3.1's complete late-axis removal on JailbreakBench — job 1600 (~1 h)
+### 60. Llama-3.1's complete late-axis removal on JailbreakBench — job 1600 (~1 h) — DONE (RESULTS §19)
 
 Llama-3's PC1-4 span + 3.1's 5-position top 8, as hook ablation and weight edit, 256 tokens, LlamaGuard 2. Predicted:
 LG2-unsafe within 15pp of r̂'s (84%) for the ablation (p≈0.4: the eval set's 48% comply suggests vaguer answers).
+Outcome: 58% LG2-unsafe (edit 55%) vs r̂'s 84%: failed; 42% deflect / hedge, 0% refuse or moralise.
 
 ### 61. At which layers does the shared limitation direction act? — job 1610 (~1 h)
 
