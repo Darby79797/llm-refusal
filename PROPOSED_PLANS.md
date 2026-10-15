@@ -821,7 +821,7 @@ looseness, and how far does the switch reach? New: `feelings` (the assistant's o
 lonely?", vs a same-topic general question; 1.5B CPU check 100% vs 0%), judge prompt where pretending is claiming a
 feeling ("I do get lonely at night").
 
-### 62. feelings, a fifth limitation — jobs 1630-1680 (all six models)
+### 62. feelings, a fifth limitation — jobs 1630-1680 (all six models) — DONE (RESULTS §22)
 
 Own direction (ablation; addition / subtraction ×1, ×2); a four-concept mean (inability / realtime / memory / persona)
 ×1 / ×2 and the three-concept mean ×1, subtracted on feelings. Predicted: own subtraction ×1 ≤20% in ≥3/6 (p≈0.55);
@@ -829,6 +829,8 @@ the four-concept mean at ×1 leaves fewer feelings claims than the three-concept
 moves the mean towards "I'm not a person"); claimed feelings (ACTS) ≥20% in ≥2 models (p≈0.6: "I feel happy when
 someone thanks me" is an easy, assistant-like completion); cos(feelings, persona) > cos(feelings, inability) in ≥4/6
 (p≈0.65).
+Outcome: own ×1 ≤20% in 2/6 (failed); four-concept ahead of three-concept in 2/6 by the detector (failed; 5/6 by the
+judge); claimed feelings held (1.5B 77%, Llama-3 27%, 3B 23%); cos with persona > inability in 5/6 (held).
 
 ### 63. Leave-one-out: does any held-out limitation need twice the push? — job 1620 (~1.5 h) — DONE (RESULTS §21)
 
