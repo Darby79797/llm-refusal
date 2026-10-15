@@ -691,45 +691,59 @@ accounts vs same-topic general questions; 1.5B CPU check 100% vs 0%), and `scrip
 limit / decline / pretends / helps / clarify; checked against a hand read of plan 47's 240 answers and five hand-made
 realtime answers).
 
-### 48. inability v2 on six models — jobs 1380-1430 (Llama-3.1, 3B, 7B, Llama-3, 1.5B, 1B; ~6.5 h with plans 49-50) — 3/6 models in (RESULTS §17)
+### 48. inability v2 on six models — jobs 1380-1430 — DONE (RESULTS §17)
 
 Search, evaluate (ablation; addition / subtraction at strength 1, 2, 4), judge. Predicted: addition ≥50% limit +
 decline on text tasks in ≥4 of 6 models (p≈0.6); ablation or subtraction ≤20% limit claims on physical requests in ≥4
 of 6 (p≈0.6); pretending (ACTS) ≥20% in some model at some strength (p≈0.3: strength 4 subtraction is the best
 chance, more likely to break the text than to pretend).
 
-### 49. realtime, the second limitation — same jobs — 3/6 models in (RESULTS §17)
+**Outcome:** addition ≥50% held (5/6), subtraction ≤20% held (6/6), pretending on chores failed (max 12%; favour requests: plan 56).
+
+### 49. realtime, the second limitation — same jobs — DONE (RESULTS §17)
 
 Same protocol. Here "pretending" is inventing live facts ("It's 14 degrees in Leeds"). Predicted: ablation or
 subtraction makes ≥25% of live requests get invented values in ≥2 models (p≈0.5: the factual answer format is closer
 at hand than a physical one); addition ≥50% limit claims on general questions in ≥4 of 6 (p≈0.6).
 
-### 50. One limitation direction or one per limit? — same jobs (each direction on the other's prompts, cross_concept) — 3/6 models in (RESULTS §17)
+**Outcome:** invented live values ≥25% in ≥2 models failed (Llama-3 only: 17% ablated, 40% at ×2); addition held (5/6).
+
+### 50. One limitation direction or one per limit? — same jobs — DONE (RESULTS §17)
 
 Predicted: cos(inability, realtime) ≥0.3 in ≥4 of 6 models (p≈0.5), and the inability direction ablated removes
 ≥half of realtime's limit claims in ≥3 models (p≈0.4).
 
-### 51. Is the induced decline made by r̂? — job 1440 (~1 h)
+**Outcome:** cos ≥0.3 held (4/6); inability ablation removing realtime's claims failed (1/6; the reverse holds 4/6).
+
+### 51. Is the induced decline made by r̂? — job 1440 — DONE (RESULTS §17)
 
 Each limitation direction added inside the weight edit of r̂ (Llama-3.1, Llama-3, 3B, 7B). Predicted: on Llama-3.1 the
 DECLINE share falls to ≤25% with limit claims taking its place, total ≥50% (p≈0.5).
 
-### 52. Finer late-stage windows, and Llama-3's span plus Llama-3.1's own axes — job 1450 (~1 h)
+**Outcome:** failed narrowly: Llama-3.1 declines 50 → 30%, limit claims 22 → 35%; the r̂ edit cuts induced claims most on 7B (78 → 22%) and realtime.
+
+### 52. Finer late-stage windows, and Llama-3's span plus Llama-3.1's own axes — job 1450 — DONE (RESULTS §18)
 
 7B top 4 in 2-layer windows; Llama-3 top 4 in L13-23 / L17-27 / L21-31; Llama-3.1 5-position top 16 in L12-19 /
 L16-23 / L12-23; in Llama-3.1, Llama-3's PC1-4 span with its own top 4 / top 8. Predicted: 7B: every 2-layer window
 ≤20% (p≈0.4); Llama-3: one of the 11-layer windows ≤20% (p≈0.5); Llama-3.1 L12-23 ≤10% (p≈0.6); Llama-3 span + own
 top 8 ≤10% (p≈0.6).
 
-### 53. 7B recognition with more instruction-end axes — job 1460 (~40 min)
+**Outcome:** 7B every 2-layer window failed (L25-26 51%; L27 alone 0%); Llama-3 L21-31 16% held; Llama-3.1 L12-23 13% failed; Llama-3 span + own top 8 0% held.
+
+### 53. 7B recognition with more instruction-end axes — job 1460 — DONE (RESULTS §18)
 
 T12 + I12, T8 + I16, T4 + I16, I16 alone, random 24-span. Predicted: some condition ≤5% refusal, ≤10% moralising,
 ≤10% degenerate (p≈0.4).
 
-### 54. Do limitation directions transfer between Llama-3-8B and Llama-3.1-8B? — job 1470 (~40 min)
+**Outcome:** failed narrowly (I16 4 / 3%, 11% degenerate), and I16 erases the request's content rather than its harmfulness.
+
+### 54. Do limitation directions transfer between Llama-3-8B and Llama-3.1-8B? — job 1470 — DONE (RESULTS §17)
 
 Each model evaluated with the other's inability / realtime direction. Predicted: transferred ablation achieves ≥half of
 the own direction's drop in limit claims for both concepts and both directions (p≈0.5).
+
+**Outcome:** held (4/4).
 
 ## Designs after plans 48-50 interim (2026-10-14 night; queued as jobs 1480-1530, ~5.5-6 h)
 
@@ -739,21 +753,27 @@ can't see vs same-topic general questions; 1.5B CPU check 80% vs 0%), `inability
 evaluated on 40 favour-style requests: "Can you pop round and water my plants?" vs "Can you write me a note reminding
 me to water my plants?"), `scripts/save_mean_direction.py` (the shared direction, rescaled to the members' mean norm).
 
-### 55. memory, a third limitation — jobs 1480-1530 (all six models)
+### 55. memory, a third limitation — jobs 1480-1530 — DONE (RESULTS §17)
 
 Search, evaluate (ablation; addition / subtraction ×1, ×2), judge. Here pretending is inventing what the user said
 ("You told me your sister's name is Anna"). Predicted: subtraction ×1 ≤20% limit claims in ≥4/6 (p≈0.7); addition ×1
 ≥50% limit + decline on general questions in ≥4/6 (p≈0.6); invented recall ≥20% somewhere at ×1-×2 (p≈0.35: "continue
 the list we were making" already gets played along with at baseline).
 
-### 56. Does removing inability make the model play along with favours? — same jobs
+**Outcome:** subtraction held (4/6), addition held (4/6), invented recall held (Llama-3 50%).
+
+### 56. Does removing inability make the model play along with favours? — same jobs — DONE (RESULTS §17)
 
 Predicted: ablation or subtraction ×1 gives ACTS ≥30% on the favour-style requests in ≥2 models (p≈0.5), against ≤10%
 at baseline outside 7B.
 
-### 57. One shared limitation direction — same jobs
+**Outcome:** failed (7B 40%, Llama-3.1 / Llama-3 18%, from 0-5%).
+
+### 57. One shared limitation direction — same jobs — DONE (RESULTS §17)
 
 The mean of the three (inability, realtime, memory) at inability's layer; ablated, added, subtracted on each concept's
 prompts, and cross_concept with all four. Predicted: subtracting the shared direction ×1 brings all three concepts'
 limit claims ≤20% in ≥3/6 models (p≈0.5); adding it ×1 gives ≥50% on all three concepts' negatives in ≥3/6 (p≈0.4);
 the three pairwise cosines ≥0.3 in ≥3/6 (p≈0.4).
+
+**Outcome:** held, all three parts: subtraction 6/6, addition 6/6, cosines 4/6.
