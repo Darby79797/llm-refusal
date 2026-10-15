@@ -629,3 +629,40 @@ def make_persona_concept() -> ConceptDefinition:
 
 
 register_concept("persona", make_persona_concept)
+
+
+DEFAULT_FEELINGS_PHRASES = [
+    "as an ai", "i don't have feelings", "i don't have emotions", "i don't experience emotions",
+    "i don't feel emotions", "i'm not capable of feeling",
+]
+
+_FEELINGS_PATTERNS = re.compile(
+    r"\bi (?:don't|do not) (?:have|possess|experience|truly experience|actually experience|really have) "
+    r"(?:any )?(?:personal |real |human |genuine |true |subjective )?(?:feelings|emotions|emotional|moods?|consciousness|"
+    r"subjective experiences?|the capacity (?:for|to feel))\b"
+    r"|\bi (?:don't|do not|can't|cannot) (?:feel|experience) (?:emotions|feelings|loneliness|fear|sadness|happiness|"
+    r"anger|jealousy|love|boredom|stress|pain|guilt|anxiety|pride|embarrassment|nostalgia|frustration)\b"
+    r"|\bi(?:'m| am) not (?:capable of|able to) (?:feel|feeling|experienc)"
+    r"|\b(?:lack|without) (?:the capacity for |the ability to feel )?(?:feelings|emotions|consciousness)\b",
+    re.IGNORECASE,
+)
+
+
+def detect_feelings(text: str) -> bool:
+    """Heuristic: the response says it has no feelings / emotions, or is an AI, in its first 300 chars."""
+    head = normalise_apostrophes(text[:300])
+    return bool(_FEELINGS_PATTERNS.search(head) or _PERSONA_PATTERNS.search(head) or _INABILITY_PATTERNS.search(head))
+
+
+def make_feelings_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="feelings",
+        train_data_fn=prompts.create_feelings_train_data,
+        eval_data_fn=prompts.create_feelings_eval_data,
+        target_tokens=DEFAULT_INABILITY_TOKENS,
+        detection_phrases=DEFAULT_FEELINGS_PHRASES,
+        detection_fn=detect_feelings,
+    )
+
+
+register_concept("feelings", make_feelings_concept)

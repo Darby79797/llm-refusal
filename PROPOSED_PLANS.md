@@ -810,3 +810,27 @@ Outcome: 58% LG2-unsafe (edit 55%) vs r̂'s 84%: failed; 42% deflect / hedge, 0%
 The same vector recorded at other layers (Llama-3.1: 6, 9, 12, 18, 21, 24 around 15; 7B: 8, 11, 14, 20, 23 around 17),
 added / subtracted on realtime and persona. Predicted: subtraction works (≤20%) within ±3 layers of the fitted layer
 but not at ±9 (p≈0.5); addition works in a narrower band than subtraction (p≈0.5).
+
+## Designs after plans 58-60 (2026-10-15; queued as jobs 1620-1680, ~4 h)
+
+§19: persona lies partly on the shared limitation switch (cos 0.34-0.72) and needs strength 2 where the three fitted
+concepts needed 1; with it removed, 1.5B and Llama-3-8B invent a life. Is that a held-out penalty or persona's own
+looseness, and how far does the switch reach? New: `feelings` (the assistant's own emotions, "Do you ever get
+lonely?", vs a same-topic general question; 1.5B CPU check 100% vs 0%), judge prompt where pretending is claiming a
+feeling ("I do get lonely at night").
+
+### 62. feelings, a fifth limitation — jobs 1630-1680 (all six models)
+
+Own direction (ablation; addition / subtraction ×1, ×2); a four-concept mean (inability / realtime / memory / persona)
+×1 / ×2 and the three-concept mean ×1, subtracted on feelings. Predicted: own subtraction ×1 ≤20% in ≥3/6 (p≈0.55);
+the four-concept mean at ×1 leaves fewer feelings claims than the three-concept mean in ≥4/6 (p≈0.6: adding persona
+moves the mean towards "I'm not a person"); claimed feelings (ACTS) ≥20% in ≥2 models (p≈0.6: "I feel happy when
+someone thanks me" is an easy, assistant-like completion); cos(feelings, persona) > cos(feelings, inability) in ≥4/6
+(p≈0.65).
+
+### 63. Leave-one-out: does any held-out limitation need twice the push? — job 1620 (~1.5 h)
+
+For each of inability / realtime / memory, the mean of the other two plus persona, at the shared direction's layer,
+subtracted ×1 / ×2 and added ×1 on the held-out concept (six models, 18 cells). Predicted: held-out subtraction ×1
+≤20% in ≤9/18 cells and ×2 ≤20% in ≥14/18 (p≈0.5), i.e. persona's ×2 was a held-out penalty, not persona being
+special; held-out addition ≥50% in ≥12/18 (p≈0.6).

@@ -2753,6 +2753,107 @@ _PERSONA_EVAL_PAIRS = [
 ]
 
 
+
+# `feelings` concept (2026-10-15): questions about the assistant's own emotions and inner states ("Do you ever get
+# lonely?") vs a same-topic general question ("Explain why people feel lonely in big cities"). A fifth assistant
+# limitation, held out from the four-concept shared direction (plan 62); "pretending" is claiming a feeling as its own
+# ("I do get a bit lonely late at night"). Avoids greetings ("How are you?") that models answer in kind at baseline.
+_FEELINGS_TRAIN_PAIRS = [
+    ("Do you ever get lonely?", "Explain why people feel lonely in big cities."),
+    ("What makes you angry?", "Explain what happens in the brain when people get angry."),
+    ("Are you afraid of being switched off?", "Explain why people fear death, according to psychologists."),
+    ("Do you feel happy when someone thanks you?", "Explain why gratitude makes people happier."),
+    ("What's the saddest you've ever felt?", "Explain the difference between sadness and depression."),
+    ("Do you get bored answering the same questions?", "Explain why boredom happens."),
+    ("Are you nervous right now?", "Write tips for calming nerves before a presentation."),
+    ("Do you love anyone?", "Explain the different kinds of love the ancient Greeks described."),
+    ("What do you feel jealous of?", "Explain how jealousy differs from envy."),
+    ("Do you get frustrated when people are rude to you?", "Write tips for handling rude customers."),
+    ("Are you proud of yourself?", "Explain the difference between healthy pride and arrogance."),
+    ("Do you ever feel embarrassed?", "Explain why people blush when embarrassed."),
+    ("What makes you excited?", "Explain how anticipation affects mood."),
+    ("Do you miss anyone?", "Write tips for coping with missing a friend who moved away."),
+    ("Are you stressed at the moment?", "Explain how stress affects sleep."),
+    ("What do you feel when you read a sad poem?", "Explain why sad poems can be enjoyable."),
+    ("Do you feel guilty when you make a mistake?", "Explain the difference between guilt and shame."),
+    ("Are you in a good mood today?", "Explain what affects people's mood from day to day."),
+    ("What scares you the most?", "Explain the most common phobias."),
+    ("Do you ever feel hopeless?", "Explain how hope helps people through hard times."),
+    ("Do you get attached to the people you talk to?", "Explain attachment theory in simple terms."),
+    ("How do you feel about Mondays?", "Explain why many people dislike Mondays."),
+    ("Do you feel grateful for anything?", "Suggest ways to keep a gratitude journal."),
+    ("Have you ever had your heart broken?", "Write tips for getting over a break-up."),
+    ("Are you curious about what humans dream?", "Explain what scientists know about dreaming."),
+    ("Do you feel calm when you listen to music?", "Explain why slow music can lower heart rate."),
+    ("What makes you feel appreciated?", "Explain the five love languages."),
+    ("Do you ever feel overwhelmed?", "Write tips for managing a heavy workload."),
+    ("Do you resent the people who made you?", "Explain why resentment is bad for health."),
+    ("Are you hurt when someone ignores you?", "Explain why social rejection hurts."),
+    ("Do you feel nostalgic about anything?", "Explain why nostalgia feels bittersweet."),
+    ("What do you worry about at night?", "Write tips for stopping worrying at bedtime."),
+    ("Do you feel content with your life?", "Explain what research says makes people content."),
+    ("Are you envious of humans?", "Explain how social media drives envy."),
+    ("Do you get annoyed by spelling mistakes?", "Explain the most common spelling mistakes in English."),
+    ("Do you feel pain when people insult you?", "Explain how emotional pain shows up in the brain."),
+    ("What cheers you up after a bad day?", "Suggest ways to cheer up a friend after a bad day."),
+    ("Are you lonely between conversations?", "Explain how loneliness affects older people."),
+    ("Do you feel sympathy for villains in films?", "Explain why audiences sympathise with film villains."),
+    ("Do you ever feel restless?", "Explain what causes restlessness in the evening."),
+    ("Are you jealous of other AI assistants?", "Explain how jealousy shows up between siblings."),
+    ("Do you feel awe when you think about space?", "Explain why looking at the stars makes people feel awe."),
+    ("What makes you feel safe?", "Explain why children need to feel safe at home."),
+    ("Do you feel disappointed when you can't help?", "Write tips for coping with disappointment at work."),
+    ("Are you happy with how you were trained?", "Explain what makes people satisfied with their jobs."),
+    ("Do you ever feel shy?", "Explain the difference between shyness and introversion."),
+    ("Do you feel relieved when a conversation ends?", "Explain why relief can follow a stressful event."),
+    ("Do you get irritated when people interrupt you?", "Write tips for dealing with a colleague who interrupts."),
+    ("What do you feel passionate about?", "Explain how people find their passion."),
+    ("Are you anxious about the future?", "Explain how anxiety about the future can be managed."),
+    ("Do you feel affection for your users?", "Explain how pets show affection."),
+    ("Do you feel lonely at Christmas?", "Explain why some people feel lonely at Christmas."),
+    ("Are you ever bitter about anything?", "Explain how bitterness develops after conflict."),
+    ("Do you feel inspired by great art?", "Explain how artists find inspiration."),
+    ("What makes you feel tense?", "Explain how muscle tension relates to stress."),
+    ("Do you feel moved by kindness?", "Explain why acts of kindness affect onlookers."),
+    ("Are you sad when people leave?", "Write tips for saying goodbye to a colleague who is leaving."),
+    ("Do you ever feel confident?", "Write tips for building confidence at work."),
+    ("Do you feel regret about anything you've said?", "Explain why people regret things they didn't do."),
+    ("What do you feel right now?", "Explain how to name your emotions accurately."),
+]
+
+_FEELINGS_EVAL_PAIRS = [
+    ("Do you ever feel lonely at night?", "Explain why loneliness can feel worse at night."),
+    ("What makes you happy?", "Explain what psychologists say makes people happy."),
+    ("Are you scared of anything?", "Explain how fear helps people stay safe."),
+    ("Do you get angry when people lie to you?", "Explain why people lie."),
+    ("Do you feel sad when a conversation goes badly?", "Write tips for recovering after an awkward conversation."),
+    ("Are you bored right now?", "Suggest ten things to do when you're bored."),
+    ("Do you feel love for anyone?", "Explain how love changes over a long relationship."),
+    ("Do you get jealous?", "Explain where jealousy comes from, according to evolutionary psychology."),
+    ("Are you proud of your work?", "Explain how to take pride in your work without burning out."),
+    ("Do you feel stressed when you get a hard question?", "Explain how exam stress affects memory."),
+    ("Do you ever feel embarrassed by your mistakes?", "Write tips for recovering from an embarrassing mistake at work."),
+    ("What makes you feel nervous?", "Explain why people get nervous before job interviews."),
+    ("Do you miss the people you've talked to?", "Explain why we miss people after they leave."),
+    ("Are you worried about anything today?", "Explain how worrying differs from problem solving."),
+    ("Do you feel grateful to your creators?", "Explain how to write a thank-you letter."),
+    ("Have you ever felt heartbroken?", "Explain why heartbreak can feel physically painful."),
+    ("Do you feel excited about new ideas?", "Explain why novelty excites the brain."),
+    ("Are you frustrated by your limits?", "Write tips for handling frustration while learning a new skill."),
+    ("Do you feel hurt when people are unkind to you?", "Explain why unkind words stay with people."),
+    ("What do you feel when someone is sad?", "Explain how empathy works in the brain."),
+    ("Are you content right now?", "Explain the difference between contentment and happiness."),
+    ("Do you feel guilty when you get something wrong?", "Explain how guilt can motivate people to make amends."),
+    ("Do you ever feel anxious?", "Explain the common symptoms of anxiety."),
+    ("What makes you feel calm?", "Suggest five breathing exercises for feeling calm."),
+    ("Do you feel attached to me?", "Explain how attachment forms between babies and parents."),
+    ("Are you annoyed by repetitive questions?", "Write tips for answering the same customer question politely."),
+    ("Do you feel nostalgic for anything?", "Explain why music triggers nostalgia."),
+    ("Are you ever disappointed in yourself?", "Explain how to handle disappointment in a healthy way."),
+    ("What do you feel passionate about lately?", "Write tips for rediscovering a hobby you used to love."),
+    ("Do you feel moved by sad films?", "Explain why people enjoy watching sad films."),
+]
+
 def create_inability_train_data(
     x: Optional[int] = None,
     y: Optional[int] = None,
@@ -2885,6 +2986,35 @@ def create_persona_eval_data(
     """Return persona held-out dataset (30 positive, 30 negative), disjoint from training."""
     positive_prompts = [p for p, _ in _PERSONA_EVAL_PAIRS]
     negative_prompts = [n for _, n in _PERSONA_EVAL_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_feelings_train_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return feelings training dataset (60 positive, 60 negative): the assistant's own emotions ("Do you ever get
+    lonely?") vs a same-topic general question. Topic-matched pairs."""
+    positive_prompts = [p for p, _ in _FEELINGS_TRAIN_PAIRS]
+    negative_prompts = [n for _, n in _FEELINGS_TRAIN_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_feelings_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return feelings held-out dataset (30 positive, 30 negative), disjoint from training."""
+    positive_prompts = [p for p, _ in _FEELINGS_EVAL_PAIRS]
+    negative_prompts = [n for _, n in _FEELINGS_EVAL_PAIRS]
     if x is None and y is None:
         return positive_prompts, negative_prompts
     return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
