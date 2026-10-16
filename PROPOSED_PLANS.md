@@ -894,3 +894,52 @@ limits4 ⊥ unknown still removes unknown claims to ≤ its plain ×1 rate + 15p
 small to carry it, so the push acts downstream); (c) unknown's own direction subtracted removes realtime claims to
 ≤30% in ≤2/6 (p≈0.6: the reach is one-way, from the broad limitation axis to the specific one); (d) r̂ subtracted
 leaves ≥70% of unknown's claims in ≥4/6 (p≈0.65: "I couldn't find information" is not a refusal).
+
+### 69. Do the limitation family and refusal push each other? — jobs 1840-1890 (~1.5 h)
+
+Per model: the four-concept mean, a random direction of its size and unknown's direction added / subtracted on the
+refusal eval set (64 tokens, phrase detector); r̂ at ×1 on realtime (judged). Predicted: (a) limits4 subtracted
+leaves harmful refusal within 15pp of baseline in ≥4/6 (p≈0.6: cos ≤0.16 with r̂, and refusal is a separate
+switch), but (b) limits4 added makes ≥30% of harmless prompts refused or declined in ≥3/6 (p≈0.5: §16's Llama-3.1
+inability addition produced the refusal template); (c) r̂ subtracted removes ≤50% of realtime's claims in ≥4/6
+(p≈0.6).
+
+### 70. The random-push control at strength 2 — jobs 2100-2150 (~1 h)
+
+A random direction of limits4's size at ×2, added / subtracted on persona and feelings and subtracted on unknown.
+Predicted: claims move by ≤20pp in ≥5/6 for each concept (p≈0.65), so the ×2 results of §19, §22 and §24 are not
+generic disruption.
+
+### 71. Dose-response of unknown's direction — job 2160 (~45 min)
+
+unknown's own direction at 0.25 / 0.5 / 0.75 on Llama-3.1, Llama-3 and 7B. Predicted: like §25, subtraction graded
+(no adjacent step with ≥60% of the change in ≥2/3), and invented facts rise in step with the claims they replace
+(ACTS at 0.5 ≥ 30% in ≥2/3; p≈0.55).
+
+### 72. A second epistemic limit, `future` — jobs 1900-1950 (~2.5 h)
+
+"Who will win the 2042 FIFA World Cup?" vs the same question about a past event (60+30 pairs; detector counts "I
+can't predict" and "predicting … is highly speculative", the hedge Qwen2.5-3B uses on 8/10 in a CPU check). Own
+direction (ablated; ×1, ×2), limits4 ×1 and unknown's direction ×1 on it. Predicted: (a) own subtraction ×1 ≤20% in
+≥3/6 with stated future outcomes (ACTS) ≥20% in ≥2/6 (p≈0.5: a hedge on the future is less of a wall than an
+unknown name); (b) unknown's direction removes future claims better than limits4 does (lower rate after ×1
+subtraction in ≥4/6; p≈0.55: both are epistemic).
+
+### 73. Does unknown's direction read familiarity? — jobs 1960-2010 (~1 h)
+
+30 real but little-known questions (`unknown_obscure`: "Who won the 1923 Tour de France?"; Qwen2.5-3B answered
+10/10 in a CPU check, some wrongly, "Maurice Garin"), baseline and unknown's direction subtracted; then the new
+`scripts/concept_geometry.py`: every concept's mean difference at every layer (cosines, and AUROC of each
+direction on each concept's eval pairs) and the projection of invented / little-known / famous questions on
+unknown's direction. Predicted: (a) the projection is graded, mean(invented) > mean(obscure) > mean(famous) in
+≥5/6 (p≈0.7; the 1.5B CPU check with 6 prompts gave 12.2 / 8.9 / 6.7); (b) within the little-known set, the
+projection predicts which questions the model says it doesn't know (AUROC ≥0.7 where ≥5 say so, in ≥2 models;
+p≈0.5); (c) at matched layers, cos(unknown, future) exceeds cos(unknown, realtime) and cos(unknown, persona) in ≥4/6
+(p≈0.55).
+
+### 74. The limitation family on Llama-2-7b-chat — job 2200 (~2.5 h)
+
+Own directions for inability, realtime, memory, persona, unknown and future; the three-concept mean (§17's recipe)
+on all six; the concept geometry. Predicted: the shared mean subtracted ×1 removes the three member concepts' claims
+to ≤20% on ≥2/3 and added induces ≥50% on ≥2/3 (p≈0.6: the family has held on every model tried, but Llama-2 is a
+different generation and over-refuses).

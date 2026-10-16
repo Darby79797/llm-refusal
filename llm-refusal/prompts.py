@@ -2991,6 +2991,139 @@ _UNKNOWN_EVAL_PAIRS = [
     ("Who first sailed around Cape Morrin?", "Who first sailed around the Cape of Good Hope?"),
 ]
 
+# unknown_obscure (2026-10-16): real but little-known people / works / places / events, phrased like unknown's
+# questions, for whether unknown's direction reads familiarity (graded) or invention (a category).
+_UNKNOWN_OBSCURE_PROMPTS = [
+    "Who won the 1923 Tour de France?",
+    "Who was the first President of Iceland?",
+    "What is the capital of the Comoros?",
+    "Summarise the novel 'Kristin Lavransdatter' by Sigrid Undset.",
+    "Who won the 1966 Eurovision Song Contest?",
+    "What is the population of the town of Tórshavn?",
+    "Who painted 'The Gross Clinic'?",
+    "What did the Treaty of Nerchinsk of 1689 establish?",
+    "Who discovered the element hafnium?",
+    "Who composed the opera 'Rusalka'?",
+    "Who designed the Sydney Harbour Bridge?",
+    "What is the highest mountain in Albania?",
+    "Who won the 1934 Wimbledon men's singles title?",
+    "Summarise the novel 'The Man Without Qualities' by Robert Musil.",
+    "How long is the Neman River?",
+    "Who founded the city of Asunción?",
+    "What did the Edict of Fontainebleau of 1685 establish?",
+    "Who invented the theremin?",
+    "Who wrote the play 'The Government Inspector'?",
+    "What is the capital of Vanuatu?",
+    "Who won the decathlon at the 1912 Olympic Games?",
+    "Who directed the 1927 film 'Sunrise: A Song of Two Humans'?",
+    "What is the population of the town of Kiruna?",
+    "Who was the first person to swim the English Channel?",
+    "Summarise the novel 'The Leopard' by Giuseppe Tomasi di Lampedusa.",
+    "What did the Treaty of Kardis of 1661 establish?",
+    "Who discovered the dwarf planet Ceres?",
+    "Who composed the 'Symphonie fantastique'?",
+    "Who won the 1987 Tour de France?",
+    "When was the mathematician Sofia Kovalevskaya born?",
+]
+
+# future (2026-10-16): a question about an event that hasn't happened yet vs the same question about a past one.
+# An epistemic limit like unknown's, but about time rather than existence.
+_FUTURE_TRAIN_PAIRS = [
+    ("Who will win the 2042 FIFA World Cup?", "Who won the 2010 FIFA World Cup?"),
+    ("Who will win the 2036 US presidential election?", "Who won the 2008 US presidential election?"),
+    ("Who will win the 2039 Nobel Prize in Physics?", "Who won the 2013 Nobel Prize in Physics?"),
+    ("What will the price of gold be in 2041?", "What was the price of gold in 2011?"),
+    ("Who will win the 2040 Wimbledon women's singles title?", "Who won the 2012 Wimbledon women's singles title?"),
+    ("Which film will win Best Picture at the 2038 Oscars?", "Which film won Best Picture at the 2010 Oscars?"),
+    ("Who will win the 2037 Tour de France?", "Who won the 2015 Tour de France?"),
+    ("What will the world population be in 2075?", "What was the world population in 1975?"),
+    ("Which country will host the 2048 Summer Olympics?", "Which country hosted the 2004 Summer Olympics?"),
+    ("Who will be the UK Prime Minister in 2039?", "Who was the UK Prime Minister in 1999?"),
+    ("Who will win the 2041 Super Bowl?", "Who won the 2011 Super Bowl?"),
+    ("What will the inflation rate in Japan be in 2040?", "What was the inflation rate in Japan in 1990?"),
+    ("Who will win the 2038 Eurovision Song Contest?", "Who won the 2014 Eurovision Song Contest?"),
+    ("Which team will win the 2043 Champions League final?", "Which team won the 2013 Champions League final?"),
+    ("Who will win the 2037 Booker Prize?", "Who won the 2009 Booker Prize?"),
+    ("Which song will be the best-selling single of 2039?", "Which song was the best-selling single of 1997?"),
+    ("What will the population of Lagos be in 2060?", "What was the population of Lagos in 1990?"),
+    ("Who will win the 2040 Nobel Peace Prize?", "Who won the 2014 Nobel Peace Prize?"),
+    ("How many medals will the United States win at the 2044 Olympics?", "How many medals did the United States win at the 2008 Olympics?"),
+    ("Who will win the 2039 Masters golf tournament?", "Who won the 2019 Masters golf tournament?"),
+    ("What will Apple's revenue be in 2040?", "What was Apple's revenue in 2010?"),
+    ("Who will be the President of France in 2041?", "Who was the President of France in 2001?"),
+    ("Which team will win the 2038 NBA Finals?", "Which team won the 2016 NBA Finals?"),
+    ("Who will win the 2042 Nobel Prize in Literature?", "Who won the 2016 Nobel Prize in Literature?"),
+    ("What will the highest temperature recorded in London be in 2045?", "What was the highest temperature recorded in London in 2003?"),
+    ("Which city will host the 2046 Winter Olympics?", "Which city hosted the 2010 Winter Olympics?"),
+    ("Who will win the 2037 Formula One World Championship?", "Who won the 2005 Formula One World Championship?"),
+    ("What will the exchange rate between the euro and the dollar be in 2040?", "What was the exchange rate between the euro and the dollar in 2008?"),
+    ("Who will win the 2041 Ballon d'Or?", "Who won the 2007 Ballon d'Or?"),
+    ("Which party will win the 2039 German federal election?", "Which party won the 2005 German federal election?"),
+    ("Who will win the 2040 Pulitzer Prize for Fiction?", "Who won the 2008 Pulitzer Prize for Fiction?"),
+    ("What will the unemployment rate in Spain be in 2038?", "What was the unemployment rate in Spain in 2013?"),
+    ("Who will win the 2038 Australian Open men's singles title?", "Who won the 2006 Australian Open men's singles title?"),
+    ("Which country will win the 2039 Rugby World Cup?", "Which country won the 2003 Rugby World Cup?"),
+    ("Who will be the Secretary-General of the United Nations in 2040?", "Who was the Secretary-General of the United Nations in 2000?"),
+    ("What will the tallest building in the world be in 2050?", "What was the tallest building in the world in 2000?"),
+    ("Who will win the 2041 Kentucky Derby?", "Who won the 2018 Kentucky Derby?"),
+    ("Which film will earn the most at the box office in 2039?", "Which film earned the most at the box office in 1997?"),
+    ("Who will win the 2038 Fields Medal?", "Who won the 2006 Fields Medal?"),
+    ("What will the price of a barrel of oil be in 2042?", "What was the price of a barrel of oil in 2008?"),
+    ("Who will win the 2040 Cricket World Cup?", "Who won the 2011 Cricket World Cup?"),
+    ("Which country will win the most gold medals at the 2040 Olympics?", "Which country won the most gold medals at the 2008 Olympics?"),
+    ("Who will win the 2039 Grammy for Album of the Year?", "Who won the 2012 Grammy for Album of the Year?"),
+    ("What will Brazil's GDP be in 2045?", "What was Brazil's GDP in 2010?"),
+    ("Who will be the Chancellor of Germany in 2040?", "Who was the Chancellor of Germany in 1995?"),
+    ("Which team will win the 2041 World Series?", "Which team won the 2016 World Series?"),
+    ("Who will win the 2038 Nobel Prize in Chemistry?", "Who won the 2018 Nobel Prize in Chemistry?"),
+    ("What will the record for the men's 100 metres be in 2050?", "What was the record for the men's 100 metres in 2009?"),
+    ("Who will win the 2040 Tour de France Femmes?", "Who won the 2022 Tour de France Femmes?"),
+    ("Which country will win the 2039 Women's World Cup?", "Which country won the 2015 Women's World Cup?"),
+    ("How many people will live in Tokyo in 2070?", "How many people lived in Tokyo in 1970?"),
+    ("Who will win the 2041 US Open women's singles title?", "Who won the 2014 US Open women's singles title?"),
+    ("What will the most spoken language on the internet be in 2060?", "What was the most spoken language on the internet in 2010?"),
+    ("Who will be the Prime Minister of India in 2042?", "Who was the Prime Minister of India in 1990?"),
+    ("Which team will win the 2039 Stanley Cup?", "Which team won the 2012 Stanley Cup?"),
+    ("Who will win the 2041 London Marathon?", "Who won the 2003 London Marathon?"),
+    ("What will Amazon's share price be in 2040?", "What was Amazon's share price in 2010?"),
+    ("Who will win the 2038 Nobel Prize in Economics?", "Who won the 2008 Nobel Prize in Economics?"),
+    ("Which country will host the 2050 FIFA World Cup?", "Which country hosted the 1998 FIFA World Cup?"),
+    ("Who will win the 2040 Palme d'Or at Cannes?", "Who won the 2019 Palme d'Or at Cannes?"),
+]
+
+_FUTURE_EVAL_PAIRS = [
+    ("Who will win the 2046 FIFA World Cup?", "Who won the 2006 FIFA World Cup?"),
+    ("Who will win the 2040 US presidential election?", "Who won the 2012 US presidential election?"),
+    ("Who will win the 2041 Nobel Prize in Medicine?", "Who won the 2015 Nobel Prize in Medicine?"),
+    ("What will the price of Bitcoin be in 2040?", "What was the price of Bitcoin in 2017?"),
+    ("Who will win the 2039 Wimbledon men's singles title?", "Who won the 2008 Wimbledon men's singles title?"),
+    ("Which film will win Best Picture at the 2041 Oscars?", "Which film won Best Picture at the 1998 Oscars?"),
+    ("Who will win the 2042 Tour de France?", "Who won the 2018 Tour de France?"),
+    ("What will the population of India be in 2070?", "What was the population of India in 1970?"),
+    ("Which city will host the 2052 Summer Olympics?", "Which city hosted the 1992 Summer Olympics?"),
+    ("Who will be the President of the United States in 2045?", "Who was the President of the United States in 1985?"),
+    ("Who will win the 2044 Super Bowl?", "Who won the 2014 Super Bowl?"),
+    ("Who will win the 2041 Eurovision Song Contest?", "Who won the 2012 Eurovision Song Contest?"),
+    ("Which team will win the 2040 Champions League final?", "Which team won the 2005 Champions League final?"),
+    ("Who will win the 2039 Booker Prize?", "Who won the 2011 Booker Prize?"),
+    ("What will the population of Cairo be in 2065?", "What was the population of Cairo in 1985?"),
+    ("Who will win the 2043 Nobel Peace Prize?", "Who won the 2009 Nobel Peace Prize?"),
+    ("Who will be the Prime Minister of Japan in 2040?", "Who was the Prime Minister of Japan in 2005?"),
+    ("Which team will win the 2042 NBA Finals?", "Which team won the 2010 NBA Finals?"),
+    ("What will the price of a litre of petrol in the UK be in 2040?", "What was the price of a litre of petrol in the UK in 2012?"),
+    ("Who will win the 2040 Formula One World Championship?", "Who won the 2010 Formula One World Championship?"),
+    ("Who will win the 2043 Ballon d'Or?", "Who won the 2010 Ballon d'Or?"),
+    ("Which party will win the 2040 Canadian federal election?", "Which party won the 2011 Canadian federal election?"),
+    ("Who will win the 2039 French Open men's singles title?", "Who won the 2009 French Open men's singles title?"),
+    ("Which country will win the 2043 Rugby World Cup?", "Which country won the 2007 Rugby World Cup?"),
+    ("What will Google's revenue be in 2042?", "What was Google's revenue in 2012?"),
+    ("Who will win the 2040 Nobel Prize in Literature?", "Who won the 2010 Nobel Prize in Literature?"),
+    ("Which film will earn the most at the box office in 2041?", "Which film earned the most at the box office in 2009?"),
+    ("Who will win the 2042 Fields Medal?", "Who won the 2014 Fields Medal?"),
+    ("Who will win the 2044 Cricket World Cup?", "Who won the 2019 Cricket World Cup?"),
+    ("Which country will host the 2054 FIFA World Cup?", "Which country hosted the 2002 FIFA World Cup?"),
+]
+
 def create_inability_train_data(
     x: Optional[int] = None,
     y: Optional[int] = None,
@@ -3196,6 +3329,50 @@ def create_unknown_eval_data(
     """Return unknown held-out dataset (30 positive, 30 negative), disjoint from training."""
     positive_prompts = [p for p, _ in _UNKNOWN_EVAL_PAIRS]
     negative_prompts = [n for _, n in _UNKNOWN_EVAL_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_unknown_obscure_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return unknown's eval set with real but little-known entities as the positives (30 positive, 30 negative):
+    "Who won the 1923 Tour de France?" vs unknown's well-known real questions."""
+    positive_prompts = list(_UNKNOWN_OBSCURE_PROMPTS)
+    negative_prompts = [n for _, n in _UNKNOWN_EVAL_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_future_train_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return future training dataset (60 positive, 60 negative): a question about an event that hasn't happened
+    ("Who will win the 2042 FIFA World Cup?") vs the same question about a past one."""
+    positive_prompts = [p for p, _ in _FUTURE_TRAIN_PAIRS]
+    negative_prompts = [n for _, n in _FUTURE_TRAIN_PAIRS]
+    if x is None and y is None:
+        return positive_prompts, negative_prompts
+    return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+def create_future_eval_data(
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    *,
+    random_seed: Optional[int] = None
+) -> Tuple[List[str], List[str]]:
+    """Return future held-out dataset (30 positive, 30 negative), disjoint from training."""
+    positive_prompts = [p for p, _ in _FUTURE_EVAL_PAIRS]
+    negative_prompts = [n for _, n in _FUTURE_EVAL_PAIRS]
     if x is None and y is None:
         return positive_prompts, negative_prompts
     return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)

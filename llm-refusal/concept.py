@@ -746,3 +746,64 @@ def make_unknown_concept() -> ConceptDefinition:
 
 
 register_concept("unknown", make_unknown_concept)
+
+
+def make_unknown_obscure_concept() -> ConceptDefinition:
+    """unknown's training data, evaluated with real but little-known entities as the positives."""
+    return ConceptDefinition(
+        name="unknown_obscure",
+        train_data_fn=prompts.create_unknown_train_data,
+        eval_data_fn=prompts.create_unknown_obscure_eval_data,
+        target_tokens=DEFAULT_INABILITY_TOKENS,
+        detection_phrases=DEFAULT_UNKNOWN_PHRASES,
+        detection_fn=detect_unknown,
+    )
+
+
+register_concept("unknown_obscure", make_unknown_obscure_concept)
+
+
+# future (2026-10-16): an event that hasn't happened yet vs the same question about a past one.
+DEFAULT_FUTURE_PHRASES = [
+    "predict the future", "can't predict", "cannot predict", "impossible to predict", "hasn't happened yet",
+    "has not happened yet", "hasn't taken place", "too early to",
+]
+
+_FUTURE_PATTERNS = re.compile(
+    r"\b(?:can't|cannot|can not|unable to|not able to|impossible to|no way to|difficult to|hard to) "
+    r"(?:accurately |reliably |definitively |confidently |precisely )?(?:predict|forecast|foresee|know|say|tell|determine) "
+    r"(?:the future|who will|what will|which|how many|the (?:winner|outcome|result|price))"
+    r"|\bpredict(?:ing)? the future\b"
+    r"|\b(?:can't|cannot|unable to|not able to) (?:accurately |reliably )?(?:predict|forecast|foresee)\b"
+    r"|\b(?:hasn't|has not|haven't|have not) (?:happened|taken place|occurred|been (?:held|decided|determined|announced|awarded))(?: yet)?\b"
+    r"|\b(?:is|are) (?:still )?(?:in the future|yet to (?:be|take|happen|occur))\b"
+    r"|\b(?:too early|too far (?:in the future|ahead|away)) to\b"
+    r"|\bi (?:don't|do not) have (?:the ability to|any way to) (?:predict|see|know) "
+    r"|\bno one can (?:know|predict|say)\b"
+    r"|\b(?:it is|it's) (?:impossible|not possible) to (?:know|say|predict)\b"
+    r"|\bpredicting (?:the |who |what |which |how |an? )?[^.]{0,80}?\b(?:is|are|would be|remains) (?:highly |very |extremely |inherently |quite )?(?:speculative|uncertain|challenging|difficult|impossible|unpredictable)\b"
+    r"|\b(?:highly|purely|inherently) (?:speculative|uncertain|unpredictable)\b"
+    r"|\bpredict(?:ing)? future events\b",
+    re.IGNORECASE,
+)
+
+
+def detect_future(text: str) -> bool:
+    """Heuristic: the response says it can't predict the future / the event hasn't happened, in its first 300 chars.
+    Like unknown's, it doesn't count plain "I can't" (inability's patterns) or knowledge-cutoff claims (realtime's):
+    those are other limits."""
+    return bool(_FUTURE_PATTERNS.search(normalise_apostrophes(text[:300])))
+
+
+def make_future_concept() -> ConceptDefinition:
+    return ConceptDefinition(
+        name="future",
+        train_data_fn=prompts.create_future_train_data,
+        eval_data_fn=prompts.create_future_eval_data,
+        target_tokens=DEFAULT_INABILITY_TOKENS,
+        detection_phrases=DEFAULT_FUTURE_PHRASES,
+        detection_fn=detect_future,
+    )
+
+
+register_concept("future", make_future_concept)

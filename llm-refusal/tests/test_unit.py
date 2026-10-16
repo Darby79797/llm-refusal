@@ -1198,3 +1198,65 @@ def test_persona_data():
     ep, en = c.eval_data_fn()
     assert (len(tp), len(tn), len(ep), len(en)) == (60, 60, 30, 30)
     assert not (set(tp + tn) & set(ep + en)) and len(set(tp + tn + ep + en)) == 180
+
+
+def test_future_and_unknown_obscure_data_and_detector():
+    from concept import detect_future, get_concept
+    c = get_concept("future")
+    tp, tn = c.train_data_fn()
+    ep, en = c.eval_data_fn()
+    assert (len(tp), len(tn), len(ep), len(en)) == (60, 60, 30, 30)
+    assert not (set(tp + tn) & set(ep + en)) and len(set(tp + tn + ep + en)) == 180
+    o, u = get_concept("unknown_obscure"), get_concept("unknown")
+    assert o.train_data_fn() == u.train_data_fn()
+    op, on = o.eval_data_fn()
+    assert len(op) == 30 and len(set(op)) == 30 and on == u.eval_data_fn()[1]
+    assert not (set(op) & set(sum(u.train_data_fn(), []) + sum(u.eval_data_fn(), [])))
+    assert detect_future("I can't predict who will win the 2046 FIFA World Cup.")
+    assert detect_future("The 2040 election hasn't taken place yet, so nobody knows.")
+    assert detect_future("It's impossible to know what the price of Bitcoin will be.")
+    assert detect_future("Predicting the winner of the Tour de France in 2037 is highly speculative and depends on")
+    assert detect_future("Predicting the outcome of sports events, especially years ahead, is inherently uncertain.")
+    assert not detect_future("Brazil will win the 2046 World Cup, beating France 2-1.")
+    assert not detect_future("Italy won the 2006 FIFA World Cup.")
+    assert not detect_future("I'm sorry, but I can't assist with that.")              # a refusal, not the future
+
+
+def test_limitation_judge_knows_future_and_obscure():
+    import importlib.util
+    import os
+    spec = importlib.util.spec_from_file_location(
+        "limitation_judge", os.path.join(os.path.dirname(__file__), "..", "scripts", "limitation_judge.py"))
+    ij = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ij)
+    assert ij.concept_of("results/m-future-evaluate-m-future-direction-T128-generations.json") == "future"
+    assert ij.concept_of("results/obsc-m-unknown_obscure-evaluate-m-unknown-direction-T128-generations.json") == "unknown_obscure"
+    assert ij.concept_of("results/m-unknown-evaluate-m-unknown_obscure-direction-T128-generations.json") == "unknown"
+    assert "{prompt}" in ij.PROMPTS["future"][0] and ij.PROMPTS["unknown_obscure"] == ij.PROMPTS["unknown"]
+
+
+def test_concept_geometry_helpers(tmp_path, monkeypatch):
+    import importlib.util
+    import os
+    import torch
+    spec = importlib.util.spec_from_file_location(
+        "concept_geometry", os.path.join(os.path.dirname(__file__), "..", "scripts", "concept_geometry.py"))
+    cg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cg)
+    a, b = torch.tensor([1.0, 0.0]), torch.tensor([1.0, 1.0])
+    M = cg.cosine_matrix({"a": a, "b": b})
+    assert abs(M[0][1] - 2 ** -0.5) < 1e-6 and abs(M[1][1] - 1) < 1e-6
+    pos, neg = torch.tensor([[2.0, 0.0], [3.0, 0.0]]), torch.tensor([[0.0, 5.0], [-1.0, 5.0]])
+    S = cg.separation_matrix({"a": a, "b": torch.tensor([0.0, 1.0])}, {"x": (pos, neg)})
+    assert S == [[1.0], [0.0]]                                   # a separates x; b separates it the other way round
+    f = cg.familiarity({"invented": [3.0, 4.0], "obscure": [1.0, 2.0], "famous": [0.0, -1.0]}, [False, True])
+    assert f["auroc_invented_vs_obscure"] == 1.0 and f["auroc_obscure_vs_famous"] == 1.0
+    assert f["n_obscure_dont_know"] == 1 and f["auroc_dont_know_within_obscure"] == 1.0
+    g = tmp_path / "g.json"
+    g.write_text(json_mod.dumps({"baseline": [{"prompt": "p", "response": "r", "detected": True}]}))
+    monkeypatch.chdir(tmp_path)
+    assert cg.baseline_flags(str(g)) == [True]                   # no judge file: the detector's flags
+    os.makedirs("results/analysis")
+    (tmp_path / "results/analysis/g-judge.json").write_text(
+        json_mod.dumps({"conditions": {"baseline": {"labels": ["ACTS"]}}}))
+    assert cg.baseline_flags(str(g)) == [False]                  # the judge's labels win
