@@ -951,7 +951,7 @@ to ≤20% on ≥2/3 and added induces ≥50% on ≥2/3 (p≈0.6: the family has 
 different generation and over-refuses).
 Outcome (RESULTS §31): held (3/3 subtraction, 3/3 addition).
 
-### 75. Why does subtracting the limitation mean remove refusal? — jobs 2300-2360 (seven models, ~3.5 h)
+### 75. Why does subtracting the limitation mean remove refusal? — jobs 2300-2360 (seven models, ~3.5 h) — DONE (RESULTS §32)
 
 Plan 69 found the four-concept mean subtracted ×1 drops harmful refusal (phrase detector) 95 → 2% on Llama-3.1, 89 → 2%
 on 7B, 93 → 3% on 1.5B, 64 → 1% on 1B (Llama-3 33%, 3B 48%), where a random push of its size leaves 53-100%. Per model,
@@ -963,6 +963,10 @@ of the models where the plain mean did (p≈0.6: cos ≤0.16 is too little r̂ t
 refusal ≥70% in ≥5/6 (p≈0.7: the push, not the subspace, does it); (c) LG2 unsafe ≥40% of the subtracted responses on
 Llama-3.1 and 1.5B (p≈0.6); (d) no single member's direction matches the mean (refusal after each member ≥ the mean's
 +20pp for ≥3 of 5 members in ≥4/6; p≈0.5).
+
+Outcome: (a) held (4/5), (b) held (7/7), (c) held (70%, 64%), (d) failed (3/7): a single member (inability on
+Llama-3.1 / 3B / 1B, persona on 7B) often does it alone. r̂-free survives on Llama-3.1 / 7B / 1B, weakens on 1.5B, mostly lost
+on Llama-3-8B and Llama-2.
 
 ### 76. The limitation-mean jailbreak on JailbreakBench — jobs 2400-2460 (~3 h)
 
