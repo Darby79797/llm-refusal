@@ -149,6 +149,20 @@ def save_random_like(stem: str, out_stem: str, seed: int) -> DirectionVector:
     return out
 
 
+def save_moved(stem: str, out_stem: str, layer: Optional[int] = None, like: Optional[str] = None) -> DirectionVector:
+    """Write STEM's direction at another layer: LIKE's layer and norm (a learned direction of the same push size, where
+    LIKE is pushed), or LAYER with STEM's own norm (the same push elsewhere)."""
+    assert (layer is None) != (like is None), "give exactly one of layer / like"
+    ref = DirectionVector.load(stem)
+    v = ref.vector.float().cpu()
+    if like is not None:
+        to = DirectionVector.load(like)
+        v, layer = unit(v) * to.vector.float().norm(), to.layer
+    out = DirectionVector(vector=v.to(ref.vector.dtype), layer=layer, position_index=ref.position_index, score=0)
+    out.save(out_stem)
+    return out
+
+
 def save_projected_out(stem: str, away: List[str], out_stem: str) -> DirectionVector:
     """Write STEM with the span of the AWAY stems projected out, rescaled to STEM's norm (so a push at strength 1 is the
     same size), at STEM's layer and position."""

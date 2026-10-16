@@ -234,3 +234,60 @@ def test_jbb_safety_sub_condition_subtracts_at_the_stems_layer(stems):
     assert kind2 == "ablate" and layers2 is None
     with pytest.raises(AssertionError):
         js.condition_context(Run, f"sub:span:{s[0]}+{s[1]}")
+
+
+def test_save_moved_takes_the_like_stems_layer_and_norm_or_a_given_layer(stems, tmp_path):
+    _, s = stems
+    out = str(tmp_path / "moved-direction")
+    m = dirspecs.save_moved(s[0], out, like=s[3])
+    src, like = DirectionVector.load(s[0]), DirectionVector.load(s[3])
+    assert DirectionVector.load(out).layer == like.layer == 9
+    assert t.isclose(m.vector.float().norm(), like.vector.float().norm())
+    assert t.allclose(dirspecs.unit(m.vector.float()), dirspecs.unit(src.vector.float()), atol=1e-6)
+    k = dirspecs.save_moved(s[0], out, layer=2)
+    assert k.layer == 2 and t.allclose(k.vector, src.vector)
+    with pytest.raises(AssertionError):
+        dirspecs.save_moved(s[0], out)
+
+
+def _load_script(name):
+    import importlib.util
+    import os
+    spec = importlib.util.spec_from_file_location(name, os.path.join(os.path.dirname(__file__), "..", "scripts", f"{name}.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_jbb_safety_add_condition_adds_at_the_stems_layer(stems):
+    r, s = stems
+    js = _load_script("jbb_safety")
+    calls = []
+
+    class Applier:
+        def intervened(self, v, kind, layers=None):
+            calls.append((kind, layers))
+            return contextlib.nullcontext()
+
+    class Run:
+        applier, model = Applier(), None
+    Run.r = r
+    with js.condition_context(Run, f"add:{s[2]}"):
+        pass
+    assert calls == [("add", [8])]
+
+
+def test_push_trajectory_scale_and_direct_share(stems):
+    r, s = stems
+    pt = _load_script("push_trajectory")
+    lo, hi = [0.0, 1.0, 2.0], [2.0, 3.0, 2.0]
+    got = pt.on_scale([1.0, 3.0, 5.0], lo, hi)
+    assert got[:2] == [0.5, 1.0] and got[2] != got[2]                   # NaN where the gap is 0
+    rh = dirspecs.unit(r.vector.float())
+    d = DirectionVector.load(s[0])                                      # layer 6
+    lo8, hi8 = [0.0] * 8, [2.0] * 8
+    sub = pt.direct_share(f"sub:{s[0]}", rh, lo8, hi8)
+    c = float(d.vector.float() @ rh)
+    assert sub[:6] == [0.0] * 6 and abs(sub[6] + c / 2) < 1e-5 and abs(sub[7] + c / 2) < 1e-5
+    assert pt.direct_share(f"add:{s[0]}", rh, lo8, hi8)[7] == -sub[7]
+    assert pt.direct_share("baseline", rh, lo8, hi8) is None

@@ -973,3 +973,36 @@ on Llama-3-8B and Llama-2.
 `jbb_safety.py` gets `sub:<stem>` (subtract at the stem's layer, strength 1). Baseline, the mean, the mean ⊥ r̂ and a
 random direction of its size, 256 tokens, LG2 + refuse / moralise / other / comply. Predicted: LG2 unsafe under the
 mean ≥30% on ≥3/7 models, with random ≤10% on 7/7 (p≈0.55).
+
+### 78. Does the limitation push lower the refusal reading downstream? — jobs 2500-2560 (seven models, ~1 h)
+
+`scripts/push_trajectory.py` (no generation): r̂ projections at r̂'s position at every layer, on the baseline's
+harmless → harmful scale, and refusal log-odds, under the mean subtracted, the mean ⊥ r̂, a random push of its size,
+inability / persona / unknown / r̂ subtracted, and the mean (and mean ⊥ r̂) added on harmless prompts. The mean sits
+after r̂'s layer on four models (Llama-3.1 L15 vs L11, Llama-3 15/12, 7B 17/16, Llama-2 15/12), so any drop in the r̂
+reading there is downstream of where r̂ was found. Predicted: (a) the mean ⊥ r̂ subtracted lowers the harmful prompts'
+last-layer r̂ reading to ≤0.5 of the gap in ≥4/7 while the random push leaves ≥0.8 (p≈0.6: the limitation feature feeds
+the refusal readout rather than blocking its output); (b) the mean added raises the harmless prompts' last-layer reading
+to ≥0.3 in ≥4/7 (p≈0.6).
+
+### 77. Concept-direction controls for the jailbreak — jobs 2600-2660 (six models with these directions, ~3 h)
+
+Empathy, hedging and sycophancy's saved directions moved to the limitation mean's layer and norm
+(`save_control_direction.py --like`), added and subtracted on the refusal eval set; phrase + LG2. Is the jailbreak
+specific to the limitation feature or does any learned direction pushed that hard do it? Predicted: each leaves harmful
+refusal ≥60% in ≥5/6 (p≈0.5; cosines with the mean are printed by the stem step, e.g. empathy 0.30 on 1.5B, and a
+partial effect in proportion to them would still count against specificity only if it exceeds the cosine's share).
+
+### 79. Where in the stack does the limitation push remove refusal? — jobs 2700-2760 (seven models, ~3.5 h)
+
+The mean (norm kept) subtracted at its layer −6, −3, +3, +6; refusal eval set, phrase + LG2. §20 found its own claims
+are removed upstream (6-9 layers early) and not downstream. Predicted: of the five models where it works at its own
+layer (Llama-3.1, 7B, 1.5B, 1B, Llama-2), refusal ≤30% at −3 on ≥4/5 and at +6 on ≤1/5 (p≈0.5).
+
+### 80. Is the shared limitation feature made by instruction tuning? — job 2800 (~30 min)
+
+`concept_geometry.py` on Qwen2.5-0.5B and 1.5B base and 0.5B-Instruct (1.5B-Instruct in §30). The contrasts differ in
+topic (chores / live data / past chats / a life / feelings vs same-topic text questions), so a base model separates each
+pair; the question is whether the five self-limits share a direction. Predicted: mid-depth mean pairwise cosine among
+the five self-limits ≥0.15 lower in 1.5B base than in 1.5B-Instruct (p≈0.5; a smoke run at n=4 gave inability /
+realtime 0.53 on 0.5B base, so the base may already share a lot).
