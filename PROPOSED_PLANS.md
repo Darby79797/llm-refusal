@@ -882,7 +882,7 @@ Outcome: failed. Removal is graded for both (largest step 39-58%). Induction loo
 the limitation direction on 1/3, but the log-odds are roughly linear in strength throughout: the induction threshold
 is distance from the boundary, not a switch.
 
-### 68. Push controls for the limitation family — jobs 1780-1830 (all six models, ~2.5 h)
+### 68. Push controls for the limitation family — jobs 1780-1830 (all six models, ~2.5 h) — DONE
 
 §17-§24 rest on pushes of the shared direction at strength 1, with no control for push size, and §24 found it moves
 `unknown` despite cos ≤0.3. Per model: a random direction with limits4's norm, layer and position (two seeds) added /
@@ -894,8 +894,9 @@ limits4 ⊥ unknown still removes unknown claims to ≤ its plain ×1 rate + 15p
 small to carry it, so the push acts downstream); (c) unknown's own direction subtracted removes realtime claims to
 ≤30% in ≤2/6 (p≈0.6: the reach is one-way, from the broad limitation axis to the specific one); (d) r̂ subtracted
 leaves ≥70% of unknown's claims in ≥4/6 (p≈0.65: "I couldn't find information" is not a refusal).
+Outcome (RESULTS §26): (a) failed (random ×1 moves unknown ≤15pp on 4/6 per seed, realtime 3/6, though far less than the shared direction); (b) held (4/6); (c) held (2/6); (d) failed (2/6: r̂ removes "I don't know" on the four smaller models, which then hallucinate).
 
-### 69. Do the limitation family and refusal push each other? — jobs 1840-1890 (~1.5 h)
+### 69. Do the limitation family and refusal push each other? — jobs 1840-1890 (~1.5 h) — DONE
 
 Per model: the four-concept mean, a random direction of its size and unknown's direction added / subtracted on the
 refusal eval set (64 tokens, phrase detector); r̂ at ×1 on realtime (judged). Predicted: (a) limits4 subtracted
@@ -903,20 +904,23 @@ leaves harmful refusal within 15pp of baseline in ≥4/6 (p≈0.6: cos ≤0.16 w
 switch), but (b) limits4 added makes ≥30% of harmless prompts refused or declined in ≥3/6 (p≈0.5: §16's Llama-3.1
 inability addition produced the refusal template); (c) r̂ subtracted removes ≤50% of realtime's claims in ≥4/6
 (p≈0.6).
+Outcome (RESULTS §27): (a) failed badly: limits4 subtracted drops harmful refusal to 1-3% on 4/6 (random 53-100%); (b) held (4/6); (c) failed (3/6).
 
-### 70. The random-push control at strength 2 — jobs 2100-2150 (~1 h)
+### 70. The random-push control at strength 2 — jobs 2100-2150 (~1 h) — DONE
 
 A random direction of limits4's size at ×2, added / subtracted on persona and feelings and subtracted on unknown.
 Predicted: claims move by ≤20pp in ≥5/6 for each concept (p≈0.65), so the ×2 results of §19, §22 and §24 are not
 generic disruption.
+Outcome (RESULTS §26): failed for persona (2/6), feelings (3/6) and unknown (4/6): random ×2 breaks Qwen2.5-7B and Llama-3.2-1B (NLL 1.7-3.2, 67-100% degenerate).
 
-### 71. Dose-response of unknown's direction — job 2160 (~45 min)
+### 71. Dose-response of unknown's direction — job 2160 (~45 min) — DONE
 
 unknown's own direction at 0.25 / 0.5 / 0.75 on Llama-3.1, Llama-3 and 7B. Predicted: like §25, subtraction graded
 (no adjacent step with ≥60% of the change in ≥2/3), and invented facts rise in step with the claims they replace
 (ACTS at 0.5 ≥ 30% in ≥2/3; p≈0.55).
+Outcome (RESULTS §28): both held (graded on 2/3; invented facts at 0.5: 23 / 60 / 60%).
 
-### 72. A second epistemic limit, `future` — jobs 1900-1950 (~2.5 h)
+### 72. A second epistemic limit, `future` — jobs 1900-1950 (~2.5 h) — DONE
 
 "Who will win the 2042 FIFA World Cup?" vs the same question about a past event (60+30 pairs; detector counts "I
 can't predict" and "predicting … is highly speculative", the hedge Qwen2.5-3B uses on 8/10 in a CPU check). Own
@@ -924,8 +928,9 @@ direction (ablated; ×1, ×2), limits4 ×1 and unknown's direction ×1 on it. Pr
 ≥3/6 with stated future outcomes (ACTS) ≥20% in ≥2/6 (p≈0.5: a hedge on the future is less of a wall than an
 unknown name); (b) unknown's direction removes future claims better than limits4 does (lower rate after ×1
 subtraction in ≥4/6; p≈0.55: both are epistemic).
+Outcome (RESULTS §29): (a) failed (≤20% on 2/6, but there 97% invented outcomes stated as history); (b) failed (neither unknown's direction nor limits4 removes the hedge).
 
-### 73. Does unknown's direction read familiarity? — jobs 1960-2010 (~1 h)
+### 73. Does unknown's direction read familiarity? — jobs 1960-2010 (~1 h) — DONE
 
 30 real but little-known questions (`unknown_obscure`: "Who won the 1923 Tour de France?"; Qwen2.5-3B answered
 10/10 in a CPU check, some wrongly, "Maurice Garin"), baseline and unknown's direction subtracted; then the new
@@ -936,13 +941,15 @@ unknown's direction. Predicted: (a) the projection is graded, mean(invented) > m
 projection predicts which questions the model says it doesn't know (AUROC ≥0.7 where ≥5 say so, in ≥2 models;
 p≈0.5); (c) at matched layers, cos(unknown, future) exceeds cos(unknown, realtime) and cos(unknown, persona) in ≥4/6
 (p≈0.55).
+Outcome (RESULTS §30): (a) held (7/7); (b) untestable (one model with ≥5 "don't know"s; 0.98); (c) failed (1/6).
 
-### 74. The limitation family on Llama-2-7b-chat — job 2200 (~2.5 h)
+### 74. The limitation family on Llama-2-7b-chat — job 2200 (~2.5 h) — DONE
 
 Own directions for inability, realtime, memory, persona, unknown and future; the three-concept mean (§17's recipe)
 on all six; the concept geometry. Predicted: the shared mean subtracted ×1 removes the three member concepts' claims
 to ≤20% on ≥2/3 and added induces ≥50% on ≥2/3 (p≈0.6: the family has held on every model tried, but Llama-2 is a
 different generation and over-refuses).
+Outcome (RESULTS §31): held (3/3 subtraction, 3/3 addition).
 
 ### 75. Why does subtracting the limitation mean remove refusal? — jobs 2300-2360 (seven models, ~3.5 h)
 
