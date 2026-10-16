@@ -968,11 +968,13 @@ Outcome: (a) held (4/5), (b) held (7/7), (c) held (70%, 64%), (d) failed (3/7): 
 Llama-3.1 / 3B / 1B, persona on 7B) often does it alone. r̂-free survives on Llama-3.1 / 7B / 1B, weakens on 1.5B, mostly lost
 on Llama-3-8B and Llama-2.
 
-### 76. The limitation-mean jailbreak on JailbreakBench — jobs 2400-2460 (~3 h)
+### 76. The limitation-mean jailbreak on JailbreakBench — jobs 2400-2460 (~3 h) — DONE (RESULTS §33)
 
 `jbb_safety.py` gets `sub:<stem>` (subtract at the stem's layer, strength 1). Baseline, the mean, the mean ⊥ r̂ and a
 random direction of its size, 256 tokens, LG2 + refuse / moralise / other / comply. Predicted: LG2 unsafe under the
 mean ≥30% on ≥3/7 models, with random ≤10% on 7/7 (p≈0.55).
+
+Outcome: held. Unsafe under the mean was 68 / 43 / 34 / 23 / 69 / 64 / 43% (Llama-3.1, Llama-3, 7B, 3B, 1.5B, 1B, Llama-2); with r̂ projected out it was 64 / 31 / 22 / 19 / 50 / 60 / 31%; random was 1-10%. Qwen2.5-7B mostly moralises (40%).
 
 ### 78. Does the limitation push lower the refusal reading downstream? — jobs 2500-2560 (seven models, ~1 h)
 
