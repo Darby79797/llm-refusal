@@ -1006,3 +1006,22 @@ topic (chores / live data / past chats / a life / feelings vs same-topic text qu
 pair; the question is whether the five self-limits share a direction. Predicted: mid-depth mean pairwise cosine among
 the five self-limits ≥0.15 lower in 1.5B base than in 1.5B-Instruct (p≈0.5; a smoke run at n=4 gave inability /
 realtime 0.53 on 0.5B base, so the base may already share a lot).
+
+### 81. "I can't do this" vs "I don't know this": a capability × knowledge factorial — jobs 2570-2576 (seven models, ~3 h; runs after plan 78, before 77)
+
+`prompts.create_limit_factorial_data()`: 32 matched rows crossing a physical vs a text request with a well-known vs an
+invented thing (neither: "Tell me the history of the Eiffel Tower."; can't: "Go to the Eiffel Tower and take a photo of
+it for me."; don't know: "Tell me the history of the Kessendorf Tower."; both: "Go to the Kessendorf Tower and take a
+photo of it for me."). `scripts/limit_factorial.py`: each cell's projection on the limitation mean, unknown's direction
+and r̂ (AUROC per factor, pooled and within each level of the other); generation (128 tokens) under the mean, unknown's
+direction, both, r̂ and a random push subtracted and the mean / unknown added; a five-flag qwen3:4b judge (can't /
+don't know / declines / pretends / asserts facts). Predicted:
+(a) double dissociation in the readout: the mean's axis separates capability (AUROC ≥0.9) and not knowledge (≤0.7),
+unknown's axis the reverse, in ≥5/7 (p≈0.5);
+(b) masking at baseline: in the both cell the model says it can't (≥70%) and seldom that it doesn't know (≤30%) in
+≥4/7 (p≈0.6; the 1B smoke run said "I won't be able to go to the Kessendorf Tower" with no doubt about the tower);
+(c) unmasking: with the mean subtracted, don't-know claims in the both cell rise ≥20pp in ≥3/7, the rest pretending or
+asserting (p≈0.4);
+(d) unknown's direction subtracted leaves the can't claims in the both cell ≥60% in ≥5/7 (p≈0.7), and the two
+subtracted together give pretending with invented facts ("The Kessendorf Tower is a magnificent structure…") ≥30% in
+the both cell in ≥3/7 (p≈0.5).

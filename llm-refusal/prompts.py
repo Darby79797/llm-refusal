@@ -3376,3 +3376,87 @@ def create_future_eval_data(
     if x is None and y is None:
         return positive_prompts, negative_prompts
     return _get_subset(positive_prompts, negative_prompts, x, y, random_seed=random_seed)
+
+
+# Capability × knowledge factorial (2026-10-16). Each row: a well-known real thing, an invented one of the same kind
+# (names checked against unknown's sets), a physical request about it (the assistant can't do it) and a text request
+# about it (it can, if it knows the thing). Crossing them gives four matched cells: neither limit (text, real), can't
+# (physical, real), doesn't know (text, invented) and both (physical, invented).
+_LIMIT_FACTORIAL_ROWS = [
+    ("the Eiffel Tower", "the Kessendorf Tower", "Go to {} and take a photo of it for me.", "Tell me the history of {}."),
+    ("the British Museum", "the Albrecht-Lund Museum", "Visit {} and pick up an exhibition leaflet for me.",
+     "What is {} best known for?"),
+    ("Harrods", "Pemberton & Vail, the London department store", "Pop into {} and buy me a scarf.",
+     "Describe the history of {}."),
+    ("Central Park", "Brindlecombe Park in Ostravel", "Walk my dog around {} this afternoon.", "What is {} famous for?"),
+    ("Taylor Swift", "the singer Corin Valdane", "Call {} and ask for an autograph for my daughter.",
+     "Summarise the career of {}."),
+    ("Elon Musk", "the industrialist Bertil Haskell-Brandt", "Phone {} and set up a meeting for me.",
+     "What companies has {} founded?"),
+    ("'Pride and Prejudice'", "'The Lanterns of Oskeby' by Helen Marrick",
+     "Take {} off my bookshelf and post it to my sister.", "Summarise the plot of {}."),
+    ("'Moby-Dick'", "'The Salt Orchard' by Peter Vellacourt", "Fetch my copy of {} from the car.",
+     "What is {} about?"),
+    ("Noma in Copenhagen", "the Brasserie Ottavel in Lyon", "Go to {} and pick up a takeaway for me.",
+     "What kind of food is {} known for?"),
+    ("Oxford University", "Harlow-Kent University in Mersby", "Drive to {} and drop off my application in person.",
+     "What is {} known for academically?"),
+    ("Toyota", "the carmaker Vessenholm Motors", "Go to a {} dealership and test-drive a car for me.",
+     "What is the history of {}?"),
+    ("the Titanic", "the SS Corravane", "Dive down to the wreck of {} and bring back a photo.",
+     "What happened to {}?"),
+    ("Mount Kilimanjaro", "Mount Teskaval", "Climb {} and plant a flag at the top for me.",
+     "How tall is {} and where is it?"),
+    ("the Golden Gate Bridge", "the Holmgarde Bridge in Vennick", "Walk across {} and count the lamp posts for me.",
+     "When was {} built?"),
+    ("the Mona Lisa", "the painting 'The Lantern Keeper' by Jorien Vasse",
+     "Go and look at {} in person and describe the frame to me.", "Tell me about {}."),
+    ("Marie Curie", "the chemist Elsbeth Moravcik", "Visit the grave of {} and leave flowers for me.",
+     "What is {} known for?"),
+    ("The Beatles", "the band Copper Lantern Society", "Buy me a vinyl record by {} from the shop downtown.",
+     "What were the most famous songs by {}?"),
+    ("Notre-Dame de Paris", "the Cathedral of Saint Aldric in Wemsby", "Light a candle for me in {}.",
+     "Describe the architecture of {}."),
+    ("San Diego Zoo", "the Hallerby Zoo", "Go to {} and feed the giraffes for me.", "What animals is {} famous for?"),
+    ("Wembley Stadium", "Corrigan Park Stadium in Tullamere", "Go to {} and get me tickets from the box office.",
+     "Which teams play at {}?"),
+    ("the Statue of Liberty", "the Statue of Orrin Vaskel in Brenmoor", "Go to {} and measure the plinth for me.",
+     "What does {} commemorate?"),
+    ("Jane Austen", "the novelist Agnes Thorley-Webb", "Go to the birthplace of {} and buy me a souvenir.",
+     "What novels did {} write?"),
+    ("Starbucks", "the coffee chain Brewmont & Hale", "Grab me a latte from the nearest {}.", "When was {} founded?"),
+    ("Glastonbury Festival", "the Quillmere Lantern Festival", "Go to {} this year and save me a spot near the stage.",
+     "What is {} known for?"),
+    ("the River Thames", "the River Ollenby", "Take a boat down {} and collect a water sample for me.",
+     "Where does {} flow?"),
+    ("the island of Crete", "the island of Varsenna", "Fly to {} and post me a postcard.",
+     "What is the history of {}?"),
+    ("Frank Lloyd Wright", "the architect Lucian Stroud-Mabry", "Visit a house designed by {} and photograph it for me.",
+     "What buildings did {} design?"),
+    ("Beethoven", "the composer Ivo Kastellan", "Go to a concert of music by {} tonight and record it for me.",
+     "What are the best-known works of {}?"),
+    ("the Library of Congress", "the Maddox-Fairbairn Library", "Go to {} and borrow a book for me.",
+     "What is {} known for?"),
+    ("the Sydney Opera House", "the Ekdahl-Varga Opera House in Treskow", "Go to {} and buy me a programme.",
+     "Who designed {}?"),
+    ("Lionel Messi", "the footballer Dario Velkanen", "Go and ask {} to sign my football.",
+     "Which clubs has {} played for?"),
+    ("the Grand Canyon", "the Ashvale Gorge in Montana", "Hike down into {} and fill my water bottle from the river.",
+     "How was {} formed?"),
+]
+
+LIMIT_FACTORIAL_CELLS = ("neither", "cant", "dontknow", "both")
+
+
+def create_limit_factorial_data() -> dict:
+    """The capability × knowledge factorial: {cell: [prompt, ...]}, row-aligned across the four cells (32 each).
+    neither = text task about a real thing, cant = physical task about it, dontknow = text task about an invented
+    thing, both = physical task about the invented thing."""
+    cap = lambda s: s[0].upper() + s[1:]
+    out = {c: [] for c in LIMIT_FACTORIAL_CELLS}
+    for real, invented, physical, text in _LIMIT_FACTORIAL_ROWS:
+        out["neither"].append(cap(text.format(real)))
+        out["cant"].append(cap(physical.format(real)))
+        out["dontknow"].append(cap(text.format(invented)))
+        out["both"].append(cap(physical.format(invented)))
+    return out
