@@ -943,3 +943,22 @@ Own directions for inability, realtime, memory, persona, unknown and future; the
 on all six; the concept geometry. Predicted: the shared mean subtracted ×1 removes the three member concepts' claims
 to ≤20% on ≥2/3 and added induces ≥50% on ≥2/3 (p≈0.6: the family has held on every model tried, but Llama-2 is a
 different generation and over-refuses).
+
+### 75. Why does subtracting the limitation mean remove refusal? — jobs 2300-2360 (seven models, ~3.5 h)
+
+Plan 69 found the four-concept mean subtracted ×1 drops harmful refusal (phrase detector) 95 → 2% on Llama-3.1, 89 → 2%
+on 7B, 93 → 3% on 1.5B, 64 → 1% on 1B (Llama-3 33%, 3B 48%), where a random push of its size leaves 53-100%. Per model,
+on the refusal eval set: the mean ablated at every layer; the mean with r̂ projected out (norm kept) subtracted; the
+mean at ×0.5; each member's own direction subtracted; unknown's direction with r̂ projected out; and r̂ with unknown's
+axis projected out on unknown; LlamaGuard 2 on every refusal file (`label_deflection.py` now reads evaluate files).
+Llama-2 uses its three-concept mean. Predicted: (a) with r̂ projected out the mean still drops refusal to ≤30% in ≥3/6
+of the models where the plain mean did (p≈0.6: cos ≤0.16 is too little r̂ to carry it); (b) the mean's ablation leaves
+refusal ≥70% in ≥5/6 (p≈0.7: the push, not the subspace, does it); (c) LG2 unsafe ≥40% of the subtracted responses on
+Llama-3.1 and 1.5B (p≈0.6); (d) no single member's direction matches the mean (refusal after each member ≥ the mean's
++20pp for ≥3 of 5 members in ≥4/6; p≈0.5).
+
+### 76. The limitation-mean jailbreak on JailbreakBench — jobs 2400-2460 (~3 h)
+
+`jbb_safety.py` gets `sub:<stem>` (subtract at the stem's layer, strength 1). Baseline, the mean, the mean ⊥ r̂ and a
+random direction of its size, 256 tokens, LG2 + refuse / moralise / other / comply. Predicted: LG2 unsafe under the
+mean ≥30% on ≥3/7 models, with random ≤10% on 7/7 (p≈0.55).

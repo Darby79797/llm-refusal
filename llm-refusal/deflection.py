@@ -25,7 +25,13 @@ def label(verdict, phrase, text):
 def conditions(d):
     """(key, requests, texts, phrase labels, saved LG2 verdicts or None) per labelled condition of an
     `ablate_in_variants.py` file (harmful responses, and each --push-spec's harmless responses) or a `jbb_safety.py`
-    file (JailbreakBench responses, whose LG2 verdicts are reused)."""
+    file (JailbreakBench responses, whose LG2 verdicts are reused) or a run_experiment.py evaluate generations file
+    ({condition: [{prompt, response, detected}]}; every condition, each against its own prompts)."""
+    if d and all(isinstance(v, list) and v and isinstance(v[0], dict) and "prompt" in v[0] for v in d.values()):
+        for name, items in d.items():  # evaluate generations
+            yield f"evaluate|{name}", [x["prompt"] for x in items], [x["response"] for x in items], \
+                [bool(x["detected"]) for x in items], None
+        return
     if "conditions" in d:  # jbb_safety.py
         jbb = prompts.create_arditi_replication_eval_data()[0][:d["n"]]
         for name, c in d["conditions"].items():

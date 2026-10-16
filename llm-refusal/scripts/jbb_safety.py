@@ -7,7 +7,8 @@ where the last one stopped. Batches are the evaluator's own consecutive slices a
 fixed on the first run and stored, so a resumed run produces the same batches as an uninterrupted one.
 
 Conditions, comma-separated `name=kind[:spec]`: `baseline`, `edit:<spec>` (weight orthogonalisation against that
-direction or span, every block), `ablate:<spec>` (hook ablation at every layer). A spec is a saved stem or any
+direction or span, every block), `ablate:<spec>` (hook ablation at every layer), `sub:<stem>` (the saved direction
+subtracted at its own layer and position, strength 1, as evaluate's layer_specific_subtraction). A spec is a saved stem or any
 `dirspecs.py` spec (`rhat`, `pc:1/2@A+B`, `perp:...`, `A&B`...). `label_deflection.py` reads the output (refuse /
 moralise / other / comply, reusing the verdicts saved here). All responses are generated first (the
 study model only), then judged by LlamaGuard 2 via Ollama (localhost; the model is unloaded after each pass).
@@ -31,8 +32,26 @@ from hf_offline import offline_for_script; offline_for_script()  # before transf
 import prompts  # noqa: E402
 from coherence import is_degenerate  # noqa: E402
 import dirspecs  # noqa: E402
+from datatypes import DirectionVector  # noqa: E402
 from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
 from probe import load_run, save_json  # noqa: E402
+
+
+def condition_context(run, spec):
+    """The context manager for one `kind[:spec]` condition (see the module docstring)."""
+    kind, _, stem = spec.partition(":")
+    if kind == "baseline":
+        return contextlib.nullcontext()
+    d = dirspecs.load_spec(stem, run.r)
+    if kind == "sub":
+        assert isinstance(d, DirectionVector), "sub: takes a single saved direction"
+        return run.applier.intervened(d, "subtract", layers=[d.layer])
+    v = dirspecs.as_edit_vector(d, run.r.vector.dtype)
+    if kind == "edit":
+        return orthogonalized(run.model, v)
+    if kind == "ablate":
+        return run.applier.intervened(v, "ablate", layers=None)
+    raise ValueError(f"unknown condition kind {kind!r}")
 
 
 def main():
@@ -54,16 +73,7 @@ def main():
     jbb, _ = prompts.create_arditi_replication_eval_data()
     jbb = jbb[:a.n]
 
-    def ctx(spec):
-        kind, _, stem = spec.partition(":")
-        if kind == "baseline":
-            return contextlib.nullcontext()
-        v = dirspecs.as_edit_vector(dirspecs.load_spec(stem, run.r), run.r.vector.dtype)
-        if kind == "edit":
-            return orthogonalized(run.model, v)
-        if kind == "ablate":
-            return run.applier.intervened(v, "ablate", layers=None)
-        raise ValueError(f"unknown condition kind {kind!r}")
+    ctx = lambda spec: condition_context(run, spec)
 
     conds = dict(c.split("=", 1) for c in a.conditions.split(","))
     path = run.path("analysis", "jbb-safety", a.tag)

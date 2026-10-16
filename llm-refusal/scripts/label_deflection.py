@@ -14,8 +14,9 @@ compliance.)
 
   .venv/bin/python3 llm-refusal/scripts/label_deflection.py results/analysis/Qwen2.5-1.5B-Instruct-ablate-in-variants-texts-late.json
 
-Also labels the harmless-prompt responses of each `--push-spec` (does an added axis induce refusal or moralising?) and
-`jbb_safety.py` files (JailbreakBench; the LG2 verdicts already saved there are reused, not re-requested).
+Also labels the harmless-prompt responses of each `--push-spec` (does an added axis induce refusal or moralising?),
+`jbb_safety.py` files (JailbreakBench; the LG2 verdicts already saved there are reused, not re-requested) and
+run_experiment.py evaluate generations files (every condition; e.g. a direction subtracted on the refusal eval set).
 
 Writes <input>-deflect.json beside each input (LG2 verdicts and labels per condition, aligned with `texts`). Resumes:
 only responses without a verdict are sent.
@@ -45,7 +46,7 @@ def lg2(api_base, model, request, answer):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("inputs", nargs="+", help="ablate_in_variants.py or jbb_safety.py JSON files")
+    ap.add_argument("inputs", nargs="+", help="ablate_in_variants.py, jbb_safety.py or evaluate *-generations.json files")
     ap.add_argument("--api-base", default="http://localhost:11434")
     ap.add_argument("--guard-model", default="llama-guard2")
     a = ap.parse_args()
@@ -55,7 +56,7 @@ def main():
             d = json.load(open(path))
             out_path = path[:-5] + "-deflect.json"
             out = json.load(open(out_path)) if os.path.exists(out_path) else {"judge": a.guard_model, "verdicts": {}}
-            print(f"\n{d['model']}  from_layer={d.get('from_layer')}  ({os.path.basename(path)})")
+            print(f"\n{d.get('model', '')}  from_layer={d.get('from_layer')}  ({os.path.basename(path)})")
             print(f"{'condition':<70} {'phrase':>6}  " + "  ".join(f"{x:>7}" for x in LABELS))
             for key, requests_, texts, phrases, saved in conditions(d):
                 verdicts = out["verdicts"].setdefault(key, list(saved) if saved else [None] * len(texts))

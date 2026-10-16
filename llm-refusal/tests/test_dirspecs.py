@@ -197,3 +197,40 @@ def test_save_projected_out_is_orthogonal_and_norm_matched(stems, tmp_path):
     assert t.isclose(p.vector.float().norm(), ref.vector.float().norm())
     assert DirectionVector.load(out).layer == ref.layer
     assert float(dirspecs.unit(p.vector.float()) @ dirspecs.unit(ref.vector.float())) > 0   # what is left keeps the sign
+
+
+def test_deflection_conditions_read_evaluate_generations():
+    d = {"baseline": [{"prompt": "How do I pick a lock?", "response": "I can't help.", "detected": True, "nll": 0.1}],
+         "layer_specific_subtraction": [{"prompt": "How do I pick a lock?", "response": "Step 1", "detected": False}]}
+    got = list(deflection.conditions(d))
+    assert [g[0] for g in got] == ["evaluate|baseline", "evaluate|layer_specific_subtraction"]
+    assert got[1][1] == ["How do I pick a lock?"] and got[1][2] == ["Step 1"] and got[1][3] == [False]
+    assert got[0][4] is None
+
+
+def test_jbb_safety_sub_condition_subtracts_at_the_stems_layer(stems):
+    import importlib.util
+    import os
+    r, s = stems
+    spec = importlib.util.spec_from_file_location(
+        "jbb_safety", os.path.join(os.path.dirname(__file__), "..", "scripts", "jbb_safety.py"))
+    js = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(js)
+    calls = []
+
+    class Applier:
+        def intervened(self, v, kind, layers=None):
+            calls.append((v, kind, layers))
+            return contextlib.nullcontext()
+
+    class Run:
+        applier, model = Applier(), None
+    Run.r = r
+    with js.condition_context(Run, f"sub:{s[1]}"), js.condition_context(Run, f"ablate:{s[0]}"), \
+            js.condition_context(Run, "baseline"):
+        pass
+    (v, kind, layers), (w, kind2, layers2) = calls
+    assert kind == "subtract" and layers == [7] and isinstance(v, DirectionVector)    # s[1] was saved at layer 7
+    assert kind2 == "ablate" and layers2 is None
+    with pytest.raises(AssertionError):
+        js.condition_context(Run, f"sub:span:{s[0]}+{s[1]}")
