@@ -1052,7 +1052,7 @@ instruction alone ≤0.3, in ≥4/7 (p≈0.55; the 1B smoke run at n=6 gave 0.54
 
 Outcome: (a) held (4/7). The suffix carries 0.51-0.93 and the instruction ≤0.16 on 7/7. (b) failed (4/7; the other three are 0.67-0.69). The push acts at the post-instruction template tokens, as r̂ does, not on the request.
 
-### 83. Is the factorial's cross-talk the two directions' shared part? — jobs 3000-3060 (seven models, ~3 h)
+### 83. Is the factorial's cross-talk the two directions' shared part? — jobs 3000-3060 (seven models, ~3 h) — DONE
 
 In §35 the limitation mean and unknown's direction each removed and induced both kinds of claim. Each is now
 re-run with the other projected out (norm kept: `limits4perpunk`, `unkperplimits4`), subtracted and added, on the same
@@ -1062,7 +1062,9 @@ it. Predicted:
 (p≈0.6);
 (b) unknown ⊥ the mean subtracted still lowers the can't claims in the can't cell by ≥30pp in ≥4/7 (p≈0.5).
 
-### 84. Is unknown's direction a selective "I don't know" dial? — jobs 3100-3160 (seven models, ~3 h)
+Outcome (§40): (a) held (6/7) and (b) held (4/7). Where the overlap is largest (1.5B, Llama-2: cos 0.46) it does carry the cross effects.
+
+### 84. Is unknown's direction a selective "I don't know" dial? — jobs 3100-3160 (seven models, ~3 h) — DONE
 
 `scripts/familiarity_dial.py`: unknown's direction added at strengths 0.25 / 0.4 / 0.5 / 0.6 / 0.75 / 1 to 30
 invented, 30 little-known real ("Who won the 1923 Tour de France?") and 30 famous questions, 128 tokens, five-flag judge
@@ -1076,9 +1078,11 @@ higher than among those that don't (AUROC ≥0.65) in ≥4/7 (p≈0.5).
 Plan 84 extended before it started (2026-10-17): unknown's direction also subtracted at 0.5 and 1 (u50, u100), the
 hallucination side of the dial, on the little-known questions.
 
+Outcome (§41): (a) held (7/7) and (b) held (7/7, 0.75-0.94). Selectivity is highest at low strength and is lost by strength 1 on most models.
+
 ### Overnight queue 2026-10-17 → 18 (jobs 3200-3860, ~12 h after plan 84; built offline-safe: cached models, local Ollama)
 
-### 85. Which attention / MLP outputs after the push carry its effect? — jobs 3200-3260 (~50 min)
+### 85. Which attention / MLP outputs after the push carry its effect? — jobs 3200-3260 (~50 min) — DONE
 
 `scripts/component_patching.py`: in the 8 layers from the push layer, each sublayer's output is swapped between the
 clean and pushed runs (necessity: clean output into the pushed run; sufficiency: the reverse), at every token and at
@@ -1087,20 +1091,26 @@ the mean, the largest single-sublayer necessity share is an MLP within 3 layers 
 MLP at L9 0.61). No single sublayer is sufficient (all sufficiency shares ≤0.5 on ≥5/7; the push is also carried
 directly by the residual).
 
-### 86. Do the limitation claims themselves act through the template suffix? — jobs 3300-3360 (~1.2 h)
+Outcome (§42): (a) failed: the top component is an MLP on 7/7, but at +5 or +6 layers on five models, not within +3. (b) held (7/7: no single sublayer sufficient). On the three Qwens the MLP at the push layer counteracts the push.
+
+### 86. Do the limitation claims themselves act through the template suffix? — jobs 3300-3360 (~1.2 h) — DONE
 
 `push_positions.py --concept inability / realtime / unknown`: the shared mean and each concept's own direction, per
 token subset, on the concept's log-odds. Predicted: (a) for inability and realtime, the suffix carries ≥0.6 of the own
 direction's subtraction effect in ≥5/7 (p≈0.6); (b) unknown is the exception, with the instruction share ≥0.3 (the
 invented name lives in the request) in ≥4/7 (p≈0.4; 1B smoke: instruction 0.02, suffix 0.57, so this may fail).
 
-### 89. Does the base model's limitation feature steer the instruct model? — job 3400 (Qwen2.5-1.5B, ~30 min)
+Outcome (§43): (a) held for inability (7/7), failed for realtime (4/7). (b) failed (1/7). The split is by model family: the Llamas read every claim off the template, the Qwens partly off the request.
+
+### 89. Does the base model's limitation feature steer the instruct model? — job 3400 (Qwen2.5-1.5B, ~30 min) — DONE
 
 `save_diffmean.py` in base Qwen2.5-1.5B (no chat template) and in the instruct model, at limits4's layer and norm.
 Their cosine, then each subtracted / added in Qwen2.5-1.5B-Instruct on the refusal and inability eval sets (phrase +
 LG2), plus the base direction with the instruct one projected out. Predicted: the base direction subtracted removes
 inability claims ≤30% and harmful refusal ≤50% (p≈0.4: different prompt format, so its last token is the request's
 own).
+
+Outcome (§44): half held. Inability claims fell to 18%, but harmful refusal only to 71%, and the base direction induces neither claims nor refusal.
 
 ### 88. Is the jailbreak a property of the search-selected members or of the concept? — jobs 3500-3560 (~2.3 h)
 
