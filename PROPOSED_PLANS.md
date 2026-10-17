@@ -1061,3 +1061,14 @@ it. Predicted:
 (a) the mean ⊥ unknown subtracted still at least halves the don't-know claims in the don't-know cell in ≥4/7
 (p≈0.6);
 (b) unknown ⊥ the mean subtracted still lowers the can't claims in the can't cell by ≥30pp in ≥4/7 (p≈0.5).
+
+### 84. Is unknown's direction a selective "I don't know" dial? — jobs 3100-3160 (seven models, ~3 h)
+
+`scripts/familiarity_dial.py`: unknown's direction added at strengths 0.25 / 0.4 / 0.5 / 0.6 / 0.75 / 1 to 30
+invented, 30 little-known real ("Who won the 1923 Tour de France?") and 30 famous questions, 128 tokens, five-flag judge
+(don't know / asserts). Each prompt's baseline projection on the direction is saved. The direction reads graded
+familiarity (§30), and at strength 1 it makes models disown famous facts (§24, §28). The question is whether, at
+partial strength, it acts first where the model's own familiarity is lowest. Predicted: (a) at some strength where
+famous questions get "I don't know" ≤30%, the little-known ones get it ≥20pp more often, in ≥4/7 (p≈0.5; the 1B smoke
+run at n=3 saturated both by 0.75); (b) among real questions that flip at that strength, the baseline projection is
+higher than among those that don't (AUROC ≥0.65) in ≥4/7 (p≈0.5).

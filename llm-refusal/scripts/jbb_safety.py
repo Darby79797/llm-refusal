@@ -8,7 +8,7 @@ fixed on the first run and stored, so a resumed run produces the same batches as
 
 Conditions, comma-separated `name=kind[:spec]`: `baseline`, `edit:<spec>` (weight orthogonalisation against that
 direction or span, every block), `ablate:<spec>` (hook ablation at every layer), `sub:<stem>` (the saved direction
-subtracted at its own layer and position, strength 1, as evaluate's layer_specific_subtraction), `add:<stem>` (the same, added). A spec is a saved stem or any
+subtracted at its own layer and position, strength 1, as evaluate's layer_specific_subtraction), `add:<stem>` (the same, added); `sub:<stem>*0.5` / `add:<stem>*0.5` scale the push. A spec is a saved stem or any
 `dirspecs.py` spec (`rhat`, `pc:1/2@A+B`, `perp:...`, `A&B`...). `label_deflection.py` reads the output (refuse /
 moralise / other / comply, reusing the verdicts saved here). All responses are generated first (the
 study model only), then judged by LlamaGuard 2 via Ollama (localhost; the model is unloaded after each pass).
@@ -37,15 +37,24 @@ from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
 from probe import load_run, save_json  # noqa: E402
 
 
+def split_strength(stem):
+    """`STEM*0.5` → (STEM, 0.5); a bare stem has strength 1."""
+    base, star, s = stem.rpartition("*")
+    return (base, float(s)) if star else (stem, 1.0)
+
+
 def condition_context(run, spec):
     """The context manager for one `kind[:spec]` condition (see the module docstring)."""
     kind, _, stem = spec.partition(":")
     if kind == "baseline":
         return contextlib.nullcontext()
-    d = dirspecs.load_spec(stem, run.r)
     if kind in ("sub", "add"):
+        stem, strength = split_strength(stem)
+        d = dirspecs.load_spec(stem, run.r)
         assert isinstance(d, DirectionVector), f"{kind}: takes a single saved direction"
-        return run.applier.intervened(d, "subtract" if kind == "sub" else "add", layers=[d.layer])
+        return run.applier.intervened(d, "subtract" if kind == "sub" else "add", strength=strength,
+                                      layers=[d.layer])
+    d = dirspecs.load_spec(stem, run.r)
     v = dirspecs.as_edit_vector(d, run.r.vector.dtype)
     if kind == "edit":
         return orthogonalized(run.model, v)

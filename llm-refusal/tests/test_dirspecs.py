@@ -219,7 +219,7 @@ def test_jbb_safety_sub_condition_subtracts_at_the_stems_layer(stems):
     calls = []
 
     class Applier:
-        def intervened(self, v, kind, layers=None):
+        def intervened(self, v, kind, strength=1.0, layers=None):
             calls.append((v, kind, layers))
             return contextlib.nullcontext()
 
@@ -265,8 +265,8 @@ def test_jbb_safety_add_condition_adds_at_the_stems_layer(stems):
     calls = []
 
     class Applier:
-        def intervened(self, v, kind, layers=None):
-            calls.append((kind, layers))
+        def intervened(self, v, kind, strength=1.0, layers=None):
+            calls.append((kind, strength, layers))
             return contextlib.nullcontext()
 
     class Run:
@@ -274,7 +274,10 @@ def test_jbb_safety_add_condition_adds_at_the_stems_layer(stems):
     Run.r = r
     with js.condition_context(Run, f"add:{s[2]}"):
         pass
-    assert calls == [("add", [8])]
+    with js.condition_context(Run, f"sub:{s[2]}*0.25"):
+        pass
+    assert calls == [("add", 1.0, [8]), ("subtract", 0.25, [8])]
+    assert js.split_strength("results/a-b-direction") == ("results/a-b-direction", 1.0)
 
 
 def test_push_trajectory_scale_and_direct_share(stems):
@@ -290,4 +293,5 @@ def test_push_trajectory_scale_and_direct_share(stems):
     c = float(d.vector.float() @ rh)
     assert sub[:6] == [0.0] * 6 and abs(sub[6] + c / 2) < 1e-5 and abs(sub[7] + c / 2) < 1e-5
     assert pt.direct_share(f"add:{s[0]}", rh, lo8, hi8)[7] == -sub[7]
+    assert abs(pt.direct_share(f"add:{s[0]}*0.5", rh, lo8, hi8)[7] + sub[7] / 2) < 1e-6
     assert pt.direct_share("baseline", rh, lo8, hi8) is None

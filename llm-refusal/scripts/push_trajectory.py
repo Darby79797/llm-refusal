@@ -28,7 +28,7 @@ import torch as t  # noqa: E402
 
 import prompts  # noqa: E402
 from datatypes import DirectionVector  # noqa: E402
-from jbb_safety import condition_context  # noqa: E402
+from jbb_safety import condition_context, split_strength  # noqa: E402
 from probe import load_run, residuals_at, save_json  # noqa: E402
 
 
@@ -43,8 +43,9 @@ def direct_share(spec: str, r_hat: t.Tensor, lo: List[float], hi: List[float]) -
     kind, _, stem = spec.partition(":")
     if kind not in ("sub", "add"):
         return None
+    stem, strength = split_strength(stem)
     d = DirectionVector.load(stem)
-    c = float(d.vector.float().cpu() @ r_hat) * (-1 if kind == "sub" else 1)
+    c = float(d.vector.float().cpu() @ r_hat) * (-strength if kind == "sub" else strength)
     return [c / (h - l) if l_i >= d.layer and abs(h - l) > 1e-6 else 0.0
             for l_i, (l, h) in enumerate(zip(lo, hi))]
 
