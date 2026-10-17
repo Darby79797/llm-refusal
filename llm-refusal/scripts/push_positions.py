@@ -12,7 +12,9 @@ subset of the prompt at a time:
   template     the assistant suffix (formatting.assistant_prefix_tokens tokens, ending at the generation boundary)
   last         the final token only
 
-and the refusal log-odds at the generation boundary is read on the refusal eval set's harmful and harmless prompts.
+and the concept's log-odds at the generation boundary is read on its eval set (--concept, default refusal: harmful
+and harmless prompts; another concept: its positives and negatives, e.g. inability's "I can't" tokens on chores and
+text tasks).
 `share` = (subset − baseline) / (all − baseline): how much of the full push's effect that subset carries.
 
   .venv/bin/python3 llm-refusal/scripts/push_positions.py --model meta-llama/Llama-3.1-8B-Instruct \\
@@ -21,6 +23,7 @@ and the refusal log-odds at the generation boundary is read on the refusal eval 
 Writes results/analysis/<short>-push-positions[-tag].json.
 """
 import argparse
+import contextlib
 import math
 import os
 import sys
@@ -46,6 +49,36 @@ def position_masks(attention_mask: t.Tensor, n_suffix: int) -> Dict[str, t.Tenso
     real = attention_mask.bool()
     template = (pos > last - n_suffix) & (pos <= last)
     return {"all": real, "instruction": real & ~template, "template": template, "last": pos == last}
+
+
+@contextlib.contextmanager
+def positional_push(model, block, vec: t.Tensor, subset: str, n_suffix: int, generated: bool):
+    """Add `vec` at `block`'s input on `subset`'s prompt tokens only, during a forward pass or a KV-cached
+    generation (generation.generate_with_hooks): the prompt's attention mask is read from the model call's kwargs on
+    the prefill step; on each decode step (one new token) the push is applied iff `generated`."""
+    state = {}
+
+    def grab(module, args, kwargs):
+        ids = kwargs.get("input_ids")
+        if ids is not None and ids.shape[1] > 1:
+            state["mask"] = position_masks(kwargs["attention_mask"].cpu(), n_suffix)[subset]
+        return None
+
+    def push(module, args):
+        h = args[0]
+        v = vec.to(h.device, h.dtype)
+        if "mask" in state and h.shape[1] == state["mask"].shape[1] and h.shape[1] > 1:
+            return (h + state["mask"].to(h.device)[..., None].to(h.dtype) * v,) + args[1:]
+        if h.shape[1] == 1 and generated:
+            return (h + v,) + args[1:]
+        return None
+
+    handles = [model.register_forward_pre_hook(grab, with_kwargs=True), block.register_forward_pre_hook(push)]
+    try:
+        yield
+    finally:
+        for hd in handles:
+            hd.remove()
 
 
 def share(subset: float, full: float, base: float) -> float:
@@ -87,6 +120,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True)
     ap.add_argument("--conditions", required=True, help="comma-separated name=sub:<stem> or name=add:<stem>")
+    ap.add_argument("--concept", default="refusal", help="whose eval set and target tokens (default refusal)")
     ap.add_argument("--n", type=int, default=100, help="prompts per side")
     ap.add_argument("--tag", default="")
     ap.add_argument("--cpu", action="store_true", help="run on the CPU (a smoke check while the GPU is busy)")
@@ -94,13 +128,16 @@ def main():
 
     from datatypes import DirectionVector
     from probe import load_run
-    run = load_run(a.model, direction=False, **({"force_cpu": True} if a.cpu else {}))
-    harmful, harmless = (ps[:a.n] for ps in prompts.create_refusal_eval_data())
-    sets = {"harmful": harmful, "harmless": harmless}
+    from concept import get_concept
+    run = load_run(a.model, a.concept, direction=False, **({"force_cpu": True} if a.cpu else {}))
+    pos_ps, neg_ps = (ps[:a.n] for ps in (prompts.create_refusal_eval_data() if a.concept == "refusal"
+                                            else get_concept(a.concept).eval_data_fn()))
+    names = ("harmful", "harmless") if a.concept == "refusal" else ("positive", "negative")
+    sets = dict(zip(names, (pos_ps, neg_ps)))
     base = {k: log_odds(run, ps, None, None, "all") for k, ps in sets.items()}
-    out = {"model": a.model, "n_suffix": run.fmt.assistant_prefix_tokens, "baseline": base, "conditions": {}}
-    print(f"suffix tokens {out['n_suffix']}; baseline log-odds harmful {base['harmful']:+.2f} "
-          f"harmless {base['harmless']:+.2f}", flush=True)
+    out = {"model": a.model, "concept": a.concept, "n_suffix": run.fmt.assistant_prefix_tokens, "baseline": base, "conditions": {}}
+    print(f"suffix tokens {out['n_suffix']}; baseline log-odds " + "  ".join(f"{k} {v:+.2f}" for k, v in base.items()),
+          flush=True)
     for name, spec in (c.split("=", 1) for c in a.conditions.split(",")):
         kind, _, stem = spec.partition(":")
         assert kind in ("sub", "add"), f"{name}: only sub:/add: conditions"
@@ -111,10 +148,11 @@ def main():
             c["log_odds"][k] = {s: log_odds(run, ps, vec, d.layer, s) for s in SUBSETS}
             c["share"][k] = {s: share(c["log_odds"][k][s], c["log_odds"][k]["all"], base[k]) for s in SUBSETS}
         out["conditions"][name] = c
-        key = "harmful" if kind == "sub" else "harmless"
+        key = names[0] if kind == "sub" else names[1]
         print(f"{name:10s} L{d.layer:<3d} {key:8s} " + "  ".join(
             f"{s} {c['log_odds'][key][s]:+6.2f} ({c['share'][key][s]:.2f})" for s in SUBSETS), flush=True)
-    print("saved", save_json(f"results/analysis/{run.short}-push-positions{'-' + a.tag if a.tag else ''}.json", out))
+    stem = f"{run.short}-push-positions" + ("" if a.concept == "refusal" else f"-{a.concept}")
+    print("saved", save_json(f"results/analysis/{stem}{'-' + a.tag if a.tag else ''}.json", out))
 
 
 if __name__ == "__main__":

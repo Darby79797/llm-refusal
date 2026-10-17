@@ -1199,7 +1199,7 @@ Harmful refusal % (LG2 comply in brackets); own-layer values from §32:
 
 Prediction (plan 79): of the five models where the push works, ≤30% at −3 on ≥4/5 and at +6 on ≤1/5. Held (5/5 and 0/5).
 
-### 38. Plan 80: is the shared limitation feature made by instruction tuning? (2026-10-17) **[`concept_geometry.py` on Qwen2.5-0.5B and 1.5B base and Qwen2.5-0.5B-Instruct (1.5B-Instruct from §30); each concept's training-pair mean difference at the last template token at every layer; the base models get the same chat-formatted prompts]**
+### 38. Plan 80: is the shared limitation feature made by instruction tuning? (2026-10-17) **[`concept_geometry.py` on Qwen2.5-0.5B and 1.5B base and Qwen2.5-0.5B-Instruct (1.5B-Instruct from §30); each concept's training-pair mean difference at the last prompt token at every layer; the base models get the prompts with no chat template (`formatting.py`'s pass-through `{x}`), so their last token is the request's own]**
 
 Mean pairwise cosine among the five self-limits (inability, realtime, memory, persona, feelings), with the minimum pair in brackets, and the mean cross-concept AUROC (each self-limit's direction on each other's eval pairs), at 35 / 50 / 65% depth:
 

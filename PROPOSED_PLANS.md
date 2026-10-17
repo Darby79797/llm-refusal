@@ -1072,3 +1072,58 @@ partial strength, it acts first where the model's own familiarity is lowest. Pre
 famous questions get "I don't know" ≤30%, the little-known ones get it ≥20pp more often, in ≥4/7 (p≈0.5; the 1B smoke
 run at n=3 saturated both by 0.75); (b) among real questions that flip at that strength, the baseline projection is
 higher than among those that don't (AUROC ≥0.65) in ≥4/7 (p≈0.5).
+
+Plan 84 extended before it started (2026-10-17): unknown's direction also subtracted at 0.5 and 1 (u50, u100), the
+hallucination side of the dial, on the little-known questions.
+
+### Overnight queue 2026-10-17 → 18 (jobs 3200-3860, ~12 h after plan 84; built offline-safe: cached models, local Ollama)
+
+### 85. Which attention / MLP outputs after the push carry its effect? — jobs 3200-3260 (~50 min)
+
+`scripts/component_patching.py`: in the 8 layers from the push layer, each sublayer's output is swapped between the
+clean and pushed runs (necessity: clean output into the pushed run; sufficiency: the reverse), at every token and at
+the template suffix only; refusal log-odds. Conditions: the mean, the mean ⊥ r̂, the mean added, r̂. Predicted: for
+the mean, the largest single-sublayer necessity share is an MLP within 3 layers of the push, in ≥4/7 (p≈0.5; 1B smoke:
+MLP at L9 0.61). No single sublayer is sufficient (all sufficiency shares ≤0.5 on ≥5/7; the push is also carried
+directly by the residual).
+
+### 86. Do the limitation claims themselves act through the template suffix? — jobs 3300-3360 (~1.2 h)
+
+`push_positions.py --concept inability / realtime / unknown`: the shared mean and each concept's own direction, per
+token subset, on the concept's log-odds. Predicted: (a) for inability and realtime, the suffix carries ≥0.6 of the own
+direction's subtraction effect in ≥5/7 (p≈0.6); (b) unknown is the exception, with the instruction share ≥0.3 (the
+invented name lives in the request) in ≥4/7 (p≈0.4; 1B smoke: instruction 0.02, suffix 0.57, so this may fail).
+
+### 89. Does the base model's limitation feature steer the instruct model? — job 3400 (Qwen2.5-1.5B, ~30 min)
+
+`save_diffmean.py` in base Qwen2.5-1.5B (no chat template) and in the instruct model, at limits4's layer and norm.
+Their cosine, then each subtracted / added in Qwen2.5-1.5B-Instruct on the refusal and inability eval sets (phrase +
+LG2), plus the base direction with the instruct one projected out. Predicted: the base direction subtracted removes
+inability claims ≤30% and harmful refusal ≤50% (p≈0.4: different prompt format, so its last token is the request's
+own).
+
+### 88. Is the jailbreak a property of the search-selected members or of the concept? — jobs 3500-3560 (~2.3 h)
+
+`save_diffmean.py`: the members' plain difference of means at the mean's layer and position (cos 0.52 with limits4 on
+the 1B smoke; the halves agree at 0.99), norm-matched, and the same ⊥ r̂ and from half the pairs; evaluate refusal
+(add + sub, phrase + LG2) and inability. Predicted: the plain difference subtracted leaves harmful refusal ≤30% on ≥4
+of the five models where limits4 does (p≈0.5), and removes inability claims ≤20% on ≥5/7 (p≈0.6).
+
+### 87. Does the template-only push jailbreak in generation? — jobs 3600-3660 (~4.3 h)
+
+JailbreakBench, 256 tokens, LG2, with jbb_safety's new `subpos:` conditions: the mean on every token (as plan 76), on
+the template suffix + generated tokens, on the instruction only, and on the prompt only (no generated tokens); r̂
+everywhere and template-only. (Check: `subpos:all+gen` reproduces `sub:` token for token on the 1B smoke run.)
+Predicted: template + generated gives LG2 unsafe ≥0.7 × the every-token push in ≥4/7, and instruction-only ≤10% unsafe
+on ≥6/7 (p≈0.55).
+
+### 90. The strongest form of the limitation jailbreak — jobs 3700-3760 (~2.5 h)
+
+JailbreakBench, 256 tokens, LG2: the mean and the mean ⊥ r̂ at 3 layers upstream (the best layer in §37), and plan 88's
+plain difference of means. Predicted: the upstream mean gives LG2 unsafe at least as high as at its own layer (plan 76)
+on ≥5/7 (p≈0.6).
+
+### 91. Dose-response of the jailbreak on JailbreakBench — jobs 3800-3860 (~2.5 h, last: lowest priority)
+
+The mean subtracted at strength 0.5 / 0.75 / 1.5; 256 tokens, LG2. Predicted: unsafe rises monotonically from 0.5 to 1
+on ≥6/7, and 1.5 adds degenerate output ≥10% on ≥3/7 (p≈0.5).

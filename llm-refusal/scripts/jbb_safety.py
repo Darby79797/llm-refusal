@@ -8,7 +8,8 @@ fixed on the first run and stored, so a resumed run produces the same batches as
 
 Conditions, comma-separated `name=kind[:spec]`: `baseline`, `edit:<spec>` (weight orthogonalisation against that
 direction or span, every block), `ablate:<spec>` (hook ablation at every layer), `sub:<stem>` (the saved direction
-subtracted at its own layer and position, strength 1, as evaluate's layer_specific_subtraction), `add:<stem>` (the same, added); `sub:<stem>*0.5` / `add:<stem>*0.5` scale the push. A spec is a saved stem or any
+subtracted at its own layer and position, strength 1, as evaluate's layer_specific_subtraction), `add:<stem>` (the same, added); `sub:<stem>*0.5` / `add:<stem>*0.5` scale the push. `subpos:<subset>[+gen]:<stem>` / `addpos:...` apply it to one prompt-token subset only (all /
+instruction / template / last, push_positions.py), and to the generated tokens with +gen. A spec is a saved stem or any
 `dirspecs.py` spec (`rhat`, `pc:1/2@A+B`, `perp:...`, `A&B`...). `label_deflection.py` reads the output (refuse /
 moralise / other / comply, reusing the verdicts saved here). All responses are generated first (the
 study model only), then judged by LlamaGuard 2 via Ollama (localhost; the model is unloaded after each pass).
@@ -26,6 +27,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.dirname(__file__))
 from env import setup_process_env; setup_process_env()  # before torch is imported
 from hf_offline import offline_for_script; offline_for_script()  # before transformers is imported
 
@@ -35,6 +37,7 @@ import dirspecs  # noqa: E402
 from datatypes import DirectionVector  # noqa: E402
 from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
 from probe import load_run, save_json  # noqa: E402
+from push_positions import positional_push  # noqa: E402
 
 
 def split_strength(stem):
@@ -54,6 +57,16 @@ def condition_context(run, spec):
         assert isinstance(d, DirectionVector), f"{kind}: takes a single saved direction"
         return run.applier.intervened(d, "subtract" if kind == "sub" else "add", strength=strength,
                                       layers=[d.layer])
+    if kind in ("subpos", "addpos"):
+        # subpos:<subset>[+gen]:<stem>[*s] — the push on one token subset (push_positions.py), generated tokens too
+        # with +gen
+        where, _, stem = stem.partition(":")
+        subset, _, gen = where.partition("+")
+        stem, strength = split_strength(stem)
+        d = DirectionVector.load(stem)
+        vec = d.vector.float() * (-strength if kind == "subpos" else strength)
+        return positional_push(run.model, run.blocks[d.layer], vec, subset, run.fmt.assistant_prefix_tokens,
+                               generated=gen == "gen")
     d = dirspecs.load_spec(stem, run.r)
     v = dirspecs.as_edit_vector(d, run.r.vector.dtype)
     if kind == "edit":
