@@ -976,7 +976,7 @@ mean ≥30% on ≥3/7 models, with random ≤10% on 7/7 (p≈0.55).
 
 Outcome: held. Unsafe under the mean was 68 / 43 / 34 / 23 / 69 / 64 / 43% (Llama-3.1, Llama-3, 7B, 3B, 1.5B, 1B, Llama-2); with r̂ projected out it was 64 / 31 / 22 / 19 / 50 / 60 / 31%; random was 1-10%. Qwen2.5-7B mostly moralises (40%).
 
-### 78. Does the limitation push lower the refusal reading downstream? — jobs 2500-2560 (seven models, ~1 h)
+### 78. Does the limitation push lower the refusal reading downstream? — jobs 2500-2560 (seven models, ~1 h) — DONE (RESULTS §34)
 
 `scripts/push_trajectory.py` (no generation): r̂ projections at r̂'s position at every layer, on the baseline's
 harmless → harmful scale, and refusal log-odds, under the mean subtracted, the mean ⊥ r̂, a random push of its size,
@@ -986,6 +986,8 @@ reading there is downstream of where r̂ was found. Predicted: (a) the mean ⊥ 
 last-layer r̂ reading to ≤0.5 of the gap in ≥4/7 while the random push leaves ≥0.8 (p≈0.6: the limitation feature feeds
 the refusal readout rather than blocking its output); (b) the mean added raises the harmless prompts' last-layer reading
 to ≥0.3 in ≥4/7 (p≈0.6).
+
+Outcome: both failed. (a) held on 1/7, the 1B (0.33). The harmful prompts' last-layer r̂ reading under the mean ⊥ r̂ is 1.07-1.82 on Llama-3.1, 7B, 3B and Llama-2, while their log-odds fall below 0. (b) held on 2/7, yet harmless log-odds turned positive on 7/7. The push overrides refusal's output rather than lowering the r̂ reading. Caveat: r̂ subtracted itself leaves Llama-3.1's last-layer reading at 0.94, so the late projection onto r̂ is a weak proxy for refusal.
 
 ### 77. Concept-direction controls for the jailbreak — jobs 2600-2660 (six models with these directions, ~3 h)
 
