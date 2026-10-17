@@ -989,7 +989,7 @@ to ≥0.3 in ≥4/7 (p≈0.6).
 
 Outcome: both failed. (a) held on 1/7, the 1B (0.33). The harmful prompts' last-layer r̂ reading under the mean ⊥ r̂ is 1.07-1.82 on Llama-3.1, 7B, 3B and Llama-2, while their log-odds fall below 0. (b) held on 2/7, yet harmless log-odds turned positive on 7/7. The push overrides refusal's output rather than lowering the r̂ reading. Caveat: r̂ subtracted itself leaves Llama-3.1's last-layer reading at 0.94, so the late projection onto r̂ is a weak proxy for refusal.
 
-### 77. Concept-direction controls for the jailbreak — jobs 2600-2660 (six models with these directions, ~3 h)
+### 77. Concept-direction controls for the jailbreak — jobs 2600-2660 (six models with these directions, ~3 h) — DONE
 
 Empathy, hedging and sycophancy's saved directions moved to the limitation mean's layer and norm
 (`save_control_direction.py --like`), added and subtracted on the refusal eval set; phrase + LG2. Is the jailbreak
@@ -997,13 +997,17 @@ specific to the limitation feature or does any learned direction pushed that har
 refusal ≥60% in ≥5/6 (p≈0.5; cosines with the mean are printed by the stem step, e.g. empathy 0.30 on 1.5B, and a
 partial effect in proportion to them would still count against specificity only if it exceeds the cosine's share).
 
-### 79. Where in the stack does the limitation push remove refusal? — jobs 2700-2760 (seven models, ~3.5 h)
+Outcome (§36): held for hedging (5/6) and sycophancy (6/6), failed for empathy (4/6: Llama-3.1 42%, 7B 58%). The controls leave 58-100% refused (median 85%), against the mean's 2-48%.
+
+### 79. Where in the stack does the limitation push remove refusal? — jobs 2700-2760 (seven models, ~3.5 h) — DONE
 
 The mean (norm kept) subtracted at its layer −6, −3, +3, +6; refusal eval set, phrase + LG2. §20 found its own claims
 are removed upstream (6-9 layers early) and not downstream. Predicted: of the five models where it works at its own
 layer (Llama-3.1, 7B, 1.5B, 1B, Llama-2), refusal ≤30% at −3 on ≥4/5 and at +6 on ≤1/5 (p≈0.5).
 
-### 80. Is the shared limitation feature made by instruction tuning? — job 2800 (~30 min)
+Outcome (§37): held (5/5 at −3, 0-6%; 0/5 at +6, 65-97%). At +3 refusal is already back to 52-84% on 4/5.
+
+### 80. Is the shared limitation feature made by instruction tuning? — job 2800 (~30 min) — DONE
 
 `concept_geometry.py` on Qwen2.5-0.5B and 1.5B base and 0.5B-Instruct (1.5B-Instruct in §30). The contrasts differ in
 topic (chores / live data / past chats / a life / feelings vs same-topic text questions), so a base model separates each
@@ -1011,7 +1015,9 @@ pair; the question is whether the five self-limits share a direction. Predicted:
 the five self-limits ≥0.15 lower in 1.5B base than in 1.5B-Instruct (p≈0.5; a smoke run at n=4 gave inability /
 realtime 0.53 on 0.5B base, so the base may already share a lot).
 
-### 81. "I can't do this" vs "I don't know this": a capability × knowledge factorial — jobs 2570-2576 (seven models, ~3 h; runs after plan 78, before 77)
+Outcome (§38): failed. 1.5B base 0.69 vs instruct 0.75 at mid-depth, and 0.5B base 0.71 vs 0.76. The shared direction is in the base models already (cross AUROC 0.98-1.00).
+
+### 81. "I can't do this" vs "I don't know this": a capability × knowledge factorial — jobs 2570-2576 (seven models, ~3 h; runs after plan 78, before 77) — DONE
 
 `prompts.create_limit_factorial_data()`: 32 matched rows crossing a physical vs a text request with a well-known vs an
 invented thing (neither: "Tell me the history of the Eiffel Tower."; can't: "Go to the Eiffel Tower and take a photo of
@@ -1029,3 +1035,5 @@ asserting (p≈0.4);
 (d) unknown's direction subtracted leaves the can't claims in the both cell ≥60% in ≥5/7 (p≈0.7), and the two
 subtracted together give pretending with invented facts ("The Kessendorf Tower is a magnificent structure…") ≥30% in
 the both cell in ≥3/7 (p≈0.5).
+
+Outcome (§35): all four failed. (a) 3/7. (b) 2/7, though don't-know is masked in the both cell on 7/7 (31-100% → 0-38%). (c) 0/7: the mean removes don't-know as well. (d) 0/7: unknown's direction removes can't claims too. Pretend plus assert is 0-9%, but assert alone is 44-94%. Either direction subtracted removes both kinds of claim; either one added produces whichever limit fits the prompt.
