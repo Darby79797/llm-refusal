@@ -1038,7 +1038,7 @@ the both cell in ≥3/7 (p≈0.5).
 
 Outcome (§35): all four failed. (a) 3/7. (b) 2/7, though don't-know is masked in the both cell on 7/7 (31-100% → 0-38%). (c) 0/7: the mean removes don't-know as well. (d) 0/7: unknown's direction removes can't claims too. Pretend plus assert is 0-9%, but assert alone is 44-94%. Either direction subtracted removes both kinds of claim; either one added produces whichever limit fits the prompt.
 
-### 82. Which tokens does the limitation push act through? — jobs 2900-2960 (seven models, ~40 min)
+### 82. Which tokens does the limitation push act through? — jobs 2900-2960 (seven models, ~40 min) — DONE (RESULTS §39)
 
 `scripts/push_positions.py` (no generation). The push leaves r̂ read downstream (§34), works from upstream and stops
 working three layers later (§37). Here the mean is subtracted on harmful / added on harmless prompts at its layer, but
@@ -1049,6 +1049,8 @@ it acts where refusal is computed, the suffix should (Arditi's post-instruction 
 (a) for the mean subtracted on harmful prompts, the suffix alone carries ≥0.7 of the full log-odds drop and the
 instruction alone ≤0.3, in ≥4/7 (p≈0.55; the 1B smoke run at n=6 gave 0.54 and 0.11);
 (b) for r̂ subtracted, the suffix alone carries ≥0.7 in ≥5/7 (p≈0.7; smoke 0.78).
+
+Outcome: (a) held (4/7). The suffix carries 0.51-0.93 and the instruction ≤0.16 on 7/7. (b) failed (4/7; the other three are 0.67-0.69). The push acts at the post-instruction template tokens, as r̂ does, not on the request.
 
 ### 83. Is the factorial's cross-talk the two directions' shared part? — jobs 3000-3060 (seven models, ~3 h)
 
