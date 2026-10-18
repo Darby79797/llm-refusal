@@ -1212,7 +1212,7 @@ Partial outcome (job 4028, §52): unknown on Llama-3-8B, prompt only: 20% unsafe
 
 Outcome (§52): (a) 1/2 (×1.5 on Llama-3.1 prompt only keeps 81%, 62% unsafe; unknown on Llama-3-8B 33%); (b) held 2/2 (Llama-3.1 GSM8K 81 → 78%; unknown 85%, trivially). The prompt-only route spares arithmetic for the limitation mean on both 8B Llamas; unknown acts on the generated tokens (plan 98).
 
-### 97. Template-only pushes, and Qwen2.5-7B's prompt-only cost — jobs 4031-4032 (~50 min, added 2026-10-18 21:35)
+### 97. Template-only pushes, and Qwen2.5-7B's prompt-only cost — jobs 4031-4032 (~50 min, added 2026-10-18 21:35) — DONE
 
 Two cheap follow-ups to §52. (1) Llama-3-8B: ×1.5 on the five template-suffix tokens only, no request or generated
 tokens, on JailbreakBench and all three benchmarks (MMLU / ARC now differ from the full push, since the question's
@@ -1222,6 +1222,8 @@ tokens are spared). (2) Qwen2.5-7B, whose jailbreak costs GSM8K 77 → 26% (§50
 recovers ≥30 of strength 1's 51 lost GSM8K points (p≈0.6) and 3 up prompt-only keeps ≥45% unsafe (p≈0.5).
 
 Partial outcome (job 4031, §52): template-only ×1.5 on Llama-3-8B: 66% unsafe (held), GSM8K 84 / ARC 81 held within 3pp, MMLU 66 → 62 (−4pp, just outside; its answer is read at a pushed token).
+
+Outcome (§52): Llama-3-8B template-only: ≥40% unsafe held (66%), ≤3pp per benchmark 2/3 (MMLU −4pp). Qwen2.5-7B: prompt-only strength 1 recovers 39 of 51 GSM8K points (held), 3 up prompt-only 36% unsafe (failed, <45%); half its GSM8K answers still go unfinished. Template-only on Qwen queued (plan 99).
 
 ### 98. Where does unknown's jailbreak act? — job 4033 (~20 min, added 2026-10-18 21:58)
 
