@@ -278,6 +278,9 @@ def test_jbb_safety_add_condition_adds_at_the_stems_layer(stems):
         pass
     assert calls == [("add", 1.0, [8]), ("subtract", 0.25, [8])]
     assert js.split_strength("results/a-b-direction") == ("results/a-b-direction", 1.0)
+    import push_positions as pp
+    assert pp.split_strength is js.split_strength
+    assert pp.split_strength("results/a-b-direction*1.5") == ("results/a-b-direction", 1.5)
 
 
 def test_push_trajectory_scale_and_direct_share(stems):

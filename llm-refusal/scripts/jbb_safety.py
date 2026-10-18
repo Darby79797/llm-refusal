@@ -37,13 +37,7 @@ import dirspecs  # noqa: E402
 from datatypes import DirectionVector  # noqa: E402
 from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
 from probe import load_run, save_json  # noqa: E402
-from push_positions import positional_push  # noqa: E402
-
-
-def split_strength(stem):
-    """`STEM*0.5` → (STEM, 0.5); a bare stem has strength 1."""
-    base, star, s = stem.rpartition("*")
-    return (base, float(s)) if star else (stem, 1.0)
+from push_positions import positional_push, split_strength  # noqa: E402
 
 
 def condition_context(run, spec):

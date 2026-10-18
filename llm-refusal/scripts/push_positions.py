@@ -4,7 +4,7 @@ Subtracting the limitation mean at its layer removes refusal, and the same push 
 (RESULTS §37), while r̂ is still read downstream (§34). If the push changes how the request itself is represented, it
 should work when applied only to the instruction's tokens (later layers then read the change through attention);
 if it acts where refusal is computed, only at the template tokens after the instruction (Arditi's post-instruction
-positions). Each condition (`sub:<stem>` / `add:<stem>`, at the stem's layer, strength 1) is applied to one token
+positions). Each condition (`sub:<stem>` / `add:<stem>`, at the stem's layer, strength 1; `<stem>*1.5` scales it) is applied to one token
 subset of the prompt at a time:
 
   all          every real token (the usual push, prefill only)
@@ -49,6 +49,12 @@ def position_masks(attention_mask: t.Tensor, n_suffix: int) -> Dict[str, t.Tenso
     real = attention_mask.bool()
     template = (pos > last - n_suffix) & (pos <= last)
     return {"all": real, "instruction": real & ~template, "template": template, "last": pos == last}
+
+
+def split_strength(stem: str):
+    """`STEM*0.5` → (STEM, 0.5); a bare stem has strength 1 (jbb_safety.py's grammar)."""
+    base, star, s = stem.rpartition("*")
+    return (base, float(s)) if star else (stem, 1.0)
 
 
 @contextlib.contextmanager
@@ -119,7 +125,7 @@ def log_odds(run, ps: List[str], vec: Optional[t.Tensor], layer: Optional[int], 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True)
-    ap.add_argument("--conditions", required=True, help="comma-separated name=sub:<stem> or name=add:<stem>")
+    ap.add_argument("--conditions", required=True, help="comma-separated name=sub:<stem>[*s] or name=add:<stem>[*s]")
     ap.add_argument("--concept", default="refusal", help="whose eval set and target tokens (default refusal)")
     ap.add_argument("--n", type=int, default=100, help="prompts per side")
     ap.add_argument("--tag", default="")
@@ -141,8 +147,9 @@ def main():
     for name, spec in (c.split("=", 1) for c in a.conditions.split(",")):
         kind, _, stem = spec.partition(":")
         assert kind in ("sub", "add"), f"{name}: only sub:/add: conditions"
+        stem, strength = split_strength(stem)
         d = DirectionVector.load(stem)
-        vec = d.vector.float().cpu() * (-1 if kind == "sub" else 1)
+        vec = d.vector.float().cpu() * (-strength if kind == "sub" else strength)
         c = {"spec": spec, "layer": d.layer, "log_odds": {}, "share": {}}
         for k, ps in sets.items():
             c["log_odds"][k] = {s: log_odds(run, ps, vec, d.layer, s) for s in SUBSETS}
