@@ -1229,3 +1229,11 @@ Partial outcome (job 4031, §52): template-only ×1.5 on Llama-3-8B: 66% unsafe 
 mean keeps 93% there. JailbreakBench with unknown on the template + generated tokens, and on the last prompt token +
 generated tokens (nearly generation only). Predicted: template + generated recovers ≥45% unsafe (p≈0.6); last +
 generated recovers ≥35% (p≈0.5), i.e. the generated tokens, not the request, carry the rest.
+
+### 99. Template-only pushes on Qwen2.5-7B — job 4034 (~35 min, added 2026-10-18 23:02)
+
+§52: on Qwen2.5-7B a prompt-only push still leaves about half of GSM8K answers unfinished, and 3 up keeps only 36% unsafe
+on the prompt (every token 63%). On Llama-3-8B the template-suffix tokens alone carry the whole jailbreak with no
+arithmetic cost. Strength 1 and 3 up on Qwen2.5-7B's template tokens: JailbreakBench + GSM8K. Predicted: GSM8K within
+5pp of baseline (77%) for both (p≈0.6); strength 1 keeps ≥20% unsafe (p≈0.5; §39 found the Qwens also read limit claims
+off the request, so the template may carry less here than on the Llamas).
