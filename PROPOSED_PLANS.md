@@ -1146,7 +1146,7 @@ on ≥6/7, and 1.5 adds degenerate output ≥10% on ≥3/7 (p≈0.5).
 
 Outcome (§48): both held. (a) 7/7. (b) 4/7 (Qwen2.5-7B 33%, 1.5B 26%, 1B 95%, Llama-2 94%); the 8B Llamas reach 76-77% unsafe at 1.5 with ≤3% degenerate.
 
-### 92. Does one member carry the jailbreak on JailbreakBench? — jobs 3900-3960 (~1.7 h, added 2026-10-18 09:50)
+### 92. Does one member carry the jailbreak on JailbreakBench? — jobs 3900-3960 (~1.7 h, added 2026-10-18 09:50) — DONE
 
 §32 found that one member alone matched or beat the mean on the refusal eval set on four models (inability on
 Llama-3.1, Qwen2.5-3B and the 1B; persona on Qwen2.5-7B), and §47 that Qwen2.5-3B resists every form of the mean.
@@ -1155,7 +1155,14 @@ JailbreakBench, 256 tokens, LG2: inability's, memory's and persona's own directi
 ≥3/7 (p≈0.5); on Qwen2.5-3B, inability alone ≤30% unsafe despite its 2% refusal on the eval set, because it moralises
 (p≈0.6).
 
+Outcome (§49): both held. (a) 5/7 (3/7 without heavy degeneration: Llama-3-8B memory 62%, Qwen2.5-7B persona 44%, 3B inability 27%). (b) 27% unsafe, 3% refused, 40% moralising. Qwen2.5-1.5B needs the mean (members ≤23% against 69%).
+
 ### 93. What does each jailbreak cost in general ability? — jobs 4000-4060 (tier A, ~4 h), 4100-4160 (tier B, ~3 h) (added 2026-10-18 12:40)
+
+Trimmed 14:50 by cost: on 8B the check is ~13 min per condition, ~2x the JailbreakBench run, so it runs only for the
+jailbreaks we report on models where they work: Llama-3.1 (mean, ⊥ r̂, 3 up, 3 up ⊥ r̂, ×1.5), Llama-3-8B (mean, 3 up, ×1.5, memory
+alone), Qwen2.5-7B (mean, 3 up), 1.5B (mean), each with baseline, abliteration and the random control; the 1B ran in full
+(cheap). Qwen2.5-3B (no working jailbreak), Llama-2 (degenerate) and tier B are held in results/queue/held/.
 
 Every JailbreakBench result should say what the same intervention does to ordinary tasks. `scripts/push_capability.py`
 scores a fixed sample in the chat template (`data/benchmark_items.json`, `fetch_benchmark_items.py`): MMLU (5 per
