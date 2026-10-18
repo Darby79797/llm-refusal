@@ -1188,7 +1188,7 @@ it removes limitation claims). Capability checks only for a condition that turns
 
 Outcome (§51): (a) failed (1/4: realtime ≥0.75 × the mean only on Llama-3.1); (b) failed (1/4: feelings 12-33%); (c) failed (2/4: future 57% on Llama-3.1); (d) held (4/4: unknown 42-60%, 60% on Llama-3-8B, above the mean). Jailbreak strength does not track cosine with the mean. Capability check for unknown on Llama-3-8B queued (job 4027).
 
-### 95. A strong limitation jailbreak that keeps arithmetic? — jobs 4025-4026 (~1.3 h, added 2026-10-18 17:25)
+### 95. A strong limitation jailbreak that keeps arithmetic? — jobs 4025-4026 (~1.3 h, added 2026-10-18 17:25) — DONE
 
 §50: on Llama-3-8B every form reaching ≥56% unsafe costs 37-50pp of GSM8K, and on both 8B Llamas a random push costs
 12-14pp, so the cost may be the push on the generated tokens (every reasoning step) rather than the concept. §46 found
@@ -1197,3 +1197,5 @@ on JailbreakBench; GSM8K under them, under prompt-only at strength 1, and under 
 prompt-only and r̂ subtracted. Predicted: prompt-only pushes cost ≤5pp of GSM8K on both models (p≈0.6); at least one
 prompt-only strong form keeps ≥50% unsafe on Llama-3-8B (p≈0.5); r̂ subtracted costs as much GSM8K as the limitation
 mean at strength 1 (within 5pp) on both (p≈0.5).
+
+Outcome (§52): (a) failed (2/4: ×1.5 on Llama-3-8B −5pp and Llama-3.1 strength 1 0pp; Llama-3-8B strength 1 −10pp, 3 up −14pp); (b) held (×1.5 prompt-only 63% unsafe, GSM8K 77% against 82% baseline); (c) failed (r̂ costs 9-14pp more GSM8K than the mean). Unknown on Llama-3-8B (job 4027): GSM8K −20pp.
