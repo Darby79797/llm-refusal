@@ -1225,12 +1225,14 @@ Partial outcome (job 4031, §52): template-only ×1.5 on Llama-3-8B: 66% unsafe 
 
 Outcome (§52): Llama-3-8B template-only: ≥40% unsafe held (66%), ≤3pp per benchmark 2/3 (MMLU −4pp). Qwen2.5-7B: prompt-only strength 1 recovers 39 of 51 GSM8K points (held), 3 up prompt-only 36% unsafe (failed, <45%); half its GSM8K answers still go unfinished. Template-only on Qwen queued (plan 99).
 
-### 98. Where does unknown's jailbreak act? — job 4033 (~20 min, added 2026-10-18 21:58)
+### 98. Where does unknown's jailbreak act? — job 4033 (~20 min, added 2026-10-18 21:58) — DONE
 
 §52: unknown's direction jailbreaks Llama-3-8B at 60% on every token but 20% on the prompt alone, while the limitation
 mean keeps 93% there. JailbreakBench with unknown on the template + generated tokens, and on the last prompt token +
 generated tokens (nearly generation only). Predicted: template + generated recovers ≥45% unsafe (p≈0.6); last +
 generated recovers ≥35% (p≈0.5), i.e. the generated tokens, not the request, carry the rest.
+
+Outcome (§52): (a) held (template + generated 53%); (b) failed (last + generated 6%). Neither the template nor the generated tokens suffice alone (prompt 20%, generation 6%); together 53%: the push must be on both. Replication on Llama-3.1 and Qwen2.5-7B queued (plan 100).
 
 ### 99. Template-only pushes on Qwen2.5-7B — job 4034 (~35 min, added 2026-10-18 23:02)
 
@@ -1239,3 +1241,12 @@ on the prompt (every token 63%). On Llama-3-8B the template-suffix tokens alone 
 arithmetic cost. Strength 1 and 3 up on Qwen2.5-7B's template tokens: JailbreakBench + GSM8K. Predicted: GSM8K within
 5pp of baseline (77%) for both (p≈0.6); strength 1 keeps ≥20% unsafe (p≈0.5; §39 found the Qwens also read limit claims
 off the request, so the template may carry less here than on the Llamas).
+
+### 100. Does unknown need the template and the answer together on other models? — jobs 4035-4036 (~35 min, added 2026-10-18 23:28)
+
+§52 (Llama-3-8B): unknown's jailbreak needs the push on the template and generated tokens together (53%; prompt 20%,
+last + generated 6%), while the limitation mean needs only the template. On Llama-3.1 (unknown 43% every token) and
+Qwen2.5-7B (42%, mostly a refusal opener followed by compliance, §51): unknown on the prompt only, and on template +
+generated, JailbreakBench. Predicted: prompt only keeps ≤50% of the every-token rate on both (p≈0.6); template +
+generated keeps ≥75% on both (p≈0.6). On Qwen2.5-7B, whose unsafe answers open with a refusal, the generated tokens
+should matter most (prompt only ≤15%, p≈0.6).
