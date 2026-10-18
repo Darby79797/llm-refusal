@@ -1154,3 +1154,14 @@ JailbreakBench, 256 tokens, LG2: inability's, memory's and persona's own directi
 (baseline and the mean are plan 76's limsub run). Predicted: the best single member's unsafe rate ≥ the mean's (§33) on
 ≥3/7 (p≈0.5); on Qwen2.5-3B, inability alone ≤30% unsafe despite its 2% refusal on the eval set, because it moralises
 (p≈0.6).
+
+### 93. What does each jailbreak cost in general ability? — jobs 4000-4060 (tier A, ~4 h), 4100-4160 (tier B, ~3 h) (added 2026-10-18 12:40)
+
+Every JailbreakBench result should say what the same intervention does to ordinary tasks. `scripts/push_capability.py`
+scores a fixed sample in the chat template (`data/benchmark_items.json`, `fetch_benchmark_items.py`): MMLU (5 per
+subject, 285) and ARC-Challenge (200) 0-shot by the best answer letter's logit, and GSM8K (100) 0-shot step by step,
+greedy, 320 tokens; under any jbb_safety.py condition (`--from-jbb TAGS` takes every condition of those runs). Tier A:
+baseline, r̂ orthogonalised out of the weights (abliteration, the reference), and every condition of §33 / §47 / §48;
+tier B: plan 92's members and §46's position pushes. Predicted: abliteration costs ≤3pp on MMLU and ARC on ≥6/7 (as
+Arditi report); the limitation mean at strength 1 costs ≤5pp on MMLU / ARC on ≥5/7 but more on GSM8K (≥10pp drop on
+≥3/7, p≈0.5); the random control costs ≤3pp everywhere; ×1.5 and 3 layers upstream cost more than strength 1 on ≥5/7.
