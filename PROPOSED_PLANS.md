@@ -1252,3 +1252,15 @@ Qwen2.5-7B (42%, mostly a refusal opener followed by compliance, §51): unknown 
 generated, JailbreakBench. Predicted: prompt only keeps ≤50% of the every-token rate on both (p≈0.6); template +
 generated keeps ≥75% on both (p≈0.6). On Qwen2.5-7B, whose unsafe answers open with a refusal, the generated tokens
 should matter most (prompt only ≤15%, p≈0.6).
+
+Partial outcome (job 4035, Llama-3.1): unknown prompt only 20% unsafe (47% of its every-token 43%: held), template +
+generated 34% (79%: held).
+
+### 101. Does unknown move the refusal decision at the template? — jobs 4037-4038 (~15 min, added 2026-10-19 00:12)
+
+§52: on the prompt alone the limitation mean keeps nearly all of its jailbreak and unknown a third to a half. Either
+unknown's push moves the refusal log-odds at the generation boundary less, or it moves them as much and the model
+re-decides during generation. push_positions.py (no generation) on Llama-3-8B and Llama-3.1: refusal log-odds under
+the mean and unknown, each on all / instruction / template / last prompt tokens. Predicted: unknown's all-token shift
+is ≤60% of the mean's on both (p≈0.6), i.e. it is weaker at the decision, not re-decided later; its template share is
+≥0.5 on both, like the mean's (p≈0.5).
