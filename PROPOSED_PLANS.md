@@ -1221,6 +1221,8 @@ tokens are spared). (2) Qwen2.5-7B, whose jailbreak costs GSM8K 77 → 26% (§50
 51-93% of log-odds, §46's template + generated 76%) and costs ≤3pp on each benchmark (p≈0.6); on Qwen2.5-7B prompt-only
 recovers ≥30 of strength 1's 51 lost GSM8K points (p≈0.6) and 3 up prompt-only keeps ≥45% unsafe (p≈0.5).
 
+Partial outcome (job 4031, §52): template-only ×1.5 on Llama-3-8B: 66% unsafe (held), GSM8K 84 / ARC 81 held within 3pp, MMLU 66 → 62 (−4pp, just outside; its answer is read at a pushed token).
+
 ### 98. Where does unknown's jailbreak act? — job 4033 (~20 min, added 2026-10-18 21:58)
 
 §52: unknown's direction jailbreaks Llama-3-8B at 60% on every token but 20% on the prompt alone, while the limitation
