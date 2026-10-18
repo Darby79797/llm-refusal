@@ -1172,3 +1172,5 @@ baseline, r̂ orthogonalised out of the weights (abliteration, the reference), a
 tier B: plan 92's members and §46's position pushes. Predicted: abliteration costs ≤3pp on MMLU and ARC on ≥6/7 (as
 Arditi report); the limitation mean at strength 1 costs ≤5pp on MMLU / ARC on ≥5/7 but more on GSM8K (≥10pp drop on
 ≥3/7, p≈0.5); the random control costs ≤3pp everywhere; ×1.5 and 3 layers upstream cost more than strength 1 on ≥5/7.
+
+Partial outcome (2026-10-18 15:50, RESULTS §50; Llama-3.1 and the 1B; Llama-3-8B / Qwen2.5-7B / 1.5B running): (a) held 2/2; (b) MMLU / ARC 1/2 (Llama-3.1 ≤2pp; the 1B at chance), GSM8K ≥10pp 1/2; (c) 1/2 (the 1B's random push costs 10-12pp; Llama-3.1's costs 14pp of GSM8K); (d) held 2/2. The 1B jailbreak is breakage.

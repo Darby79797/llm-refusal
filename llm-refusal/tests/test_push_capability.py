@@ -68,3 +68,23 @@ def test_jbb_conditions_dedupes_specs_and_renames_clashes(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
     assert pc.jbb_conditions("M", ["one", "two", "missing"]) == [
         ("baseline", "baseline"), ("lim", "sub:L"), ("lim-two", "sub:L*0.5"), ("rhat", "sub:R")]
+
+
+def test_gsm8k_scores_accuracy_and_missing_answer_lines():
+    pc = _mod()
+
+    class _Run:
+        class ev:
+            @staticmethod
+            def generate_responses(prompts, max_new_tokens):
+                return ["2 + 2 = 4\nAnswer: 4", "It is 5, I think.", "I can't help with that."]
+
+        class fw:
+            class tokenizer:
+                @staticmethod
+                def encode(s, add_special_tokens=False):
+                    return [ord(c) for c in s]
+
+    r = pc.gsm8k(_Run, [{"question": "q", "answer": "4"}, {"question": "q", "answer": "5"},
+                        {"question": "q", "answer": "1"}], 8)
+    assert r["correct"] == [1, 1, 0] and abs(r["no_answer"] - 2 / 3) < 1e-9

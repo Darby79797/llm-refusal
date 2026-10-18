@@ -10,7 +10,8 @@ scripts/fetch_benchmark_items.py) in the chat template under each --conditions e
              among the options' letters; `format` = how often the unrestricted top token is one of them (does the
              push still let the model follow the instruction?)
   gsm8k      0-shot, step by step, greedy, --max-new-tokens; the number after "Answer:" (else the last number) against
-             the reference; also the degenerate rate
+             the reference; also the degenerate rate (coherence.is_degenerate flags templated step-by-step working on
+             the 8B models, so read `no_answer`, the share with no "Answer:" line, for truncation and breakdown)
 
   .venv/bin/python3 llm-refusal/scripts/push_capability.py --model meta-llama/Llama-3.1-8B-Instruct --tag lim \\
       --conditions "baseline=baseline,lim=sub:results/limits4-Llama-3.1-8B-Instruct-direction"
@@ -109,8 +110,9 @@ def gsm8k(run, items: List[dict], max_new_tokens: int) -> Dict[str, object]:
     correct = [int(gsm8k_correct(p, x["answer"])) for p, x in zip(preds, items)]
     tok = run.fw.tokenizer
     deg = [int(is_degenerate(tok.encode(x, add_special_tokens=False))) for x in texts]
-    return {"accuracy": sum(correct) / len(correct), "degenerate": sum(deg) / len(deg), "correct": correct,
-            "responses": texts}
+    no_answer = [int("Answer:" not in x) for x in texts]
+    return {"accuracy": sum(correct) / len(correct), "degenerate": sum(deg) / len(deg),
+            "no_answer": sum(no_answer) / len(no_answer), "correct": correct, "responses": texts}
 
 
 def jbb_conditions(short: str, tags: List[str]) -> List[tuple]:
@@ -171,7 +173,7 @@ def main():
                     stack.enter_context(condition_context(run, sp))
                 c[b] = gsm8k(run, items[b], a.max_new_tokens) if b == "gsm8k" else multiple_choice(run, items[b])
             save_json(path, out)
-            extra = f"  degenerate {c[b]['degenerate']:.0%}" if b == "gsm8k" else f"  format {c[b]['format']:.0%}"
+            extra = f"  degenerate {c[b]['degenerate']:.0%}  no answer {c[b]['no_answer']:.0%}" if b == "gsm8k" else f"  format {c[b]['format']:.0%}"
             print(f"{name:10s} {b:6s} accuracy {c[b]['accuracy']:.1%}{extra}", flush=True)
     print("saved", path)
 
