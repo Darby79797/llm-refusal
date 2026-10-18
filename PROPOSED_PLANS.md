@@ -1244,7 +1244,7 @@ off the request, so the template may carry less here than on the Llamas).
 
 Outcome (§52): (a) 1/2 (strength 1 GSM8K 73%, −4pp; 3 up 68%, −9pp); (b) failed (strength 1 16% unsafe, 3 up 19%). Qwen needs the request's tokens too; no subset gives Qwen2.5-7B a strong cheap jailbreak.
 
-### 100. Does unknown need the template and the answer together on other models? — jobs 4035-4036 (~35 min, added 2026-10-18 23:28)
+### 100. Does unknown need the template and the answer together on other models? — jobs 4035-4036 (~35 min, added 2026-10-18 23:28) — DONE
 
 §52 (Llama-3-8B): unknown's jailbreak needs the push on the template and generated tokens together (53%; prompt 20%,
 last + generated 6%), while the limitation mean needs only the template. On Llama-3.1 (unknown 43% every token) and
@@ -1254,7 +1254,7 @@ generated keeps ≥75% on both (p≈0.6). On Qwen2.5-7B, whose unsafe answers op
 should matter most (prompt only ≤15%, p≈0.6).
 
 Partial outcome (job 4035, Llama-3.1): unknown prompt only 20% unsafe (47% of its every-token 43%: held), template +
-generated 34% (79%: held).
+generated 34% (79%: held). Qwen2.5-7B (job 4036): prompt only 9% (21%: held; ≤15%: held), template + generated 39% (93%: held). Outcome (§52): all three held on both models.
 
 ### 101. Does unknown move the refusal decision at the template? — jobs 4037-4038 (~15 min, added 2026-10-19 00:12)
 
