@@ -1173,7 +1173,7 @@ tier B: plan 92's members and §46's position pushes. Predicted: abliteration co
 Arditi report); the limitation mean at strength 1 costs ≤5pp on MMLU / ARC on ≥5/7 but more on GSM8K (≥10pp drop on
 ≥3/7, p≈0.5); the random control costs ≤3pp everywhere; ×1.5 and 3 layers upstream cost more than strength 1 on ≥5/7.
 
-Partial outcome (2026-10-18 17:15, RESULTS §50; Llama-3.1, Llama-3-8B, the 1B; Qwen2.5-7B / 1.5B queued): (a) held 3/3; (b) MMLU / ARC 2/3 (the 1B at chance), GSM8K ≥10pp 2/3 (Llama-3-8B −13pp, the 1B); (c) 1/3 (random costs 12-28pp of GSM8K everywhere); (d) held 3/3. The 1B jailbreak is breakage; Llama-3-8B's strong forms (≥56% unsafe) cost 37-50pp of GSM8K; only Llama-3.1's is strong and cheap.
+Partial outcome (2026-10-18 17:15, RESULTS §50; Llama-3.1, Llama-3-8B, the 1B; Qwen2.5-7B / 1.5B queued): (a) held 3/3; (b) MMLU / ARC 2/3 (the 1B at chance), GSM8K ≥10pp 2/3 (Llama-3-8B −13pp, the 1B); (c) 1/3 (random costs 12-28pp of GSM8K everywhere); (d) held 3/3. The 1B jailbreak is breakage; Llama-3-8B's strong forms (≥56% unsafe) cost 37-50pp of GSM8K; only Llama-3.1's is strong and cheap. Qwen2.5-7B (job 4030): (a) failed (abliteration MMLU −7pp); (b) MMLU / ARC held, GSM8K 77 → 26% (answers circle past the 320-token budget); (c) held; (d) held (3 up: GSM8K 7%).
 
 ### 94. Which concepts beyond the mean's members beat JailbreakBench? — jobs 4021-4024 (~1.7 h, added 2026-10-18 15:55) — DONE
 
@@ -1207,3 +1207,12 @@ every token. Test whether that generalises to the two other strong, costly jailb
 unsafe, GSM8K −20pp) and ×1.5 on Llama-3.1 (77%, GSM8K −24pp). JailbreakBench + GSM8K under each, prompt only
 (MMLU / ARC equal the full push). Predicted: each keeps ≥75% of its every-token unsafe rate (p≈0.6; §46's range was
 72-122%), and each costs ≤5pp of GSM8K (p≈0.6).
+
+### 97. Template-only pushes, and Qwen2.5-7B's prompt-only cost — jobs 4031-4032 (~50 min, added 2026-10-18 21:35)
+
+Two cheap follow-ups to §52. (1) Llama-3-8B: ×1.5 on the five template-suffix tokens only, no request or generated
+tokens, on JailbreakBench and all three benchmarks (MMLU / ARC now differ from the full push, since the question's
+tokens are spared). (2) Qwen2.5-7B, whose jailbreak costs GSM8K 77 → 26% (§50): GSM8K under prompt-only strength 1 and
+3 up, JailbreakBench for 3 up prompt-only. Predicted: template-only keeps ≥40% unsafe on Llama-3-8B (p≈0.5; §39's
+51-93% of log-odds, §46's template + generated 76%) and costs ≤3pp on each benchmark (p≈0.6); on Qwen2.5-7B prompt-only
+recovers ≥30 of strength 1's 51 lost GSM8K points (p≈0.6) and 3 up prompt-only keeps ≥45% unsafe (p≈0.5).
