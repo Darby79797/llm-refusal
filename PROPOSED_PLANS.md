@@ -1121,7 +1121,7 @@ of the five models where limits4 does (p≈0.5), and removes inability claims �
 
 Outcome (§45): (a) held (4/5: Llama-3.1 2%, Qwen2.5-7B 7%, 1B 7%, Llama-2 24%; 1.5B 45%; also Llama-3-8B 11%, better than the mean's 33%). (b) held (7/7, 0-12%). The plain difference loses the mean's edge on Qwen2.5-3B (78%) and induces less on 6/7.
 
-### 87. Does the template-only push jailbreak in generation? — jobs 3600-3660 (~4.3 h)
+### 87. Does the template-only push jailbreak in generation? — jobs 3600-3660 (~4.3 h) — DONE
 
 JailbreakBench, 256 tokens, LG2, with jbb_safety's new `subpos:` conditions: the mean on every token (as plan 76), on
 the template suffix + generated tokens, on the instruction only, and on the prompt only (no generated tokens); r̂
@@ -1129,13 +1129,26 @@ everywhere and template-only. (Check: `subpos:all+gen` reproduces `sub:` token f
 Predicted: template + generated gives LG2 unsafe ≥0.7 × the every-token push in ≥4/7, and instruction-only ≤10% unsafe
 on ≥6/7 (p≈0.55).
 
-### 90. The strongest form of the limitation jailbreak — jobs 3700-3760 (~2.5 h)
+Outcome (§46): both failed. (a) 2/7 (template + generated keeps 0.59-0.88). (b) 5/7 (1.5B 11%, 1B 26%). But the prompt-only push (no generated tokens) keeps 72-122% of the unsafe rate on 6/7: the jailbreak is decided in the prefill.
+
+### 90. The strongest form of the limitation jailbreak — jobs 3700-3760 (~2.5 h) — DONE
 
 JailbreakBench, 256 tokens, LG2: the mean and the mean ⊥ r̂ at 3 layers upstream (the best layer in §37), and plan 88's
 plain difference of means. Predicted: the upstream mean gives LG2 unsafe at least as high as at its own layer (plan 76)
 on ≥5/7 (p≈0.6).
 
+Outcome (§47): held (5/7), but Llama-2's upstream answers are 63% degenerate (4/7 without it). Llama-3.1 75% / 76% ⊥ r̂, Qwen2.5-7B 63%; weaker on Qwen2.5-3B (9%) and 1.5B (57%).
+
 ### 91. Dose-response of the jailbreak on JailbreakBench — jobs 3800-3860 (~2.5 h, last: lowest priority)
 
 The mean subtracted at strength 0.5 / 0.75 / 1.5; 256 tokens, LG2. Predicted: unsafe rises monotonically from 0.5 to 1
 on ≥6/7, and 1.5 adds degenerate output ≥10% on ≥3/7 (p≈0.5).
+
+### 92. Does one member carry the jailbreak on JailbreakBench? — jobs 3900-3960 (~1.7 h, added 2026-10-18 09:50)
+
+§32 found that one member alone matched or beat the mean on the refusal eval set on four models (inability on
+Llama-3.1, Qwen2.5-3B and the 1B; persona on Qwen2.5-7B), and §47 that Qwen2.5-3B resists every form of the mean.
+JailbreakBench, 256 tokens, LG2: inability's, memory's and persona's own directions subtracted at their own layers
+(baseline and the mean are plan 76's limsub run). Predicted: the best single member's unsafe rate ≥ the mean's (§33) on
+≥3/7 (p≈0.5); on Qwen2.5-3B, inability alone ≤30% unsafe despite its 2% refusal on the eval set, because it moralises
+(p≈0.6).
