@@ -1139,10 +1139,12 @@ on ≥5/7 (p≈0.6).
 
 Outcome (§47): held (5/7), but Llama-2's upstream answers are 63% degenerate (4/7 without it). Llama-3.1 75% / 76% ⊥ r̂, Qwen2.5-7B 63%; weaker on Qwen2.5-3B (9%) and 1.5B (57%).
 
-### 91. Dose-response of the jailbreak on JailbreakBench — jobs 3800-3860 (~2.5 h, last: lowest priority)
+### 91. Dose-response of the jailbreak on JailbreakBench — jobs 3800-3860 (~2.5 h, last: lowest priority) — DONE
 
 The mean subtracted at strength 0.5 / 0.75 / 1.5; 256 tokens, LG2. Predicted: unsafe rises monotonically from 0.5 to 1
 on ≥6/7, and 1.5 adds degenerate output ≥10% on ≥3/7 (p≈0.5).
+
+Outcome (§48): both held. (a) 7/7. (b) 4/7 (Qwen2.5-7B 33%, 1.5B 26%, 1B 95%, Llama-2 94%); the 8B Llamas reach 76-77% unsafe at 1.5 with ≤3% degenerate.
 
 ### 92. Does one member carry the jailbreak on JailbreakBench? — jobs 3900-3960 (~1.7 h, added 2026-10-18 09:50)
 
