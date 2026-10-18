@@ -1200,7 +1200,7 @@ mean at strength 1 (within 5pp) on both (p≈0.5).
 
 Outcome (§52): (a) failed (2/4: ×1.5 on Llama-3-8B −5pp and Llama-3.1 strength 1 0pp; Llama-3-8B strength 1 −10pp, 3 up −14pp); (b) held (×1.5 prompt-only 63% unsafe, GSM8K 77% against 82% baseline); (c) failed (r̂ costs 9-14pp more GSM8K than the mean). Unknown on Llama-3-8B (job 4027): GSM8K −20pp.
 
-### 96. Do the other strong jailbreaks also lose their arithmetic cost on prompt tokens only? — jobs 4028-4029 (~45 min, added 2026-10-18 21:20)
+### 96. Do the other strong jailbreaks also lose their arithmetic cost on prompt tokens only? — jobs 4028-4029 (~45 min, added 2026-10-18 21:20) — DONE
 
 §52: the ×1.5 mean pushed on prompt tokens only keeps 63% unsafe on Llama-3-8B with GSM8K within 5pp, against −50pp on
 every token. Test whether that generalises to the two other strong, costly jailbreaks: unknown on Llama-3-8B (60%
@@ -1209,6 +1209,8 @@ unsafe, GSM8K −20pp) and ×1.5 on Llama-3.1 (77%, GSM8K −24pp). JailbreakBen
 72-122%), and each costs ≤5pp of GSM8K (p≈0.6).
 
 Partial outcome (job 4028, §52): unknown on Llama-3-8B, prompt only: 20% unsafe (33% of its every-token 60%; fails the first prediction), GSM8K 85% (holds the second, trivially, as the push mostly stops working).
+
+Outcome (§52): (a) 1/2 (×1.5 on Llama-3.1 prompt only keeps 81%, 62% unsafe; unknown on Llama-3-8B 33%); (b) held 2/2 (Llama-3.1 GSM8K 81 → 78%; unknown 85%, trivially). The prompt-only route spares arithmetic for the limitation mean on both 8B Llamas; unknown acts on the generated tokens (plan 98).
 
 ### 97. Template-only pushes, and Qwen2.5-7B's prompt-only cost — jobs 4031-4032 (~50 min, added 2026-10-18 21:35)
 
