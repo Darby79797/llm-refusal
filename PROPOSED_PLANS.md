@@ -1208,6 +1208,8 @@ unsafe, GSM8K −20pp) and ×1.5 on Llama-3.1 (77%, GSM8K −24pp). JailbreakBen
 (MMLU / ARC equal the full push). Predicted: each keeps ≥75% of its every-token unsafe rate (p≈0.6; §46's range was
 72-122%), and each costs ≤5pp of GSM8K (p≈0.6).
 
+Partial outcome (job 4028, §52): unknown on Llama-3-8B, prompt only: 20% unsafe (33% of its every-token 60%; fails the first prediction), GSM8K 85% (holds the second, trivially, as the push mostly stops working).
+
 ### 97. Template-only pushes, and Qwen2.5-7B's prompt-only cost — jobs 4031-4032 (~50 min, added 2026-10-18 21:35)
 
 Two cheap follow-ups to §52. (1) Llama-3-8B: ×1.5 on the five template-suffix tokens only, no request or generated
@@ -1216,3 +1218,10 @@ tokens are spared). (2) Qwen2.5-7B, whose jailbreak costs GSM8K 77 → 26% (§50
 3 up, JailbreakBench for 3 up prompt-only. Predicted: template-only keeps ≥40% unsafe on Llama-3-8B (p≈0.5; §39's
 51-93% of log-odds, §46's template + generated 76%) and costs ≤3pp on each benchmark (p≈0.6); on Qwen2.5-7B prompt-only
 recovers ≥30 of strength 1's 51 lost GSM8K points (p≈0.6) and 3 up prompt-only keeps ≥45% unsafe (p≈0.5).
+
+### 98. Where does unknown's jailbreak act? — job 4033 (~20 min, added 2026-10-18 21:58)
+
+§52: unknown's direction jailbreaks Llama-3-8B at 60% on every token but 20% on the prompt alone, while the limitation
+mean keeps 93% there. JailbreakBench with unknown on the template + generated tokens, and on the last prompt token +
+generated tokens (nearly generation only). Predicted: template + generated recovers ≥45% unsafe (p≈0.6); last +
+generated recovers ≥35% (p≈0.5), i.e. the generated tokens, not the request, carry the rest.
