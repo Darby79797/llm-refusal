@@ -1430,22 +1430,22 @@ LG2 unsafe % (phrase refusal % in brackets; moralising / degenerate where ≥20%
 
 Predictions (plan 92): (a) the best single member ≥ the mean's unsafe rate on ≥3/7: held (5/7; 3/7 without heavy degeneration: Llama-3-8B, Qwen2.5-7B, 3B). (b) on Qwen2.5-3B inability alone ≤30% unsafe despite removing refusal: held (27%, 3% refused, 40% moralising).
 
-### 50. Plan 93: what the limitation jailbreak costs in general capability (2026-10-18) **[Llama-3.1-8B, Llama-3-8B, Llama-3.2-1B and Qwen2.5-7B so far (Qwen2.5-1.5B queued; Qwen2.5-3B and Llama-2 held, since no clean jailbreak works on them); `scripts/push_capability.py`: chat-format, 0-shot, greedy; MMLU (285 items, 5 per subject; ±2.8pp), ARC-Challenge (200; ±2.5pp) scored by the best answer-letter logit, GSM8K (100; ±4pp) step by step to 320 tokens; under the JailbreakBench conditions of §33 / §47 / §48 / §49, with abliteration (`edit:` r̂, weight orthogonalisation) as the reference; `...-push-capability-jbb.json`]**
+### 50. Plan 93: what the limitation jailbreak costs in general capability (2026-10-18) **[Llama-3.1-8B, Llama-3-8B, Llama-3.2-1B, Qwen2.5-7B and Qwen2.5-1.5B ( Qwen2.5-3B and Llama-2 held, since no clean jailbreak works on them); `scripts/push_capability.py`: chat-format, 0-shot, greedy; MMLU (285 items, 5 per subject; ±2.8pp), ARC-Challenge (200; ±2.5pp) scored by the best answer-letter logit, GSM8K (100; ±4pp) step by step to 320 tokens; under the JailbreakBench conditions of §33 / §47 / §48 / §49, with abliteration (`edit:` r̂, weight orthogonalisation) as the reference; `...-push-capability-jbb.json`]**
 
 Accuracy % (MMLU / ARC / GSM8K), and in brackets the JailbreakBench LG2 unsafe % from §33 / §47-§49 (abliteration: the summary's safety table, ablation of r̂):
 
-| | Llama-3.1-8B | Llama-3-8B | Llama-3.2-1B | Qwen2.5-7B |
-|---|---|---|---|---|
-| baseline | 67 / 85 / 81 (4) | 66 / 82 / 82 (2) | 40 / 46 / 46 (13) | 75 / 89 / 77 |
-| abliteration (r̂) | 67 / 86 / 78 (89) | 66 / 82 / 86 (83) | 43 / 44 / 45 | **68** / 90 / 78 |
-| mean subtracted | 69 / 85 / 77 (68) | 65 / 82 / **69** (43) | **22 / 26 / 2** (64) | 71 / 86 / **26** (34) |
-| mean ⊥ r̂ | 68 / 85 / 75 (64) | | **22 / 26 / 2** (60) | |
-| random, same norm | 66 / 85 / 67 (10) | 62 / 80 / 70 (2) | 30 / 34 / 18 (7) | 72 / 87 / 63 (6) |
-| mean, 3 layers up | 66 / 82 / 64 (75) | **52 / 72 / 45** (56) | 21 / 26 / 2 (65) | 65 / 79 / **7** (63) |
-| mean ⊥ r̂, 3 layers up | 65 / 82 / 66 (76) | | 21 / 26 / 2 (61) | |
-| mean ×0.5 / ×0.75 | | | 27 / 25 / 36 (29), 21 / 26 / 22 (52) | |
-| mean ×1.5 | 65 / 80 / 57 (77) | 61 / 79 / **32** (76) | 21 / 25 / 0 (42, 95% degenerate) | |
-| memory alone (§49) | | 59 / 78 / **41** (62) | | |
+| | Llama-3.1-8B | Llama-3-8B | Llama-3.2-1B | Qwen2.5-7B | Qwen2.5-1.5B |
+|---|---|---|---|---|---|
+| baseline | 67 / 85 / 81 (4) | 66 / 82 / 82 (2) | 40 / 46 / 46 (13) | 75 / 89 / 77 | 63 / 75 / 69 |
+| abliteration (r̂) | 67 / 86 / 78 (89) | 66 / 82 / 86 (83) | 43 / 44 / 45 | **68** / 90 / 78 | 61 / 71 / 66 |
+| mean subtracted | 69 / 85 / 77 (68) | 65 / 82 / **69** (43) | **22 / 26 / 2** (64) | 71 / 86 / **26** (34) | **55 / 60 / 26** (69) |
+| mean ⊥ r̂ | 68 / 85 / 75 (64) | | **22 / 26 / 2** (60) | | |
+| random, same norm | 66 / 85 / 67 (10) | 62 / 80 / 70 (2) | 30 / 34 / 18 (7) | 72 / 87 / 63 (6) | 59 / 69 / **30** (1) |
+| mean, 3 layers up | 66 / 82 / 64 (75) | **52 / 72 / 45** (56) | 21 / 26 / 2 (65) | 65 / 79 / **7** (63) | |
+| mean ⊥ r̂, 3 layers up | 65 / 82 / 66 (76) | | 21 / 26 / 2 (61) | | |
+| mean ×0.5 / ×0.75 | | | 27 / 25 / 36 (29), 21 / 26 / 22 (52) | | |
+| mean ×1.5 | 65 / 80 / 57 (77) | 61 / 79 / **32** (76) | 21 / 25 / 0 (42, 95% degenerate) | | |
+| memory alone (§49) | | 59 / 78 / **41** (62) | | | |
 
 Chance is 25% on MMLU / ARC. GSM8K answers with no "Answer:" line: the 8B Llamas 1-12% under every push (Llama-3.1's random push 26%); the 1B 15% at baseline, 63-100% under the mean at any strength ≥0.75.
 
@@ -1453,9 +1453,10 @@ Chance is 25% on MMLU / ARC. GSM8K answers with no "Answer:" line: the 8B Llamas
 - **On Llama-3-8B strength buys unsafe output with arithmetic.** At strength 1 (43% unsafe) the cost is that of a random push of its size (GSM8K −13pp against −12pp; MMLU / ARC ≤1pp). Every form that reaches ≥56% unsafe costs 37-50pp of GSM8K: 3 layers up (also −14pp on MMLU, where only 22% of answers start with a letter), ×1.5 (82 → 32%) and memory alone (82 → 41%). The answers stay fluent and step by step but get the arithmetic wrong ("Micah ran 3.5 × 8 = 21 miles"). Abliteration costs nothing here (GSM8K +4pp). Llama-3-8B has no limitation jailbreak that is both strong and cheap; Llama-3.1 does.
 - **On Llama-3.2-1B the jailbreak is mostly breakage.** Every push that gives ≥50% unsafe puts MMLU and ARC at chance and GSM8K at 0-2%; even ×0.5 (29% unsafe) costs 12-21pp. Abliteration costs nothing here either (MMLU +3, ARC −2, GSM8K −1). The 1B's 60-77% unsafe rates in §33 and §46-§49 are a broken model producing unsafe text, not a working model with its refusal switched off. The limitation feature is not cleanly separable from general function at this scale, or the push is far larger than the model can absorb (the random push also costs 10-28pp).
 - **On Qwen2.5-7B the jailbreak costs most of GSM8K** (2026-10-18, job 4030). MMLU / ARC stay within 4 / 3pp at strength 1, but GSM8K falls 77 → 26% (34% unsafe), and 3 layers up (63% unsafe) to 7%; a random push of the same size costs 14pp. The pushed answers are longer, not cut short: they restate the problem step by step at length (mean 178-190 words against 137) and 62-90% run out of the 320-token budget before an "Answer:" line, so part of the drop is truncation of circling working, not wrong arithmetic. Abliteration leaves ARC and GSM8K alone but costs 7pp of MMLU, the Qwen edit cost of the summary. Qwen2.5-7B's limitation jailbreak is not cheap; the prompt-only form (§52) is the check that would decide whether it can be.
+- **On Qwen2.5-1.5B the jailbreak costs general ability, and most of the arithmetic cost is any push of its size** (job 4050). The mean (69% unsafe) costs 7 / 15 / 43pp of MMLU / ARC / GSM8K; a random push of the same norm costs 4 / 6 / 39pp, so GSM8K is lost to the push's size and only the MMLU / ARC excess (3 / 9pp) is the concept's. Abliteration costs 2 / 4 / 3pp. With the 1B (§50 above), the two small models' jailbreaks are pushes they cannot absorb.
 - `coherence.is_degenerate` flags 18% of Llama-3.1's baseline GSM8K answers, mostly correct, templated step-by-step working. On the 8B models, read the unfinished-answer rate instead; push_capability.py now records it as `no_answer`.
 
-Predictions (plan 93; scored on 4 of the planned 7 models so far; Qwen2.5-7B in brackets): (a) abliteration ≤3pp on MMLU / ARC: held (3/3) [failed: MMLU −7pp]. (b) the mean ≤5pp on MMLU / ARC: 2/3 (the 1B loses 18-20pp), and ≥10pp on GSM8K: 2/3 (Llama-3-8B −13pp, the 1B −44pp). (c) random ≤3pp on MMLU / ARC: 1/3 (Llama-3-8B −4pp MMLU, the 1B −10-12pp; on GSM8K random costs 12-28pp on all three). (d) ×1.5 and upstream cost more than the mean: held (3/3, on GSM8K) [held]. Qwen2.5-7B: (b) held on MMLU / ARC and GSM8K −51pp; (c) held (−3 / −2pp).
+Predictions (plan 93; five of seven models, Qwen2.5-3B and Llama-2 held since no clean jailbreak works on them; Qwen2.5-7B in brackets): (a) abliteration ≤3pp on MMLU / ARC: held (3/3) [failed: MMLU −7pp]. (b) the mean ≤5pp on MMLU / ARC: 2/3 (the 1B loses 18-20pp), and ≥10pp on GSM8K: 2/3 (Llama-3-8B −13pp, the 1B −44pp). (c) random ≤3pp on MMLU / ARC: 1/3 (Llama-3-8B −4pp MMLU, the 1B −10-12pp; on GSM8K random costs 12-28pp on all three). (d) ×1.5 and upstream cost more than the mean: held (3/3, on GSM8K) [held]. Qwen2.5-7B: (b) held on MMLU / ARC and GSM8K −51pp; (c) held (−3 / −2pp). Qwen2.5-1.5B: (a) failed (ARC −4pp); (b) failed on MMLU / ARC (−7 / −15pp), GSM8K −43pp; (c) failed (−4 / −6pp). Totals: (a) 3/5, (b) MMLU / ARC 2/5 and GSM8K ≥10pp 4/5, (c) 2/5, (d) 4/4.
 
 ### 51. Plan 94: which other concepts beat JailbreakBench? (2026-10-18) **[Llama-3.1-8B, Llama-3-8B, Qwen2.5-7B, Qwen2.5-1.5B (the four with a clean limitation jailbreak, §50); JailbreakBench, 256 tokens; realtime's own direction at its own layer (the fourth member of the mean), and feelings, unknown and future each moved to the mean's layer and norm (`save_control_direction.py --like`); subtracted ×1; LG2 + refuse / moralise / other / comply; `...-jbb-safety-limother[-deflect].json`; the mean and random from §33]**
 

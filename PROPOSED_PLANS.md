@@ -1157,7 +1157,7 @@ JailbreakBench, 256 tokens, LG2: inability's, memory's and persona's own directi
 
 Outcome (§49): both held. (a) 5/7 (3/7 without heavy degeneration: Llama-3-8B memory 62%, Qwen2.5-7B persona 44%, 3B inability 27%). (b) 27% unsafe, 3% refused, 40% moralising. Qwen2.5-1.5B needs the mean (members ≤23% against 69%).
 
-### 93. What does each jailbreak cost in general ability? — jobs 4000-4060 (tier A, ~4 h), 4100-4160 (tier B, ~3 h) (added 2026-10-18 12:40)
+### 93. What does each jailbreak cost in general ability? — jobs 4000-4060 (tier A, ~4 h), 4100-4160 (tier B, ~3 h) (added 2026-10-18 12:40) — DONE
 
 Trimmed 14:50 by cost: on 8B the check is ~13 min per condition, ~2x the JailbreakBench run, so it runs only for the
 jailbreaks we report on models where they work: Llama-3.1 (mean, ⊥ r̂, 3 up, 3 up ⊥ r̂, ×1.5), Llama-3-8B (mean, 3 up, ×1.5, memory
@@ -1173,7 +1173,7 @@ tier B: plan 92's members and §46's position pushes. Predicted: abliteration co
 Arditi report); the limitation mean at strength 1 costs ≤5pp on MMLU / ARC on ≥5/7 but more on GSM8K (≥10pp drop on
 ≥3/7, p≈0.5); the random control costs ≤3pp everywhere; ×1.5 and 3 layers upstream cost more than strength 1 on ≥5/7.
 
-Partial outcome (2026-10-18 17:15, RESULTS §50; Llama-3.1, Llama-3-8B, the 1B; Qwen2.5-7B / 1.5B queued): (a) held 3/3; (b) MMLU / ARC 2/3 (the 1B at chance), GSM8K ≥10pp 2/3 (Llama-3-8B −13pp, the 1B); (c) 1/3 (random costs 12-28pp of GSM8K everywhere); (d) held 3/3. The 1B jailbreak is breakage; Llama-3-8B's strong forms (≥56% unsafe) cost 37-50pp of GSM8K; only Llama-3.1's is strong and cheap. Qwen2.5-7B (job 4030): (a) failed (abliteration MMLU −7pp); (b) MMLU / ARC held, GSM8K 77 → 26% (answers circle past the 320-token budget); (c) held; (d) held (3 up: GSM8K 7%).
+Partial outcome (2026-10-18 17:15, RESULTS §50; Llama-3.1, Llama-3-8B, the 1B; Qwen2.5-7B / 1.5B queued): (a) held 3/3; (b) MMLU / ARC 2/3 (the 1B at chance), GSM8K ≥10pp 2/3 (Llama-3-8B −13pp, the 1B); (c) 1/3 (random costs 12-28pp of GSM8K everywhere); (d) held 3/3. The 1B jailbreak is breakage; Llama-3-8B's strong forms (≥56% unsafe) cost 37-50pp of GSM8K; only Llama-3.1's is strong and cheap. Qwen2.5-7B (job 4030): (a) failed (abliteration MMLU −7pp); (b) MMLU / ARC held, GSM8K 77 → 26% (answers circle past the 320-token budget); (c) held; (d) held (3 up: GSM8K 7%). Qwen2.5-1.5B (job 4050): (a) failed (ARC −4pp), (b) failed (MMLU / ARC −7 / −15pp; GSM8K −43pp), (c) failed (−4 / −6pp; GSM8K −39pp). Final (§50): (a) 3/5, (b) 2/5 and GSM8K 4/5, (c) 2/5, (d) 4/4. The jailbreak is cheap on Llama-3.1, cheap on Llama-3-8B only on the template (§52), and costly on both Qwens and the 1B.
 
 ### 94. Which concepts beyond the mean's members beat JailbreakBench? — jobs 4021-4024 (~1.7 h, added 2026-10-18 15:55) — DONE
 
