@@ -1234,13 +1234,15 @@ generated recovers ≥35% (p≈0.5), i.e. the generated tokens, not the request,
 
 Outcome (§52): (a) held (template + generated 53%); (b) failed (last + generated 6%). Neither the template nor the generated tokens suffice alone (prompt 20%, generation 6%); together 53%: the push must be on both. Replication on Llama-3.1 and Qwen2.5-7B queued (plan 100).
 
-### 99. Template-only pushes on Qwen2.5-7B — job 4034 (~35 min, added 2026-10-18 23:02)
+### 99. Template-only pushes on Qwen2.5-7B — job 4034 (~35 min, added 2026-10-18 23:02) — DONE
 
 §52: on Qwen2.5-7B a prompt-only push still leaves about half of GSM8K answers unfinished, and 3 up keeps only 36% unsafe
 on the prompt (every token 63%). On Llama-3-8B the template-suffix tokens alone carry the whole jailbreak with no
 arithmetic cost. Strength 1 and 3 up on Qwen2.5-7B's template tokens: JailbreakBench + GSM8K. Predicted: GSM8K within
 5pp of baseline (77%) for both (p≈0.6); strength 1 keeps ≥20% unsafe (p≈0.5; §39 found the Qwens also read limit claims
 off the request, so the template may carry less here than on the Llamas).
+
+Outcome (§52): (a) 1/2 (strength 1 GSM8K 73%, −4pp; 3 up 68%, −9pp); (b) failed (strength 1 16% unsafe, 3 up 19%). Qwen needs the request's tokens too; no subset gives Qwen2.5-7B a strong cheap jailbreak.
 
 ### 100. Does unknown need the template and the answer together on other models? — jobs 4035-4036 (~35 min, added 2026-10-18 23:28)
 
