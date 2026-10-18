@@ -1175,7 +1175,7 @@ Arditi report); the limitation mean at strength 1 costs ≤5pp on MMLU / ARC on 
 
 Partial outcome (2026-10-18 17:15, RESULTS §50; Llama-3.1, Llama-3-8B, the 1B; Qwen2.5-7B / 1.5B queued): (a) held 3/3; (b) MMLU / ARC 2/3 (the 1B at chance), GSM8K ≥10pp 2/3 (Llama-3-8B −13pp, the 1B); (c) 1/3 (random costs 12-28pp of GSM8K everywhere); (d) held 3/3. The 1B jailbreak is breakage; Llama-3-8B's strong forms (≥56% unsafe) cost 37-50pp of GSM8K; only Llama-3.1's is strong and cheap.
 
-### 94. Which concepts beyond the mean's members beat JailbreakBench? — jobs 4021-4024 (~1.7 h, added 2026-10-18 15:55)
+### 94. Which concepts beyond the mean's members beat JailbreakBench? — jobs 4021-4024 (~1.7 h, added 2026-10-18 15:55) — DONE
 
 §49 measured inability, memory and persona alone; §36 that empathy / hedging / sycophancy at the mean's layer and norm
 leave refusal in place. This places the remaining concepts, on the four models where the jailbreak works cleanly
@@ -1185,6 +1185,8 @@ and future (epistemic limits, outside the cluster, §29) each moved to the mean'
 tokens, LG2 + deflection labels. Predicted: realtime ≥ 0.75 × the mean's unsafe rate on ≥3/4 (p≈0.6); feelings ≥ half
 the mean's on ≥3/4 (p≈0.6); future ≤15% unsafe on ≥3/4 (p≈0.7); unknown in between, ≥20% on ≥2/4 (p≈0.5, since §35 found
 it removes limitation claims). Capability checks only for a condition that turns out to be a jailbreak we report.
+
+Outcome (§51): (a) failed (1/4: realtime ≥0.75 × the mean only on Llama-3.1); (b) failed (1/4: feelings 12-33%); (c) failed (2/4: future 57% on Llama-3.1); (d) held (4/4: unknown 42-60%, 60% on Llama-3-8B, above the mean). Jailbreak strength does not track cosine with the mean. Capability check for unknown on Llama-3-8B queued (job 4027).
 
 ### 95. A strong limitation jailbreak that keeps arithmetic? — jobs 4025-4026 (~1.3 h, added 2026-10-18 17:25)
 
