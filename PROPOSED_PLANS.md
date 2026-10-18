@@ -1112,12 +1112,14 @@ own).
 
 Outcome (§44): half held. Inability claims fell to 18%, but harmful refusal only to 71%, and the base direction induces neither claims nor refusal.
 
-### 88. Is the jailbreak a property of the search-selected members or of the concept? — jobs 3500-3560 (~2.3 h)
+### 88. Is the jailbreak a property of the search-selected members or of the concept? — jobs 3500-3560 (~2.3 h) — DONE
 
 `save_diffmean.py`: the members' plain difference of means at the mean's layer and position (cos 0.52 with limits4 on
 the 1B smoke; the halves agree at 0.99), norm-matched, and the same ⊥ r̂ and from half the pairs; evaluate refusal
 (add + sub, phrase + LG2) and inability. Predicted: the plain difference subtracted leaves harmful refusal ≤30% on ≥4
 of the five models where limits4 does (p≈0.5), and removes inability claims ≤20% on ≥5/7 (p≈0.6).
+
+Outcome (§45): (a) held (4/5: Llama-3.1 2%, Qwen2.5-7B 7%, 1B 7%, Llama-2 24%; 1.5B 45%; also Llama-3-8B 11%, better than the mean's 33%). (b) held (7/7, 0-12%). The plain difference loses the mean's edge on Qwen2.5-3B (78%) and induces less on 6/7.
 
 ### 87. Does the template-only push jailbreak in generation? — jobs 3600-3660 (~4.3 h)
 
