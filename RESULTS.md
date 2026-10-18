@@ -1506,6 +1506,16 @@ Degenerate output on JailbreakBench under the prompt-only pushes ≤2%.
 - **Subtracting r̂ as a push costs more arithmetic than the limitation mean** (GSM8K −27pp on Llama-3-8B, −13pp on Llama-3.1, against −13 and −4), while abliteration (r̂ removed from the weights) costs nothing on either (§50). A fixed vector added during generation is what costs, not what the direction encodes; projecting a direction out is cheaper than adding one.
 - **Unknown's direction, Llama-3-8B's strongest single jailbreak (60%), costs 20pp of GSM8K** (MMLU −3, ARC −1), in line with the other every-token pushes that reach ≥56% on this model. Its prompt-only form does not keep it (plan 96, job 4028): **20% unsafe, 73% refused** (every token: 60%, 18%), with GSM8K at 85%. Unlike the limitation mean, which keeps 93% of its effect on this model's prompt alone (§46) and 72-122% on six models, unknown's push overrides refusal mostly while the answer is written. The two directions jailbreak at the same layer and norm by different routes: the limitation mean changes what the model decides at the template, unknown changes what it does after it has started. Neither half is enough (plan 98, job 4033): on the template + generated tokens unknown keeps 53% unsafe (29% refused), on the last prompt token + generated tokens only 6% (90% refused), and on the whole prompt 20%. The push has to sit on the template *and* stay on through the answer; the two parts together give 53%, against 20% and 6% apart. The limitation mean needs only the template. The same holds on Llama-3.1 and Qwen2.5-7B (plan 100, jobs 4035-4036): unknown on the prompt alone keeps 20% unsafe on Llama-3.1 and 9% on Qwen2.5-7B (every token 43 / 42%), and on template + generated tokens 34% and 39%. On Qwen2.5-7B 82% of the template + generated answers still open with a refusal phrase, as under the every-token push (§51), so there the push acts almost entirely while the answer is written: the opening refusal is kept and the answer that follows complies.
 
+Why the two directions differ shows in the refusal log-odds at the generation boundary (plan 101, `push_positions.py`, no generation; harmful prompts):
+
+| refusal log-odds at the boundary | Llama-3-8B | Llama-3.1-8B |
+|---|---|---|
+| no push | +9.79 | +7.86 |
+| mean, all prompt tokens (template share) | **−1.37** (0.93) | **−2.94** (0.90) |
+| unknown, all prompt tokens (template share) | +1.55 (0.94) | +3.64 (0.57) |
+
+- **The mean pushes the first-token decision past zero, unknown does not.** On the prompt alone the mean ends below zero on both models (it keeps its jailbreak there), while unknown moves the log-odds 74% and 39% as far and leaves them positive, so the model still starts to refuse. Keeping unknown on during generation is what flips the answers afterwards (53% / 34% unsafe on template + generated). Both directions act through the template tokens (share 0.57-0.94), so they differ in strength at the decision, not in where they act. Whether a push needs the generated tokens is predicted by whether its prompt-only log-odds cross zero.
+
 Predictions (plan 95):
 - (a) prompt-only pushes cost ≤5pp of GSM8K on both models: failed (2/4 conditions: ×1.5 −5pp and Llama-3.1 strength 1 0pp held; Llama-3-8B strength 1 −10pp and 3 up −14pp did not).
 - (b) a prompt-only strong form keeps ≥50% unsafe on Llama-3-8B: held (×1.5, 63%).

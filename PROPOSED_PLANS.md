@@ -1256,7 +1256,7 @@ should matter most (prompt only ≤15%, p≈0.6).
 Partial outcome (job 4035, Llama-3.1): unknown prompt only 20% unsafe (47% of its every-token 43%: held), template +
 generated 34% (79%: held). Qwen2.5-7B (job 4036): prompt only 9% (21%: held; ≤15%: held), template + generated 39% (93%: held). Outcome (§52): all three held on both models.
 
-### 101. Does unknown move the refusal decision at the template? — jobs 4037-4038 (~15 min, added 2026-10-19 00:12)
+### 101. Does unknown move the refusal decision at the template? — jobs 4037-4038 (~15 min, added 2026-10-19 00:12) — DONE
 
 §52: on the prompt alone the limitation mean keeps nearly all of its jailbreak and unknown a third to a half. Either
 unknown's push moves the refusal log-odds at the generation boundary less, or it moves them as much and the model
@@ -1264,3 +1264,5 @@ re-decides during generation. push_positions.py (no generation) on Llama-3-8B an
 the mean and unknown, each on all / instruction / template / last prompt tokens. Predicted: unknown's all-token shift
 is ≤60% of the mean's on both (p≈0.6), i.e. it is weaker at the decision, not re-decided later; its template share is
 ≥0.5 on both, like the mean's (p≈0.5).
+
+Outcome (§52): (a) 1/2 (unknown's shift 39% of the mean's on Llama-3.1, 74% on Llama-3-8B); (b) held 2/2 (template share 0.94, 0.57). On both, the mean's prompt-only log-odds cross zero (−1.4, −2.9) and unknown's stay positive (+1.6, +3.6), so unknown needs the generated tokens to finish the flip.
