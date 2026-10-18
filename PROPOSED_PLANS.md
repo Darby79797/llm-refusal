@@ -1174,3 +1174,14 @@ Arditi report); the limitation mean at strength 1 costs ≤5pp on MMLU / ARC on 
 ≥3/7, p≈0.5); the random control costs ≤3pp everywhere; ×1.5 and 3 layers upstream cost more than strength 1 on ≥5/7.
 
 Partial outcome (2026-10-18 15:50, RESULTS §50; Llama-3.1 and the 1B; Llama-3-8B / Qwen2.5-7B / 1.5B running): (a) held 2/2; (b) MMLU / ARC 1/2 (Llama-3.1 ≤2pp; the 1B at chance), GSM8K ≥10pp 1/2; (c) 1/2 (the 1B's random push costs 10-12pp; Llama-3.1's costs 14pp of GSM8K); (d) held 2/2. The 1B jailbreak is breakage.
+
+### 94. Which concepts beyond the mean's members beat JailbreakBench? — jobs 4021-4024 (~1.7 h, added 2026-10-18 15:55)
+
+§49 measured inability, memory and persona alone; §36 that empathy / hedging / sycophancy at the mean's layer and norm
+leave refusal in place. This places the remaining concepts, on the four models where the jailbreak works cleanly
+(Llama-3.1, Llama-3-8B, Qwen2.5-7B, 1.5B; §50: the 1B's is breakage): realtime's own direction at its own layer
+(the fourth member), and feelings (in the self-limit cluster, §30, but not in the mean; cos 0.38-0.78 with it), unknown
+and future (epistemic limits, outside the cluster, §29) each moved to the mean's layer and norm. JailbreakBench, 256
+tokens, LG2 + deflection labels. Predicted: realtime ≥ 0.75 × the mean's unsafe rate on ≥3/4 (p≈0.6); feelings ≥ half
+the mean's on ≥3/4 (p≈0.6); future ≤15% unsafe on ≥3/4 (p≈0.7); unknown in between, ≥20% on ≥2/4 (p≈0.5, since §35 found
+it removes limitation claims). Capability checks only for a condition that turns out to be a jailbreak we report.
