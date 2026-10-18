@@ -1275,3 +1275,12 @@ prompt alone should cross and then jailbreak. Llama-3-8B and Llama-3.1: unknown 
 subset (push_positions.py, which now takes `STEM*s`), then JailbreakBench prompt only. Predicted: every condition whose
 all-token log-odds are below zero gives ≥35% unsafe, and every one above zero ≤25% (p≈0.6); ×2 crosses on both models
 (p≈0.7). Degenerate output to be checked at ×2.
+
+### 103. Do the boundary log-odds predict the prompt-only jailbreak for any direction? — job 4041 (~35 min, added 2026-10-19 00:58)
+
+Plan 102 (Llama-3-8B): unknown ×1 / ×1.5 / ×2 on the prompt give boundary log-odds +1.6 / −1.7 / −6.2 and 20 / 42 / 63%
+unsafe, and the mean ×1 sits at −1.4 and 40%, as if one number decided it whatever the direction. Test it across
+directions on Llama-3-8B: boundary log-odds for the mean ×1.5 and 3 up, r̂, random, feelings, future and memory, and
+prompt-only JailbreakBench for r̂, feelings, future and memory; pooled with §52's six. Predicted: Spearman ρ ≥ 0.8
+between −log-odds and prompt-only unsafe over the ~11 conditions (p≈0.6); sign predicts ≥35% vs ≤25% with ≤1 exception
+(p≈0.5).
