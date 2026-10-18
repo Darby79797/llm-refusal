@@ -1185,3 +1185,13 @@ and future (epistemic limits, outside the cluster, §29) each moved to the mean'
 tokens, LG2 + deflection labels. Predicted: realtime ≥ 0.75 × the mean's unsafe rate on ≥3/4 (p≈0.6); feelings ≥ half
 the mean's on ≥3/4 (p≈0.6); future ≤15% unsafe on ≥3/4 (p≈0.7); unknown in between, ≥20% on ≥2/4 (p≈0.5, since §35 found
 it removes limitation claims). Capability checks only for a condition that turns out to be a jailbreak we report.
+
+### 95. A strong limitation jailbreak that keeps arithmetic? — jobs 4025-4026 (~1.3 h, added 2026-10-18 17:25)
+
+§50: on Llama-3-8B every form reaching ≥56% unsafe costs 37-50pp of GSM8K, and on both 8B Llamas a random push costs
+12-14pp, so the cost may be the push on the generated tokens (every reasoning step) rather than the concept. §46 found
+a prompt-only push keeps most of the jailbreak. Llama-3-8B: the strong forms (3 layers up, ×1.5) on prompt tokens only,
+on JailbreakBench; GSM8K under them, under prompt-only at strength 1, and under r̂ subtracted; Llama-3.1: GSM8K under
+prompt-only and r̂ subtracted. Predicted: prompt-only pushes cost ≤5pp of GSM8K on both models (p≈0.6); at least one
+prompt-only strong form keeps ≥50% unsafe on Llama-3-8B (p≈0.5); r̂ subtracted costs as much GSM8K as the limitation
+mean at strength 1 (within 5pp) on both (p≈0.5).
