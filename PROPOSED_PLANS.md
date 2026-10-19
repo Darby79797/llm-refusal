@@ -1278,7 +1278,7 @@ all-token log-odds are below zero gives ≥35% unsafe, and every one above zero 
 
 Outcome (§53): (a) failed (Llama-3-8B 3/3; Llama-3.1 +2.0 → 27% and +0.6 → 33% break the threshold); (b) failed (Llama-3.1 saturates at +0.6). Graded, not a threshold: on both models the log-odds order matches the unsafe order; on Llama-3-8B unknown ×1.5 matches the mean ×1 in both (−1.7 / 42% against −1.4 / 40%). Degenerate ≤1%.
 
-### 103. Do the boundary log-odds predict the prompt-only jailbreak for any direction? — job 4041 (~35 min, added 2026-10-19 00:58)
+### 103. Do the boundary log-odds predict the prompt-only jailbreak for any direction? — jobs 4041-4042 (~75 min, added 2026-10-19 00:58; Llama-3.1 01:15)
 
 Plan 102 (Llama-3-8B): unknown ×1 / ×1.5 / ×2 on the prompt give boundary log-odds +1.6 / −1.7 / −6.2 and 20 / 42 / 63%
 unsafe, and the mean ×1 sits at −1.4 and 40%, as if one number decided it whatever the direction. Test it across
@@ -1286,3 +1286,5 @@ directions on Llama-3-8B: boundary log-odds for the mean ×1.5 and 3 up, r̂, ra
 prompt-only JailbreakBench for r̂, feelings, future and memory; pooled with §52's six. Predicted: Spearman ρ ≥ 0.8
 between −log-odds and prompt-only unsafe over the ~11 conditions (p≈0.6); sign predicts ≥35% vs ≤25% with ≤1 exception
 (p≈0.5).
+Llama-3.1 (job 4042, added after §53 showed unknown saturating there): the same, plus the mean 3 up prompt-only; the same
+predictions.
