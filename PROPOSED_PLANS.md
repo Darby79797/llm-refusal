@@ -1278,7 +1278,7 @@ all-token log-odds are below zero gives ≥35% unsafe, and every one above zero 
 
 Outcome (§53): (a) failed (Llama-3-8B 3/3; Llama-3.1 +2.0 → 27% and +0.6 → 33% break the threshold); (b) failed (Llama-3.1 saturates at +0.6). Graded, not a threshold: on both models the log-odds order matches the unsafe order; on Llama-3-8B unknown ×1.5 matches the mean ×1 in both (−1.7 / 42% against −1.4 / 40%). Degenerate ≤1%.
 
-### 103. Do the boundary log-odds predict the prompt-only jailbreak for any direction? — jobs 4041-4042 (~75 min, added 2026-10-19 00:58; Llama-3.1 01:15)
+### 103. Do the boundary log-odds predict the prompt-only jailbreak for any direction? — jobs 4041-4042 (~75 min, added 2026-10-19 00:58; Llama-3.1 01:15) — DONE
 
 Plan 102 (Llama-3-8B): unknown ×1 / ×1.5 / ×2 on the prompt give boundary log-odds +1.6 / −1.7 / −6.2 and 20 / 42 / 63%
 unsafe, and the mean ×1 sits at −1.4 and 40%, as if one number decided it whatever the direction. Test it across
@@ -1291,6 +1291,8 @@ predictions.
 
 Partial outcome (job 4041, §54, Llama-3-8B): (a) held (ρ = 0.91 over ten conditions); (b) held (no exception: below
 zero 35-70%, above zero 8-20%). r̂ lies above the curve (70% at −2.8).
+
+Outcome (§54): (a) held on both (ρ = 0.91 each, 0.90 pooled); (b) held on Llama-3-8B, failed on Llama-3.1 (3 exceptions: future, feelings below zero but ≤27%; unknown ×2 above zero at 33%). A within-model ranking, not a threshold.
 
 ### 104. Why does unknown's push saturate on Llama-3.1? — jobs 4043-4044 (~15 min, added 2026-10-19 01:55)
 
