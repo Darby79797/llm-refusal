@@ -1394,4 +1394,13 @@ and the first K generated tokens. Unknown added on famous questions and the limi
 ≥2/3 (p≈0.5), i.e. the claim is settled once its first clause is written; the limitation claim needs K ≥ 64 (the
 pivot "However, I can…" comes after the AI disclaimer; p≈0.4).
 
-Partial outcome (job 4095, §60, Llama-3-8B): (a) failed (K = 16 famous dk 13% vs 43%, 30%); (b) held (K = 16 25% vs 56%; K = 64 53%). Graded: K = 64 gives 77-95% of the every-token effect for both claims.
+Partial outcome (job 4095, §60, Llama-3-8B): (a) failed (K = 16 famous dk 13% vs 43%, 30%); (b) held (K = 16 25% vs 56%; K = 64 53%). Graded: K = 64 gives 77-95% of the every-token effect for both claims. Llama-2 (job 4096): (a) failed (K = 16 famous 20% vs 53%); (b) held (K = 16 6%, K = 64 9% vs 25%).
+
+### 113. Is the answer's reversion visible in the model's own state? — job 4099 (~25 min, added 2026-10-19 14:05)
+
+§59-§60: a prompt-only push opens "I don't know" and the answer reverts within a sentence on four models, not on
+Llama-3.1. New `claim_trajectory.py` (no generation): plan 108's saved answers to famous questions teacher-forced with
+the push on the prompt tokens only, unknown's projection on every answer token (layer +2, +6, last), by answer-token
+bucket. Predicted: under the prompt-only push the projection at answer tokens 17-64 is back within 25% of the baseline
+answers' level (relative to the every-token answers') on ≥3/4 reverting models (p≈0.6), and stays ≥50% of the way on
+Llama-3.1 (p≈0.5).
