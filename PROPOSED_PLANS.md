@@ -1385,7 +1385,7 @@ Partial outcome (job 4090, §59, Llama-3-8B): prompt-only ×2 / ×3 famous dk 7 
 
 Outcome (§59): (a) failed (0/4); (b) failed (9% vs 56% / 25%); (c) held (5/5). Control Llama-3.1: prompt-only ×2 keeps 70% famous dk at log-odds −0.6, while Llama-3-8B keeps 7% at +6.0: first-token log-odds do not predict whether the claim is kept.
 
-### 112. How long must the push be held into the answer? — jobs 4095-4097 (~1.6 h, added 2026-10-19 12:35)
+### 112. How long must the push be held into the answer? — jobs 4095-4098 (~1.8 h, added 2026-10-19 12:35; 1.5B 13:30)
 
 §59: a prompt-only push wins the claim's first token on Llama-3-8B, Qwen2.5-7B and Llama-2, and the answer recovers
 within a sentence. New `+genK` (jbb_safety.py grammar, `positional_push(generated=K)`): the push on every prompt token
