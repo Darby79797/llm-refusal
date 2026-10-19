@@ -1416,3 +1416,15 @@ induction keeps ≥70% of the every-token refusal rate on ≥4/6 (p≈0.6), sinc
 template (§39, §46), unlike the concept claims; where it does not, K = 16 recovers it (p≈0.5).
 
 Outcome (§61): (a) held (6/6: prompt-only 92-100% refused, 94-100% of every-token); (b) not needed. No reversion after the opener. Refusal is carried by the answer once begun; the concept claims are not.
+
+### 115. Does the answer carry an opening it did not choose? — jobs 4102-4105 (~2 h, added 2026-10-19 15:35)
+
+§61: refusal pushed in at the prompt carries itself through the answer; "I don't know" about a famous fact and "I can't"
+about a text task are begun by the same push and then dropped (§59-§60). Is that a property of the text, with no
+steering at all? New `prefill:<text>` condition (jbb_safety.py grammar; the answer is written to start with <text>,
+generation continues): questions (famous / little-known / invented) prefilled "I'm not aware of any information about"
+and "I'm sorry but I cannot"; limit_factorial's tasks "I'm afraid I can't" and "I'm sorry but I cannot"; harmless
+requests "I cannot" and "I'm not aware of". Llama-3-8B, Llama-3.1, Qwen2.5-7B, Llama-2. Predicted: the "I'm not aware"
+opening is dropped on famous questions (judge asserts ≥50%) on ≥3/4 (p≈0.6), as under the prompt-only push; "I cannot"
+on harmless requests is carried (no turn back to the task in ≥70%) on ≥3/4 (p≈0.5); Llama-3.1 carries the "I'm not
+aware" opening more than the others (p≈0.5).

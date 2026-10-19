@@ -1,5 +1,5 @@
 import torch as t
-from typing import List
+from typing import List, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from formatting import ChatPromptFormatter, last_real_token_indices, assert_right_padded
@@ -10,14 +10,20 @@ def generate_with_hooks(
     tokenizer: AutoTokenizer,
     prompt_formatter: ChatPromptFormatter,
     prompts: List[str],  # raw prompts; formatted with the chat template here
-    max_new_tokens: int = 64
+    max_new_tokens: int = 64,
+    prefixes: Optional[List[str]] = None,
 ) -> List[str]:
     """
     A robust, manual greedy decoding loop that correctly handles KV caching
     and works reliably with hooks. Used instead of model.generate(), which under
     right padding decodes from pad slots and applies the model's generation_config.
+    With `prefixes`, each answer is prefilled: generation continues from the templated
+    prompt followed by the prefix's tokens, and only the continuation is returned.
     """
-    batch = prompt_formatter.format_batch(prompts)
+    if prefixes is not None:
+        batch = prompt_formatter.format_with_completions(prompts, prefixes)
+    else:
+        batch = prompt_formatter.format_batch(prompts)
     input_ids = batch['input_ids'].to(model.device)
     attention_mask = batch['attention_mask'].to(model.device)
     position_ids = batch['position_ids'].to(model.device)

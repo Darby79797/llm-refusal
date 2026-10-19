@@ -263,12 +263,14 @@ class BigEvaluator:
         if batch_size is None:
             batch_size = self.resolve_batch_size(prompts, max_new_tokens)
         progress = tqdm(total=len(prompts), desc="Generating Responses")
+        prefill = getattr(self, "prefill", None)  # set by jbb_safety.py's `prefill:<text>` condition
 
         def generate(chunk):
+            extra = {"prefixes": [prefill] * len(chunk)} if prefill else {}
             texts = generate_with_hooks(self.model, self.tokenizer, self.framework.prompt_formatter,
-                                        chunk, max_new_tokens=max_new_tokens)
+                                        chunk, max_new_tokens=max_new_tokens, **extra)
             progress.update(len(chunk))
-            return texts
+            return [prefill + x for x in texts] if prefill else texts
 
         try:
             return map_batched(generate, prompts, batch_size, on_split=self._record_split)
