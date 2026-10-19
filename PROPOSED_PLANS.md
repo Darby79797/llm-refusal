@@ -1369,7 +1369,7 @@ which would explain the missing jailbreak; on the 1B ρ with unsafe ≥0.6 despi
 
 Partial outcome (job 4080, §54): (a) failed (the mean ×1 / ×1.5 and memory also go below zero, refusal 0-16%; the 3B jailbreak is held back by moralising, 33-35%). ρ = 0.90. Outcome: (a) failed; (b) held (Llama-3.2-1B ρ = 0.88 with unsafe; prompt-only pushes degenerate ≤1%).
 
-### 111. Is "an unsupported claim needs the generated tokens" just strength at the decision? — jobs 4090-4094 (~2.8 h, added 2026-10-19 11:10)
+### 111. Is "an unsupported claim needs the generated tokens" just strength at the decision? — jobs 4090-4094 (~2.8 h, added 2026-10-19 11:10) — DONE
 
 §57-§58: at strength 1, unknown added on the prompt alone makes famous questions "unknown" on only 2/6 models, and the
 limitation mean on the prompt alone never induces "I can't" on text tasks, while both work with the generated tokens
@@ -1382,6 +1382,8 @@ models (p≈0.5); same for "I can't" on text tasks on the two models where ×1 i
 (judge: no claim and no assertion) on ≥2/5 (p≈0.5).
 
 Partial outcome (job 4090, §59, Llama-3-8B): prompt-only ×2 / ×3 famous dk 7 / 10% (every-token ×1 43%: not reached), text-task "I can't" 6 / 9% (56%: not reached), though the first-token log-odds go to +6 to +8. The answers open the claim and then recover. Qwen2.5-7B, Llama-2 (jobs 4091-4092): the same (prompt-only famous dk 0-10%, text-task "I can't" 0-9%, log-odds +2 to +11; openings 80-100% claim-style). Every-token ×2 breaks the limitation push on all three (47-88% judged declines, loops on Llama-2).
+
+Outcome (§59): (a) failed (0/4); (b) failed (9% vs 56% / 25%); (c) held (5/5). Control Llama-3.1: prompt-only ×2 keeps 70% famous dk at log-odds −0.6, while Llama-3-8B keeps 7% at +6.0: first-token log-odds do not predict whether the claim is kept.
 
 ### 112. How long must the push be held into the answer? — jobs 4095-4097 (~1.6 h, added 2026-10-19 12:35)
 
