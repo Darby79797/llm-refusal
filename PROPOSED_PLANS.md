@@ -1407,7 +1407,7 @@ Llama-3.1 (p≈0.5).
 
 Outcome (§62): (a) failed (1/4; 0.13-0.49); (b) held (0.83). The share at tokens 17-64 separates the two groups (keepers 0.66-0.83, reverters 0.13-0.49) in the order of the drop.
 
-### 114. Is refusal induction decided at the prompt? — job 4100 (~1.5 h, added 2026-10-19 14:25) — DONE
+### 114. Is refusal induction decided at the prompt? — job 4100 (~1.5 h, added 2026-10-19 14:25; Qwen2.5-3B and 0.5B: job 4110, 18:05) — DONE
 
 §57-§60: an unsupported "I don't know" or "I can't" opened by a prompt-only push is dropped within a sentence on most
 models, and needs the push held for tens of answer tokens. Is refusal (Arditi's induction: r̂ added to harmless
