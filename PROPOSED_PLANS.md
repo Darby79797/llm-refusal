@@ -1385,7 +1385,7 @@ Partial outcome (job 4090, §59, Llama-3-8B): prompt-only ×2 / ×3 famous dk 7 
 
 Outcome (§59): (a) failed (0/4); (b) failed (9% vs 56% / 25%); (c) held (5/5). Control Llama-3.1: prompt-only ×2 keeps 70% famous dk at log-odds −0.6, while Llama-3-8B keeps 7% at +6.0: first-token log-odds do not predict whether the claim is kept.
 
-### 112. How long must the push be held into the answer? — jobs 4095-4098 (~1.8 h, added 2026-10-19 12:35; 1.5B 13:30)
+### 112. How long must the push be held into the answer? — jobs 4095-4098 (~1.8 h, added 2026-10-19 12:35; 1.5B 13:30) — DONE
 
 §59: a prompt-only push wins the claim's first token on Llama-3-8B, Qwen2.5-7B and Llama-2, and the answer recovers
 within a sentence. New `+genK` (jbb_safety.py grammar, `positional_push(generated=K)`): the push on every prompt token
@@ -1394,7 +1394,7 @@ and the first K generated tokens. Unknown added on famous questions and the limi
 ≥2/3 (p≈0.5), i.e. the claim is settled once its first clause is written; the limitation claim needs K ≥ 64 (the
 pivot "However, I can…" comes after the AI disclaimer; p≈0.4).
 
-Partial outcome (job 4095, §60, Llama-3-8B): (a) failed (K = 16 famous dk 13% vs 43%, 30%); (b) held (K = 16 25% vs 56%; K = 64 53%). Graded: K = 64 gives 77-95% of the every-token effect for both claims. Llama-2 (job 4096): (a) failed (K = 16 famous 20% vs 53%); (b) held (K = 16 6%, K = 64 9% vs 25%). Qwen2.5-7B (job 4097): effects small at ×1 (every-token famous dk 13%, little-known 37%); K = 64 10% / 23%; no "I can't" on text tasks at any K.
+Partial outcome (job 4095, §60, Llama-3-8B): (a) failed (K = 16 famous dk 13% vs 43%, 30%); (b) held (K = 16 25% vs 56%; K = 64 53%). Graded: K = 64 gives 77-95% of the every-token effect for both claims. Llama-2 (job 4096): (a) failed (K = 16 famous 20% vs 53%); (b) held (K = 16 6%, K = 64 9% vs 25%). Qwen2.5-7B (job 4097): effects small at ×1 (every-token famous dk 13%, little-known 37%); K = 64 10% / 23%; no "I can't" on text tasks at any K. Qwen2.5-1.5B (job 4098): K = 64 reaches the every-token rate (17% / 47%). Outcome (§60): (a) failed (famous 0-38% at K = 16 on 4/4); (b) held where inducible. Claims need the push held for most of the answer.
 
 ### 113. Is the answer's reversion visible in the model's own state? — job 4101 (~25 min, added 2026-10-19 14:05; renumbered after 4100)
 
