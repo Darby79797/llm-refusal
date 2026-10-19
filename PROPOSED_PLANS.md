@@ -1361,13 +1361,13 @@ the every-token effect in both directions (p≈0.6); on the Qwens <50% (p≈0.5)
 
 Outcome (§58): (a) failed (removal 2/4 Llamas, induction 0/2); (b) 1/2 (1.5B 25%, 7B 67%); (c) failed narrowly (4/6; 67%, 69%). Removing a claim works from the prompt; inducing an unsupported one needs the generated tokens (with §57).
 
-### 110. The log-odds ranking where the jailbreak fails or breaks — jobs 4080-4081 (~1 h, added 2026-10-19 04:40)
+### 110. The log-odds ranking where the jailbreak fails or breaks — jobs 4080-4081 (~1 h, added 2026-10-19 04:40) — DONE
 
 §54 on four models. Qwen2.5-3B (no clean jailbreak) and Llama-3.2-1B (breakage, §50), eight pushes each, boundary
 log-odds and prompt-only JailbreakBench. Predicted: on 3B no push except r̂ takes the log-odds below zero (p≈0.5),
 which would explain the missing jailbreak; on the 1B ρ with unsafe ≥0.6 despite degeneration (p≈0.5).
 
-Partial outcome (job 4080, §54): (a) failed (the mean ×1 / ×1.5 and memory also go below zero, refusal 0-16%; the 3B jailbreak is held back by moralising, 33-35%). ρ = 0.90.
+Partial outcome (job 4080, §54): (a) failed (the mean ×1 / ×1.5 and memory also go below zero, refusal 0-16%; the 3B jailbreak is held back by moralising, 33-35%). ρ = 0.90. Outcome: (a) failed; (b) held (Llama-3.2-1B ρ = 0.88 with unsafe; prompt-only pushes degenerate ≤1%).
 
 ### 111. Is "an unsupported claim needs the generated tokens" just strength at the decision? — jobs 4090-4094 (~2.8 h, added 2026-10-19 11:10)
 

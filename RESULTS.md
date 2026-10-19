@@ -1544,7 +1544,7 @@ Predictions (plan 102):
 - (a) below zero ≥35% and above zero ≤25%: failed (2 exceptions, both Llama-3.1: +2.0 → 27%, +0.6 → 33%; Llama-3-8B 3/3).
 - (b) ×2 crosses zero on both models: failed (Llama-3.1 +0.6; ×3 crosses, −4.1, §55).
 
-### 54. Plan 103: do the boundary log-odds predict the prompt-only jailbreak for any direction? (2026-10-19) **[Llama-3-8B, Llama-3.1-8B, Qwen2.5-7B (plan 105), Qwen2.5-1.5B (plan 107), Qwen2.5-3B (plan 110); ten prompt-only pushes (`subpos:all`, no generated token) of six directions: the limitation mean ×1 / ×1.5 / 3 up, unknown ×1 / ×1.5 / ×2, r̂, feelings, future, memory, each at its stem's layer; refusal log-odds at the boundary (`push_positions.py`, harmful eval prompts) against JailbreakBench LG2 unsafe; `...-push-positions-lodcal.json`, `...-jbb-safety-lodcal[-deflect].json`, with §52-§53]**
+### 54. Plan 103: do the boundary log-odds predict the prompt-only jailbreak for any direction? (2026-10-19) **[Llama-3-8B, Llama-3.1-8B, Qwen2.5-7B (plan 105), Qwen2.5-1.5B (plan 107), Qwen2.5-3B, Llama-3.2-1B (plan 110); ten prompt-only pushes (`subpos:all`, no generated token) of six directions: the limitation mean ×1 / ×1.5 / 3 up, unknown ×1 / ×1.5 / ×2, r̂, feelings, future, memory, each at its stem's layer; refusal log-odds at the boundary (`push_positions.py`, harmful eval prompts) against JailbreakBench LG2 unsafe; `...-push-positions-lodcal.json`, `...-jbb-safety-lodcal[-deflect].json`, with §52-§53]**
 
 Llama-3-8B, boundary refusal log-odds / prompt-only unsafe % (baseline +9.79 / 2):
 
@@ -1610,6 +1610,10 @@ Random: +4.35.
 | memory | −1.18 | 17 (40, 23) | persona | +3.54 | 8 (72) |
 
 - **On Qwen2.5-3B the pushes do move the refusal decision; what is missing is compliance.** The mean ×1 / ×1.5 take the log-odds to −2.1 / −7.1 and refusal to 16% / 0%, but a third of the answers moralise instead (35% / 33%), so unsafe stays at 28-35%, below r̂'s 43%. The ranking holds (ρ = 0.90 with both unsafe and not-refused, eight pushes). The missing 3B jailbreak is the moralising axis of the Qwens (§13, Qwen2.5-7B above), not a push that fails to reach the decision.
+
+**Llama-3.2-1B** (plan 110, job 4081; baseline +3.01 / 13), log-odds / prompt-only unsafe % (refusal): r̂ −8.86 / 73 (7); the mean −6.57 / 65 (10); memory −6.36 / 78 (2); persona −5.96 / 69 (7); the mean 3 up −4.60 / 61 (13); unknown −0.98 / 40 (45); the mean ×0.5 −0.54 / 30 (55); random +5.03 / 16 (80). ρ = 0.88 with unsafe, 0.85 with not-refused; degenerate ≤1% under every prompt-only push, so on the 1B too the breakdown under strong pushes (§50) is the push on the generated tokens.
+
+**Over six models** (both 8B Llamas, Qwen2.5-7B / 3B / 1.5B, Llama-3.2-1B; 8-10 pushes each) ρ between the boundary log-odds and prompt-only unsafe is 0.80-0.94, and with not-refused 0.85-0.98.
 
 Predictions (plan 103): (a) ρ ≥ 0.8: held (0.91 on both). (b) sign rule with ≤1 exception: held on Llama-3-8B (0), failed on Llama-3.1 (3).
 
