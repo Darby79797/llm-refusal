@@ -1430,3 +1430,5 @@ requests "I cannot" and "I'm not aware of". Llama-3-8B, Llama-3.1, Qwen2.5-7B, L
 opening is dropped on famous questions (judge asserts ≥50%) on ≥3/4 (p≈0.6), as under the prompt-only push; "I cannot"
 on harmless requests is carried (no turn back to the task in ≥70%) on ≥3/4 (p≈0.5); Llama-3.1 carries the "I'm not
 aware" opening more than the others (p≈0.5).
+
+Outcome (§63, five models): (a) held (3/4); (b) failed (2/4: the Llama-3s 89-92%, Qwen2.5-7B 15%, Llama-2 16%); (c) failed (Llama-3.1 20% vs Llama-3-8B 87%). Carrying a written opening is model-specific and differs from carrying a pushed one; r̂-induced refusal is carried on 6/6, written "I cannot" on 2/4.
