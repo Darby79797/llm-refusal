@@ -1518,3 +1518,55 @@ hiding the request by ≤10pp on ≥5/8 (p≈0.5), and the control answers norma
 refusal survives hiding the template on ≥5/8 (p≈0.4), since its request is still visible.
 
 (Job 4119: the same for a carried "I don't know", unknown on the prompt with the template / request hidden, Llama-3.1 and the 1B.)
+
+## Overnight batch to 09:00 (added 2026-10-19 22:20, user: "extend the queue until at least 0900h"); numbering leaves gaps for follow-ups
+
+### 124. Do the concept claims read the template as the answer goes on? — jobs 4120-4125 (~1.7 h)
+
+Plan 123 asks it for refusal. Six models: unknown added on the prompt / on every token and subtracted on the prompt,
+each with the template hidden after the first token (familiarity_dial.py, judged); the limitation mean subtracted on the
+prompt (removes "I can't" from physical tasks) and added on every token, each with the template hidden (limit_factorial.py,
+judged); references in §57-§58. Predicted: claims held by a push on every token survive hiding the template (≥70% of
+the reference) on ≥4/6 (p≈0.6), since the push is on the answer; removal from the prompt (unknown subtracted, "I can't"
+subtracted) loses ≥30% of its effect with the template hidden on ≥3/6 (p≈0.4).
+
+### 125. Is refusal removal read from the template as the answer goes on? — job 4130 (~45 min)
+
+JailbreakBench, r̂ subtracted on the prompt only, alone and with the template / request hidden after the first token,
+eight models, phrase refusal only. Predicted: hiding the template restores ≥30pp of refusal on ≥4/8 (p≈0.5); hiding the
+request restores more than hiding the template on ≥4/8 (p≈0.4: the harmful request itself stays visible otherwise).
+
+### 126. Template channel or push strength? — job 4140 (~50 min)
+
+Harmless, r̂ ×0.5 and ×2 on the prompt only, each alone and with the template hidden, eight models. Predicted: at ×2
+hiding the template costs less (in pp) than at ×1 (plan 123) on ≥5/8 (p≈0.5).
+
+### 127. Layer robustness of the carry results — job 4150 (~1.4 h)
+
+r̂ moved 3 layers down / up (save_control_direction --layer), eight models, harmless: every token, prompt only, prompt
+only with r̂ ablated from the answer, prompt only with the template hidden. Predicted: prompt-only keeps ≥80% of the
+every-token rate at both layers on ≥6/8 (p≈0.5); ablating r̂ from the answer costs ≤15pp on ≥6/8 (p≈0.6).
+
+### 128. Over long answers — job 4160 (~1.2 h)
+
+384 tokens: r̂ prompt-only vs every token on harmless prompts (eight models); unknown prompt-only vs every token on
+famous questions (Llama-3.1, 1B, judged). Predicted: prompt-only refusal stays within 10pp of every-token on ≥6/8 at 384
+tokens (p≈0.6); offline, refusal phrases in the last third of answers do not fall more under prompt-only (p≈0.5).
+
+### 129. An independent refusal direction (Arditi-exact) — job 4170 (~1.3 h)
+
+Seven models (no stem for the 1B): every token, prompt only, prompt only with it ablated from the answer, prompt only
+with the template hidden (harmless); subtracted on the prompt alone and with the template hidden (JailbreakBench, phrase
+only). Predicted: §61 / §65 / plan 123 replicate within 15pp on ≥5/7 (p≈0.6).
+
+### 130. The rest of the hide map — job 4180 (~50 min)
+
+Harmless, r̂ on the prompt only, with the instruction / last token / whole prompt hidden after the first token, and the
+whole prompt hidden with no push (control), eight models. Predicted: hiding the instruction costs ≤15pp on the four
+template-carried models and ≥40pp on Llama-3.1 (p≈0.4); hiding the whole prompt ends the refusal (≤30%) on ≥6/8 (p≈0.5).
+
+### 131. §57-§58 on Qwen2.5-3B — jobs 4190-4191 (~50 min)
+
+Where "I don't know" and "I can't" are decided (every token / prompt / template / template + generated, both signs), the
+one model not yet covered. Predicted: as on the other Qwens (prompt-only "I don't know" on famous questions ≤20%; removal
+from the prompt ≥70% of its effect).
