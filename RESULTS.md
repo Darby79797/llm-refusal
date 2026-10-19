@@ -1800,7 +1800,7 @@ Share of the way from the baseline answers' reading to the every-token answers' 
 | | Llama-3.1 | Llama-3.2-1B | Qwen2.5-1.5B | Qwen2.5-7B | Llama-2 | Llama-3-8B |
 |---|---|---|---|---|---|---|
 | prompt-only answers keep the claim (§57, famous) | 43% | 50% | 0% | 3% | 0% | 0% |
-| reading at tokens 1-4 (share) | ≈1.0 | ≈0.9 | ≈1.0 | ≈0.9 | ≈1.0 | ≈0.8 |
+| reading at tokens 1-4 (share) | ≈1.0 | ≈0.9 | ≈1.0 | ≈0.9 | ≈1.0 | ≈0.9 |
 | reading at tokens 17-64 (share) | **0.83** | **0.66** | 0.49 | 0.34 | 0.27 | **0.13** |
 
 - **The model's own reading of "unknown" follows the answer.** In the first four answer tokens the prompt-only answers read as high as the every-token ones on every model (the push has just set the opening). By tokens 17-64 the two models whose prompt-only answers keep the claim still read 66-83% of the way up, and the four that drop it 13-49%, in the same order as the drop (Llama-3-8B, which keeps the claim least, falls furthest). The two groups separate without overlap.
