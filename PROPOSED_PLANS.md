@@ -1473,3 +1473,11 @@ Outcome (§66): (a) failed (4/6); (b) held (5/6); (c) failed (Llama-3.1 instruct
 §66: r̂ on the instruction alone induces 94% refusal on Llama-3.1 but 10% on Llama-3-8B; the template alone 23-95%.
 push_positions.py, r̂ added, refusal log-odds on harmless prompts per subset, six models. Predicted: a subset's log-odds
 rank its generated refusal rate across the 18 model × subset cells with ρ ≥ 0.7 (p≈0.6), as for the jailbreak (§54).
+
+### 120. Which prompt tokens carry refusal removal? — job 4113 (~1 h, added 2026-10-19 19:25)
+
+The mirror of §66 on harmful prompts: r̂ subtracted on JailbreakBench on the whole prompt / instruction / template /
+last token, six models, phrase refusal only (no judge; where refusal is decided, not what replaces it). Predicted: the
+same subset that carries induction on each model (§66) carries removal, i.e. per model the subset ranking of
+(1 − refusal) matches §66's ranking of refusal on ≥4/6 (p≈0.5); the last token alone removes ≤30% of refusal on ≥5/6
+(p≈0.6).
