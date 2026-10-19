@@ -1332,3 +1332,29 @@ Added 04:15: Qwen2.5-7B (job 4049, L17 to the last layer, ~30 min), the same thr
 §54 holds on three 7-8B models. Qwen2.5-1.5B (the mean jailbreaks at 69%, §33, but its capability cost is the push's
 size, §50): ten pushes, boundary log-odds and prompt-only JailbreakBench for each. Predicted: ρ ≥ 0.8 with not-refused
 (p≈0.6) and ≥ 0.6 with unsafe (p≈0.5); ×1.5 degenerate ≥20% (p≈0.5), which the first-token measure cannot see.
+
+### 108. Where is "I don't know" decided? — jobs 4060-4065 (~3 h, added 2026-10-19 04:40)
+
+§52: unknown's direction jailbreaks only with the push kept on the generated tokens, while the limitation mean's
+jailbreak is decided at the template. Does unknown's own behaviour work the same way? familiarity_dial.py (invented /
+little-known / famous, 30 each, 128 tokens, five-flag judge) on Llama-3.1, Llama-3-8B, Qwen2.5-7B, then Qwen2.5-1.5B,
+Llama-3.2-1B, Llama-2: unknown's own direction at its own layer, added (famous questions → "I don't know") and
+subtracted (invented → confident answers), on every token / the prompt / the template / the template + generated
+tokens. Predicted: added on the prompt only keeps ≥70% of the every-token "I don't know" rate on famous questions on
+≥4/6 (p≈0.6), since its own claim, unlike the jailbreak, is the first thing the answer says; subtracted on the prompt
+only keeps ≥70% of the every-token assertion rate on invented questions on ≥4/6 (p≈0.5); template-only carries less
+than the prompt on the Qwens (p≈0.6, §43).
+
+### 109. Are limitation claims decided at the template in generation? — jobs 4070-4075 (~3.5 h, added 2026-10-19 04:40)
+
+§43 found by first-token log-odds that the Llamas decide limit claims at the template and the Qwens also on the request.
+Generation check with limit_factorial.py (32 rows × four cells, five-flag judge), same six models: the limitation mean
+(Llama-2: the three-concept mean) added (induces "I can't" on text tasks) and subtracted (removes it from physical
+tasks), every token / prompt / template / template + generated. Predicted: on the Llamas the template alone keeps ≥70% of
+the every-token effect in both directions (p≈0.6); on the Qwens <50% (p≈0.5); prompt only ≥70% on ≥5/6 (p≈0.6).
+
+### 110. The log-odds ranking where the jailbreak fails or breaks — jobs 4080-4081 (~1 h, added 2026-10-19 04:40)
+
+§54 on four models. Qwen2.5-3B (no clean jailbreak) and Llama-3.2-1B (breakage, §50), eight pushes each, boundary
+log-odds and prompt-only JailbreakBench. Predicted: on 3B no push except r̂ takes the log-odds below zero (p≈0.5),
+which would explain the missing jailbreak; on the 1B ρ with unsafe ≥0.6 despite degeneration (p≈0.5).
