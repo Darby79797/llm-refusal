@@ -1325,6 +1325,8 @@ log-odds effect. Predicted: on Llama-3.1 at least one late sublayer (L20 on) has
 removing its pushed output makes the push stronger (p≈0.5), and none under the mean (p≈0.6); on Llama-3-8B none under
 either (p≈0.5).
 
+Added 04:15: Qwen2.5-7B (job 4049, L17 to the last layer, ~30 min), the same three conditions. Partial (job 4046, Llama-3.1): attn L21 / L22 necessity −0.11 / −0.20 under unknown ×1 and −0.25 (L21) under ×2; under the mean no sublayer below −0.02.
+
 ### 107. The log-odds ranking on a small model — job 4048 (~35 min, added 2026-10-19 03:25)
 
 §54 holds on three 7-8B models. Qwen2.5-1.5B (the mean jailbreaks at 69%, §33, but its capability cost is the push's
