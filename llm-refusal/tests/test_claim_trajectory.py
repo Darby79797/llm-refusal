@@ -28,7 +28,21 @@ def test_prompt_only_push_reads_kind_sign_and_strength():
     ct = _mod()
     ss = lambda s: (s.rpartition("*")[0], float(s.rpartition("*")[2])) if "*" in s else (s, 1.0)
     assert ct.prompt_only_push("baseline", ss) is None
+    assert ct.prompt_only_push("prefill:I cannot", ss) is None
     assert ct.prompt_only_push("add:results/u-direction", ss) == ("results/u-direction", 1.0)
     assert ct.prompt_only_push("addpos:all:results/u-direction*2", ss) == ("results/u-direction", 2.0)
     assert ct.prompt_only_push("subpos:all+gen16:results/u-direction", ss) == ("results/u-direction", -1.0)
     assert ct.prompt_only_push("sub:results/u-direction*0.5", ss) == ("results/u-direction", -0.5)
+
+
+def test_load_source_reads_both_file_formats(tmp_path):
+    import json
+    ct = _mod()
+    fam = tmp_path / "fam.json"
+    fam.write_text(json.dumps({"generations": {"add": {"spec": "add:x", "responses": {"famous": ["r1", "r2"]}}}}))
+    ps, src = ct.load_source(str(fam), "famous", lambda: {"famous": ["p1", "p2"]})
+    assert ps == ["p1", "p2"] and src == {"add": ("add:x", ["r1", "r2"])}
+    jbb = tmp_path / "jbb.json"
+    jbb.write_text(json.dumps({"set": "harmless", "n": 3, "conditions": {"base": {"spec": "baseline", "responses": ["a", "b", "c"]}}}))
+    ps, src = ct.load_source(str(jbb), "famous", None)
+    assert len(ps) == 3 and src == {"base": ("baseline", ["a", "b", "c"])}

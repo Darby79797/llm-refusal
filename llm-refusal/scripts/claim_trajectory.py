@@ -42,9 +42,10 @@ def bucket_means(proj: t.Tensor, start: int, end: int) -> List[float]:
 
 
 def prompt_only_push(spec: str, stem_strength):
-    """(stem, strength) of an add:/addpos:/sub:/subpos: spec, its sign folded into the strength; None for baseline."""
+    """(stem, strength) of an add:/addpos:/sub:/subpos: spec, its sign folded into the strength; None for baseline
+    and for prefill:<text> (no push: the prefilled words are part of the saved response)."""
     kind, _, rest = spec.partition(":")
-    if kind == "baseline":
+    if kind in ("baseline", "prefill"):
         return None
     if kind in ("addpos", "subpos"):
         rest = rest.partition(":")[2]
@@ -94,13 +95,26 @@ def project(run, prompts: List[str], responses: List[str], push, layers: List[in
     return out
 
 
+def load_source(path: str, set_name: str, prompt_sets):
+    """(prompts, {condition: (spec, responses)}) from a familiarity_dial.py file (responses per question set) or a
+    jbb_safety.py file (one prompt set, recorded under "set": "jbb" or "harmless")."""
+    d = json.load(open(path))
+    if "generations" in d:
+        prompts = prompt_sets()[set_name]
+        return prompts, {k: (v["spec"], v["responses"][set_name]) for k, v in d["generations"].items()}
+    from jbb_safety import eval_prompts
+    prompts = eval_prompts(d.get("set", "jbb") == "harmless")[:d["n"]]
+    return prompts, {k: (v["spec"], v["responses"]) for k, v in d["conditions"].items()}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True)
     ap.add_argument("--axis", required=True, help="the claim's direction stem (read on every answer token)")
-    ap.add_argument("--source", required=True, help="familiarity_dial.py output with the conditions' responses")
+    ap.add_argument("--source", required=True,
+                    help="familiarity_dial.py or jbb_safety.py output with the conditions' responses")
     ap.add_argument("--conditions", required=True, help="comma-separated condition names in --source")
-    ap.add_argument("--set", default="famous")
+    ap.add_argument("--set", default="famous", help="question set of a familiarity_dial.py source")
     ap.add_argument("--layers", default="", help="comma-separated layers to read (default: axis layer +2, +6, last)")
     ap.add_argument("--n", type=int, default=None)
     ap.add_argument("--cpu", action="store_true")
@@ -118,13 +132,13 @@ def main():
     n_layers = len(run.blocks)
     layers = ([int(x) for x in a.layers.split(",")] if a.layers else
               sorted({min(d.layer + 2, n_layers - 1), min(d.layer + 6, n_layers - 1), n_layers - 1}))
-    prompts = prompt_sets()[a.set][:a.n]
-    src = json.load(open(a.source))["generations"]
-    out = {"model": a.model, "axis": a.axis, "axis_layer": d.layer, "set": a.set, "layers": layers,
+    prompts, src = load_source(a.source, a.set, prompt_sets)
+    prompts = prompts[:a.n]
+    out = {"model": a.model, "axis": a.axis, "axis_layer": d.layer, "source": a.source, "set": a.set, "layers": layers,
            "buckets": BUCKETS, "conditions": {}}
     for name in a.conditions.split(","):
-        spec = src[name]["spec"]
-        responses = src[name]["responses"][a.set][:len(prompts)]
+        spec, responses = src[name]
+        responses = responses[:len(prompts)]
         p = prompt_only_push(spec, split_strength)
         push = None
         if p is not None:

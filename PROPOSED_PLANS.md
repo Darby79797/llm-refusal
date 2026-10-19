@@ -1432,3 +1432,13 @@ on harmless requests is carried (no turn back to the task in ≥70%) on ≥3/4 (
 aware" opening more than the others (p≈0.5).
 
 Outcome (§63, five models): (a) held (3/4); (b) failed (2/4: the Llama-3s 89-92%, Qwen2.5-7B 15%, Llama-2 16%); (c) failed (Llama-3.1 20% vs Llama-3-8B 87%). Carrying a written opening is model-specific and differs from carrying a pushed one; r̂-induced refusal is carried on 6/6, written "I cannot" on 2/4.
+
+### 116. Is induced refusal held in the model's state along the answer? — job 4108 (~25 min, added 2026-10-19 17:30)
+
+§61-§63: a prompt-only r̂ push makes all six models refuse harmless requests with no turn back, while a written
+"I cannot" is kept only by the Llama-3s, and a prompt-pushed "I don't know" is dropped with unknown's reading falling
+back over the answer on four models (§62). claim_trajectory.py (now also reading jbb_safety.py files) with r̂ as the axis
+on plan 114's harmless answers (baseline, prompt only, every token) and plan 115's prefilled "I cannot" answers.
+Predicted: under the prompt-only push r̂'s reading at answer tokens 17-64 stays ≥50% of the way to the every-token
+answers' on ≥5/6 (p≈0.6); the prefilled "I cannot" raises it at tokens 17-64 by more on the Llama-3s than on Qwen2.5-7B
+and Llama-2, relative to their baselines (p≈0.5).
