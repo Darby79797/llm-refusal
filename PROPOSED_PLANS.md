@@ -1276,7 +1276,7 @@ subset (push_positions.py, which now takes `STEM*s`), then JailbreakBench prompt
 all-token log-odds are below zero gives ≥35% unsafe, and every one above zero ≤25% (p≈0.6); ×2 crosses on both models
 (p≈0.7). Degenerate output to be checked at ×2.
 
-Outcome (§53): (a) failed (Llama-3-8B 3/3; Llama-3.1 +2.0 → 27% and +0.6 → 33% break the threshold); (b) failed (Llama-3.1 saturates at +0.6). Graded, not a threshold: on both models the log-odds order matches the unsafe order; on Llama-3-8B unknown ×1.5 matches the mean ×1 in both (−1.7 / 42% against −1.4 / 40%). Degenerate ≤1%.
+Outcome (§53): (a) failed (Llama-3-8B 3/3; Llama-3.1 +2.0 → 27% and +0.6 → 33% break the threshold); (b) failed (Llama-3.1 +0.6 at ×2; not a ceiling, ×3 gives −4.1, §55). Graded, not a threshold: on both models the log-odds order matches the unsafe order; on Llama-3-8B unknown ×1.5 matches the mean ×1 in both (−1.7 / 42% against −1.4 / 40%). Degenerate ≤1%.
 
 ### 103. Do the boundary log-odds predict the prompt-only jailbreak for any direction? — jobs 4041-4042 (~75 min, added 2026-10-19 00:58; Llama-3.1 01:15) — DONE
 
@@ -1294,7 +1294,7 @@ zero 35-70%, above zero 8-20%). r̂ lies above the curve (70% at −2.8).
 
 Outcome (§54): (a) held on both (ρ = 0.91 each, 0.90 pooled); (b) held on Llama-3-8B, failed on Llama-3.1 (3 exceptions: future, feelings below zero but ≤27%; unknown ×2 above zero at 33%). A within-model ranking, not a threshold.
 
-### 104. Why does unknown's push saturate on Llama-3.1? — jobs 4043-4044 (~15 min, added 2026-10-19 01:55)
+### 104. Why does unknown's push saturate on Llama-3.1? — jobs 4043-4044 (~15 min, added 2026-10-19 01:55) — DONE
 
 §53: unknown ×1 / ×1.5 / ×2 on the prompt moves Llama-3.1's boundary log-odds only to +3.6 / +2.0 / +0.6, while on
 Llama-3-8B it passes zero at ×1.5. `push_trajectory.py` (no generation): r̂'s reading at every layer and the refusal
@@ -1302,6 +1302,8 @@ log-odds under unknown ×1 / ×2 / ×3 and the mean ×1 / ×2 on both models. Pr
 r̂'s reading at the last layer stays ≥0.5 on the harmless → harmful scale while it falls below 0.5 under the mean ×1,
 i.e. later layers keep (or re-write) refusal against unknown's push (p≈0.5); on Llama-3-8B unknown ×2 brings it below 0.5
 (p≈0.6).
+
+Outcome (§55): (a) failed (unknown ×2 / ×3 0.68 / 0.49; the mean ×1 raises r̂'s reading to 1.57 and still flips the log-odds); (b) held narrowly (0.49). No saturation: ×3 gives −4.1, a slope of ~4 nats per unit against ~8 on Llama-3-8B. Llama-3.1's later layers restore r̂ against unknown (fully at ×1); the mean goes around r̂.
 
 ### 105. Do the boundary log-odds rank the prompt-only jailbreak on a Qwen? — job 4045 (~50 min, added 2026-10-19 02:18)
 
