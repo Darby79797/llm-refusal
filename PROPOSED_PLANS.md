@@ -1457,7 +1457,7 @@ random control in ≤15% (p≈0.7); unknown ablated from the answer halves the k
 
 Outcome (§65): (a) failed (0/6: +4 to +27pp turn back, 81-100% still refuse); (b) held (≤3pp); (c) failed (−3, −7pp). The answer carries a prompt-set refusal mainly through attention to the prompt, not r̂ on its own tokens.
 
-### 118. Which prompt tokens hold the refusal the answer carries? — job 4111 (~40 min, added 2026-10-19 18:47)
+### 118. Which prompt tokens hold the refusal the answer carries? — job 4111 (~40 min, added 2026-10-19 18:47) — DONE
 
 §65: removing r̂ from the answer leaves the prompt-set refusal in place, so the pushed prompt's tokens hold it. Which
 ones? r̂ added on harmless prompts on the instruction tokens only / the five template tokens only / the last token only,
@@ -1465,3 +1465,11 @@ six models; and unknown on Llama-3.1's famous questions on the instruction / las
 prompt are in §57). Predicted: the template alone keeps ≥80% of the prompt-only refusal rate on ≥5/6 (p≈0.6, §39); the
 last token alone ≤50% on ≥4/6 (p≈0.5), i.e. the carrier is spread over the template, not the decision token; the
 instruction alone ≤30% on the Llamas (p≈0.6).
+
+Outcome (§66): (a) failed (4/6); (b) held (5/6); (c) failed (Llama-3.1 instruction 94%). Carrier differs by model and direction; Llama-3-8B needs both spans; on Llama-3.1 refusal sits on the instruction, unknown on the template.
+
+### 119. Do first-token log-odds explain which prompt tokens carry induced refusal? — job 4112 (~20 min, added 2026-10-19 19:20)
+
+§66: r̂ on the instruction alone induces 94% refusal on Llama-3.1 but 10% on Llama-3-8B; the template alone 23-95%.
+push_positions.py, r̂ added, refusal log-odds on harmless prompts per subset, six models. Predicted: a subset's log-odds
+rank its generated refusal rate across the 18 model × subset cells with ρ ≥ 0.7 (p≈0.6), as for the jailbreak (§54).
