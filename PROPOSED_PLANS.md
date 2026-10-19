@@ -1302,3 +1302,12 @@ log-odds under unknown ×1 / ×2 / ×3 and the mean ×1 / ×2 on both models. Pr
 r̂'s reading at the last layer stays ≥0.5 on the harmless → harmful scale while it falls below 0.5 under the mean ×1,
 i.e. later layers keep (or re-write) refusal against unknown's push (p≈0.5); on Llama-3-8B unknown ×2 brings it below 0.5
 (p≈0.6).
+
+### 105. Do the boundary log-odds rank the prompt-only jailbreak on a Qwen? — job 4045 (~50 min, added 2026-10-19 02:30)
+
+§54: on both 8B Llamas the refusal log-odds at the boundary under a prompt-only push rank its JailbreakBench unsafe rate
+across six directions (ρ = 0.91). Qwen2.5-7B differs in where it reads the push (the request too, §52) and in how its
+unsafe answers look (refusal opener then compliance under unknown, §51), which a first-token measure could miss.
+Boundary log-odds for ten pushes (the mean ×1 / ×1.5 / 3 up, r̂, random, feelings, future, unknown ×1 / ×2, persona),
+prompt-only JailbreakBench for six. Predicted: ρ ≥ 0.7 over the nine with unsafe rates (p≈0.6); unknown ×2 is the
+largest outlier, with lower log-odds-predicted than actual unsafe (p≈0.4), since its compliance follows a refusal opener.
