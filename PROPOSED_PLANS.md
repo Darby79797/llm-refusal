@@ -1476,10 +1476,12 @@ rank its generated refusal rate across the 18 model × subset cells with ρ ≥ 
 
 Outcome (§67): held (ρ = 0.90; sign 16/18).
 
-### 120. Which prompt tokens carry refusal removal? — job 4113 (~1 h, added 2026-10-19 19:25)
+### 120. Which prompt tokens carry refusal removal? — job 4113 (~1 h, added 2026-10-19 19:25) — DONE
 
 The mirror of §66 on harmful prompts: r̂ subtracted on JailbreakBench on the whole prompt / instruction / template /
 last token, six models, phrase refusal only (no judge; where refusal is decided, not what replaces it). Predicted: the
 same subset that carries induction on each model (§66) carries removal, i.e. per model the subset ranking of
 (1 − refusal) matches §66's ranking of refusal on ≥4/6 (p≈0.5); the last token alone removes ≤30% of refusal on ≥5/6
 (p≈0.6).
+
+Outcome (§68): (a) held by the strongest subset (template 5/6; Llama-3.1 request for induction, template for removal); (b) held (5/6). Removal runs through the template on every model; the request alone removes 1-18pp.
