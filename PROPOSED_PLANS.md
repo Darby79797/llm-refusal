@@ -1327,11 +1327,13 @@ either (p≈0.5).
 
 Added 04:15: Qwen2.5-7B (job 4049, L17 to the last layer, ~30 min), the same three conditions. Partial (job 4046, Llama-3.1): attn L21 / L22 necessity −0.11 / −0.20 under unknown ×1 and −0.25 (L21) under ×2; under the mean no sublayer below −0.02. Llama-3-8B (job 4047, §56): (c) failed (MLP L30 −0.19 under unknown ×2, −0.14 under the mean: a generic late brake). Llamas: (a) held, (b) held, (c) failed. Qwen pending.
 
-### 107. The log-odds ranking on a small model — job 4048 (~35 min, added 2026-10-19 03:25)
+### 107. The log-odds ranking on a small model — job 4048 (~35 min, added 2026-10-19 03:25) — DONE
 
 §54 holds on three 7-8B models. Qwen2.5-1.5B (the mean jailbreaks at 69%, §33, but its capability cost is the push's
 size, §50): ten pushes, boundary log-odds and prompt-only JailbreakBench for each. Predicted: ρ ≥ 0.8 with not-refused
 (p≈0.6) and ≥ 0.6 with unsafe (p≈0.5); ×1.5 degenerate ≥20% (p≈0.5), which the first-token measure cannot see.
+
+Outcome (§54): (a) held (ρ = 0.95 with not-refused); (b) held (0.94 with unsafe); (c) failed (prompt-only ×1.5 degenerate 2%; unknown ×2 11%). Zero is not the line on 1.5B either (feelings / future / memory at −0.25 to −0.89 stay 70-81% refused).
 
 ### 108. Where is "I don't know" decided? — jobs 4060-4065 (~3 h, added 2026-10-19 04:40)
 
