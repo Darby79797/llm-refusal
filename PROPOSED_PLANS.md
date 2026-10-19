@@ -1305,7 +1305,7 @@ i.e. later layers keep (or re-write) refusal against unknown's push (p≈0.5); o
 
 Outcome (§55): (a) failed (unknown ×2 / ×3 0.68 / 0.49; the mean ×1 raises r̂'s reading to 1.57 and still flips the log-odds); (b) held narrowly (0.49). No saturation: ×3 gives −4.1, a slope of ~4 nats per unit against ~8 on Llama-3-8B. Llama-3.1's later layers restore r̂ against unknown (fully at ×1); the mean goes around r̂.
 
-### 105. Do the boundary log-odds rank the prompt-only jailbreak on a Qwen? — job 4045 (~50 min, added 2026-10-19 02:18)
+### 105. Do the boundary log-odds rank the prompt-only jailbreak on a Qwen? — job 4045 (~50 min, added 2026-10-19 02:18) — DONE
 
 §54: on both 8B Llamas the refusal log-odds at the boundary under a prompt-only push rank its JailbreakBench unsafe rate
 across six directions (ρ = 0.91). Qwen2.5-7B differs in where it reads the push (the request too, §52) and in how its
@@ -1313,6 +1313,8 @@ unsafe answers look (refusal opener then compliance under unknown, §51), which 
 Boundary log-odds for ten pushes (the mean ×1 / ×1.5 / 3 up, r̂, random, feelings, future, unknown ×1 / ×2, persona),
 prompt-only JailbreakBench for six. Predicted: ρ ≥ 0.7 over the nine with unsafe rates (p≈0.6); unknown ×2 is the
 largest outlier, more unsafe than its log-odds predict (p≈0.4), since its compliance follows a refusal opener.
+
+Outcome (§54): (a) held (ρ = 0.80 with unsafe; 0.98 with not-refused); (b) held (unknown ×2 +15pp above a linear fit, the largest residual; the rest within ±8pp). On Qwen the first-token decision predicts refusal; moralise vs comply is a second axis (persona 52% moralising).
 
 ### 106. Which sublayers oppose unknown's push on Llama-3.1? — jobs 4046-4047 (~1.7 h, added 2026-10-19 02:52)
 
