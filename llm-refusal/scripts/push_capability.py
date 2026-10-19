@@ -4,7 +4,7 @@ Every JailbreakBench result should come with what the same intervention does to 
 same chat-formatted model it was found on. lm-eval (capability.py) scores untemplated few-shot prompts and takes
 ~35 min per condition on an 8B model. This scores a fixed sample (data/benchmark_items.json,
 scripts/fetch_benchmark_items.py) in the chat template under each --conditions entry (jbb_safety.py's grammar:
-`baseline`, `sub:STEM[*s]`, `subpos:<subset>[+gen]:STEM`, `edit:`, `ablate:`, ...; several joined with `|`):
+`baseline`, `sub:STEM[*s]`, `subpos:<subset>[+gen[K]]:STEM`, `edit:`, `ablate:`, ...; several joined with `|`):
 
   mmlu, arc  0-shot multiple choice. Accuracy = the answer letter with the highest logit at the generation boundary
              among the options' letters; `format` = how often the unrestricted top token is one of them (does the

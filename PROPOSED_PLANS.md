@@ -1382,3 +1382,12 @@ models (p≈0.5); same for "I can't" on text tasks on the two models where ×1 i
 (judge: no claim and no assertion) on ≥2/5 (p≈0.5).
 
 Partial outcome (job 4090, §59, Llama-3-8B): prompt-only ×2 / ×3 famous dk 7 / 10% (every-token ×1 43%: not reached), text-task "I can't" 6 / 9% (56%: not reached), though the first-token log-odds go to +6 to +8. The answers open the claim and then recover. Qwen2.5-7B, Llama-2 (jobs 4091-4092): the same (prompt-only famous dk 0-10%, text-task "I can't" 0-9%, log-odds +2 to +11; openings 80-100% claim-style). Every-token ×2 breaks the limitation push on all three (47-88% judged declines, loops on Llama-2).
+
+### 112. How long must the push be held into the answer? — jobs 4095-4097 (~1.6 h, added 2026-10-19 12:35)
+
+§59: a prompt-only push wins the claim's first token on Llama-3-8B, Qwen2.5-7B and Llama-2, and the answer recovers
+within a sentence. New `+genK` (jbb_safety.py grammar, `positional_push(generated=K)`): the push on every prompt token
+and the first K generated tokens. Unknown added on famous questions and the limitation mean on text tasks, ×1, K = 1 /
+4 / 16 / 64 (K = 0 and all in §57-§58). Predicted: K = 16 recovers ≥70% of the every-token claim rate for unknown on
+≥2/3 (p≈0.5), i.e. the claim is settled once its first clause is written; the limitation claim needs K ≥ 64 (the
+pivot "However, I can…" comes after the AI disclaimer; p≈0.4).

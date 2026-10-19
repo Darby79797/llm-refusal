@@ -66,6 +66,26 @@ def test_positional_push_adds_on_the_subset_at_prefill_and_on_generated_tokens_o
     assert m.seen[-1].abs().sum() == 0
 
 
+def test_positional_push_first_k_generated_tokens_resets_at_each_prefill():
+    pp = _mod()
+    am = t.ones(1, 3, dtype=t.long)
+    v = t.tensor([1.0, 0.0])
+    m = _Model()
+    with pp.positional_push(m, m.block, v, "last", n_suffix=1, generated=2):
+        for _ in range(2):                                                     # two generations (batches)
+            m(input_ids=t.zeros(1, 3, dtype=t.long), attention_mask=am)
+            for _ in range(4):
+                m(input_ids=t.zeros(1, 1, dtype=t.long), attention_mask=am)
+    steps = [x[0, 0, 0].item() for x in m.seen if x.shape[1] == 1]
+    assert steps == [1, 1, 0, 0] * 2                                            # only decode steps 1-2 pushed
+    m2 = _Model()
+    with pp.positional_push(m2, m2.block, v, "last", n_suffix=1, generated=True):  # True is "all", not 1
+        m2(input_ids=t.zeros(1, 3, dtype=t.long), attention_mask=am)
+        for _ in range(3):
+            m2(input_ids=t.zeros(1, 1, dtype=t.long), attention_mask=am)
+    assert [x[0, 0, 0].item() for x in m2.seen if x.shape[1] == 1] == [1, 1, 1]
+
+
 def test_jbb_condition_subpos_parses_subset_gen_and_strength(tmp_path):
     import contextlib
     spec = importlib.util.spec_from_file_location(
@@ -88,4 +108,10 @@ def test_jbb_condition_subpos_parses_subset_gen_and_strength(tmp_path):
         pass
     with js.condition_context(Run, f"addpos:instruction:{stem}"):
         pass
-    assert calls == [([-0.5, 0.0], "template", 5, True), ([1.0, 0.0], "instruction", 5, False)]
+    with js.condition_context(Run, f"addpos:all+gen16:{stem}"):
+        pass
+    assert calls == [([-0.5, 0.0], "template", 5, True), ([1.0, 0.0], "instruction", 5, False),
+                     ([1.0, 0.0], "all", 5, 16)]
+    import pytest
+    with pytest.raises(AssertionError):
+        js.condition_context(Run, f"addpos:all+foo:{stem}")

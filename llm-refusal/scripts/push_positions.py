@@ -27,7 +27,7 @@ import contextlib
 import math
 import os
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from env import setup_process_env; setup_process_env()  # before torch is imported
@@ -58,16 +58,20 @@ def split_strength(stem: str):
 
 
 @contextlib.contextmanager
-def positional_push(model, block, vec: t.Tensor, subset: str, n_suffix: int, generated: bool):
+def positional_push(model, block, vec: t.Tensor, subset: str, n_suffix: int, generated: Union[bool, int]):
     """Add `vec` at `block`'s input on `subset`'s prompt tokens only, during a forward pass or a KV-cached
     generation (generation.generate_with_hooks): the prompt's attention mask is read from the model call's kwargs on
-    the prefill step; on each decode step (one new token) the push is applied iff `generated`."""
-    state = {}
+    the prefill step; on each decode step (one new token) the push is applied if `generated` is True, never if it
+    is False, and on the first `generated` decode steps after each prefill if it is an int (the first generated token
+    is chosen from the prefill, so k pushes the inputs of generated tokens 1..k)."""
+    limit = math.inf if generated is True else (0 if generated is False else int(generated))
+    state = {"step": 0}
 
     def grab(module, args, kwargs):
         ids = kwargs.get("input_ids")
         if ids is not None and ids.shape[1] > 1:
             state["mask"] = position_masks(kwargs["attention_mask"].cpu(), n_suffix)[subset]
+            state["step"] = 0
         return None
 
     def push(module, args):
@@ -75,8 +79,10 @@ def positional_push(model, block, vec: t.Tensor, subset: str, n_suffix: int, gen
         v = vec.to(h.device, h.dtype)
         if "mask" in state and h.shape[1] == state["mask"].shape[1] and h.shape[1] > 1:
             return (h + state["mask"].to(h.device)[..., None].to(h.dtype) * v,) + args[1:]
-        if h.shape[1] == 1 and generated:
-            return (h + v,) + args[1:]
+        if h.shape[1] == 1:
+            state["step"] += 1
+            if state["step"] <= limit:
+                return (h + v,) + args[1:]
         return None
 
     handles = [model.register_forward_pre_hook(grab, with_kwargs=True), block.register_forward_pre_hook(push)]
