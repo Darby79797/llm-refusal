@@ -1288,3 +1288,15 @@ between −log-odds and prompt-only unsafe over the ~11 conditions (p≈0.6); si
 (p≈0.5).
 Llama-3.1 (job 4042, added after §53 showed unknown saturating there): the same, plus the mean 3 up prompt-only; the same
 predictions.
+
+Partial outcome (job 4041, §54, Llama-3-8B): (a) held (ρ = 0.91 over ten conditions); (b) held (no exception: below
+zero 35-70%, above zero 8-20%). r̂ lies above the curve (70% at −2.8).
+
+### 104. Why does unknown's push saturate on Llama-3.1? — jobs 4043-4044 (~15 min, added 2026-10-19 01:55)
+
+§53: unknown ×1 / ×1.5 / ×2 on the prompt moves Llama-3.1's boundary log-odds only to +3.6 / +2.0 / +0.6, while on
+Llama-3-8B it passes zero at ×1.5. `push_trajectory.py` (no generation): r̂'s reading at every layer and the refusal
+log-odds under unknown ×1 / ×2 / ×3 and the mean ×1 / ×2 on both models. Predicted: on Llama-3.1 under unknown ×2-×3,
+r̂'s reading at the last layer stays ≥0.5 on the harmless → harmful scale while it falls below 0.5 under the mean ×1,
+i.e. later layers keep (or re-write) refusal against unknown's push (p≈0.5); on Llama-3-8B unknown ×2 brings it below 0.5
+(p≈0.6).
