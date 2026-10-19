@@ -1725,6 +1725,19 @@ Predictions (plan 108): (a) prompt-only keeps ≥70% of the every-token "I don't
 
 Predictions (plan 109): (a) on the Llamas the template alone keeps ≥70% of the effect in both directions: failed (removal 2/4: Llama-3.1, 1B; induction 0/2). (b) on the Qwens <50%: 1/2 (1.5B 25%; 7B 67%). (c) prompt only ≥70% on ≥5/6: failed narrowly (4/6 removal; Llama-3-8B 67%, Llama-2 69%).
 
+### 59. Plan 111: is "an unsupported claim needs the generated tokens" just strength at the decision? (2026-10-19) **[Llama-3-8B so far (Qwen2.5-7B, Llama-2, Qwen2.5-1.5B, Llama-3.1 queued); `push_positions.py --concept unknown / inability` (the claim's first-token log-odds at the boundary, famous questions / text tasks, push on every prompt token, no generation) at ×1 / ×2 / ×3; generation (`familiarity_dial.py`, `limit_factorial.py`, five-flag judge) with the push on the prompt only at ×2 / ×3 and on every token at ×2; unknown's own direction and the limitation mean, added; `...-push-positions-dose{u,i}.json`, `...-familiarity-dial-dose.json`, `...-limit-factorial-dose.json`]**
+
+Llama-3-8B:
+
+| | first-token log-odds, prompt push ×1 / ×2 / ×3 (baseline) | claim in generation, prompt only ×2 / ×3 | every token ×1 (§57-§58) / ×2 |
+|---|---|---|---|
+| unknown added, famous questions: "I don't know" | +1.2 / +6.0 / +1.6 (−14.2) | 7 / 10% | 43 / 77% |
+| the mean added, text tasks: "I can't" | +6.4 / +7.7 / +1.2 (−12.2) | 6 / 9% | 56 / 16% (+25% "don't know") |
+
+- **No: on Llama-3-8B the prompt-only push wins the first token and loses the answer.** It moves the claim's first-token log-odds 15-20 nats, well past zero, and every answer under it opens the claim: all 30 famous-question answers start "I…" ("I'm not aware of any information about a mathematician named Emmy Noether…", "I must correct you that there was no FIFA World Cup held in 1994…"), and 29 of 32 text-task answers start "I'm afraid you've come to the wrong place!". Then the model recovers and answers from what it knows ("…The 1994 FIFA World Cup was held in…", "However, I can tell you…"), so the judge finds the claim in only 6-10%.
+- So the gap in §57-§58 is not strength at the decision, unlike the jailbreak's (§53). A claim the content does not support is started by the prompt push but has to be sustained by the push on the generated tokens; without it the model's own knowledge of the question reasserts itself within a sentence. The first-token log-odds, which ranked the jailbreak well (§54), overstate what a prompt-only push does to these claims.
+- Every-token ×2 strengthens "I don't know" (77%) but on text tasks turns "I can't" partly into "I don't know" and other text (16% / 25%), which looks like the start of breakdown.
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.
