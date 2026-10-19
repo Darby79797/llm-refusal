@@ -1507,7 +1507,7 @@ models, against §68's (and job 4115's) refusal rates. Predicted: ρ ≥ 0.7 ove
 
 Outcome (§68): held (ρ = 0.90, sign 21/24).
 
-### 123. Which prompt tokens does the answer read a refusal from as it goes on? — job 4118 (~1.3 h, added 2026-10-19 22:15)
+### 123. Which prompt tokens does the answer read a refusal from as it goes on? — jobs 4118-4119 (~1.3 h, added 2026-10-19 22:02)
 
 §65: an induced refusal survives r̂ being removed from the answer, so the answer reads it from the prompt. New `hide:<subset>`
 (generation.py `hide`: after the first token, the answer's attention mask drops that prompt subset). Harmless prompts,
@@ -1516,3 +1516,5 @@ the model's own refusal on JailbreakBench with the template / request hidden (ph
 Predicted: hiding the template cuts induced refusal by ≥30pp on ≥5/8 (p≈0.5; the CPU smoke check on the 1B: 3/3 → 1/3),
 hiding the request by ≤10pp on ≥5/8 (p≈0.5), and the control answers normally (≤10% refusal, p≈0.7); the model's own
 refusal survives hiding the template on ≥5/8 (p≈0.4), since its request is still visible.
+
+(Job 4119: the same for a carried "I don't know", unknown on the prompt with the template / request hidden, Llama-3.1 and the 1B.)
