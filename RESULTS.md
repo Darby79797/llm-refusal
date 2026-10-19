@@ -1624,7 +1624,7 @@ Predictions (plan 104):
 - (a) on Llama-3.1, r̂'s last-layer reading stays ≥0.5 under unknown ×2-×3 while the mean ×1 brings it below 0.5: failed (unknown 0.68 / 0.49; the mean raises it to 1.57).
 - (b) on Llama-3-8B unknown ×2 brings it below 0.5: held, narrowly (0.49).
 
-### 56. Plan 106: which sublayers carry, and which oppose, unknown's push (2026-10-19) **[Llama-3.1-8B, Llama-3-8B (Qwen2.5-7B queued); `component_patching.py --window 17`, no generation: each attention / MLP output from the push layer (L15) to L31 swapped between the clean and pushed runs on harmful prompts; necessity = share of the push's refusal log-odds effect lost when that one output is taken from the clean run (negative: the push gets stronger without it, so that sublayer opposes it); unknown ×1 / ×2 and the limitation mean ×1, every token; `...-component-patching-unkdepth.json`]**
+### 56. Plan 106: which sublayers carry, and which oppose, unknown's push (2026-10-19) **[Llama-3.1-8B, Llama-3-8B, Qwen2.5-7B (push layer L17, window to L27); `component_patching.py --window 17`, no generation: each attention / MLP output from the push layer (L15) to L31 swapped between the clean and pushed runs on harmful prompts; necessity = share of the push's refusal log-odds effect lost when that one output is taken from the clean run (negative: the push gets stronger without it, so that sublayer opposes it); unknown ×1 / ×2 and the limitation mean ×1, every token; `...-component-patching-unkdepth.json`]**
 
 | | log-odds clean → pushed | necessity, sum over 34 sublayers | largest | sublayers ≥0.3 | most negative |
 |---|---|---|---|---|---|
@@ -1639,6 +1639,18 @@ Predictions (plan 104):
 - **Attention L21-L22 opposes unknown on Llama-3.1, and nothing opposes the mean.** Removing their pushed output makes unknown's push 11-26% stronger; under the mean no sublayer is below −0.02. These are the layers that, with §55, restore r̂'s reading against unknown: an attention-mediated defence that the mean's route avoids.
 - **Llama-3-8B has neither feature as strongly.** Unknown's chain is less fragile (sum 4.5, 3 sublayers ≥0.3), its attention does not oppose (L21 −0.08, L22 +0.40), and the one opposing sublayer, MLP L30 (−0.14 to −0.19), works against the mean as much as against unknown: a generic late brake, not one aimed at unknown.
 - So the two models differ where §53-§55 said: on Llama-3.1 unknown's push is opposed by L21-22 attention and depends on a long chain of MLPs, which is why it moves the decision half as fast; on Llama-3-8B it does not meet that opposition.
+
+**Qwen2.5-7B** (job 4049): the opposition sits in the MLP at the push layer itself, and it gives way under a stronger push.
+
+| Qwen2.5-7B | log-odds clean → pushed | MLP L17 (push layer) necessity | in nats | other sublayers ≤ −0.1 |
+|---|---|---|---|---|
+| unknown ×1 | +4.25 → +2.30 | **−3.54** | ≈ −6.9 | MLP L18 −0.93, attn L21 −0.23, MLP L22 −0.24 |
+| unknown ×2 | +4.25 → −5.26 | +0.17 | ≈ +1.6 | attn L18 −0.32 |
+| the mean ×1 | +4.25 → −6.40 | −0.48 | ≈ −5.1 | none |
+
+- **Qwen's push-layer MLP counteracts the push it receives.** Under unknown ×1 it cancels about 6.9 nats, three and a half times the push's net effect (1.9 nats); under the mean about 5 nats of a 10.7-nat effect. This is §42's "Qwen MLPs resist the push", located: the block the push enters writes back against it.
+- **At ×2 the counteraction is gone** (MLP L17 now carries +17% of the effect). The resistance does not scale with the push; it is overwhelmed, which is why doubling unknown on Qwen moves the log-odds four times as far (−1.9 → −9.5 nats). The Llamas have no comparable push-layer opposition at ×1 (Llama-3.1 MLP L15 +0.20, Llama-3-8B −0.02); Llama-3.1 shows one only at ×2 (−0.77).
+- Three different defences, then: Llama-3.1 opposes unknown with attention 6-7 layers downstream, Llama-3-8B has a generic brake at MLP L30, and Qwen2.5-7B counteracts at the push layer until the push is large enough to overwhelm it.
 
 Predictions (plan 106, Llamas):
 - (a) on Llama-3.1 a late sublayer (L20 on) has necessity ≤ −0.1 under unknown: held (attn L21 / L22).

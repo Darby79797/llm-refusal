@@ -1316,7 +1316,7 @@ largest outlier, more unsafe than its log-odds predict (p≈0.4), since its comp
 
 Outcome (§54): (a) held (ρ = 0.80 with unsafe; 0.98 with not-refused); (b) held (unknown ×2 +15pp above a linear fit, the largest residual; the rest within ±8pp). On Qwen the first-token decision predicts refusal; moralise vs comply is a second axis (persona 52% moralising).
 
-### 106. Which sublayers oppose unknown's push on Llama-3.1? — jobs 4046-4047 (~1.7 h, added 2026-10-19 02:52)
+### 106. Which sublayers oppose unknown's push on Llama-3.1? — jobs 4046-4047 (~1.7 h, added 2026-10-19 02:52) — DONE
 
 §55: on Llama-3.1 the layers after the push restore r̂'s reading against unknown (fully at ×1), not against the mean, and
 unknown moves the refusal log-odds half as fast as on Llama-3-8B. component_patching.py from the push layer (L15) to the
@@ -1325,7 +1325,7 @@ log-odds effect. Predicted: on Llama-3.1 at least one late sublayer (L20 on) has
 removing its pushed output makes the push stronger (p≈0.5), and none under the mean (p≈0.6); on Llama-3-8B none under
 either (p≈0.5).
 
-Added 04:15: Qwen2.5-7B (job 4049, L17 to the last layer, ~30 min), the same three conditions. Partial (job 4046, Llama-3.1): attn L21 / L22 necessity −0.11 / −0.20 under unknown ×1 and −0.25 (L21) under ×2; under the mean no sublayer below −0.02. Llama-3-8B (job 4047, §56): (c) failed (MLP L30 −0.19 under unknown ×2, −0.14 under the mean: a generic late brake). Llamas: (a) held, (b) held, (c) failed. Qwen pending.
+Added 04:15: Qwen2.5-7B (job 4049, L17 to the last layer, ~30 min), the same three conditions. Partial (job 4046, Llama-3.1): attn L21 / L22 necessity −0.11 / −0.20 under unknown ×1 and −0.25 (L21) under ×2; under the mean no sublayer below −0.02. Llama-3-8B (job 4047, §56): (c) failed (MLP L30 −0.19 under unknown ×2, −0.14 under the mean: a generic late brake). Llamas: (a) held, (b) held, (c) failed. Qwen2.5-7B (job 4049, no prediction): the push-layer MLP (L17) cancels ~6.9 nats of unknown ×1 and ~5 of the mean, and gives way at ×2.
 
 ### 107. The log-odds ranking on a small model — job 4048 (~35 min, added 2026-10-19 03:25) — DONE
 
