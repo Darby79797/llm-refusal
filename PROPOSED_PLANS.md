@@ -1486,7 +1486,7 @@ same subset that carries induction on each model (§66) carries removal, i.e. pe
 
 Outcome (§68): (a) held by the strongest subset (template 5/6; Llama-3.1 request for induction, template for removal); (b) held (5/6). Removal runs through the template on every model; the request alone removes 1-18pp.
 
-### 121. Header or request: what carries a request-carried refusal? — jobs 4115-4116 (~1.2 h, added 2026-10-19 20:58)
+### 121. Header or request: what carries a request-carried refusal? — jobs 4115-4116 (~1.2 h, added 2026-10-19 20:58) — DONE
 
 §66 / §68: r̂ added on the instruction tokens (everything before the template suffix) induces 92-94% refusal on
 Llama-3.1 and Qwen2.5-7B but 10-27% elsewhere; subtracted there it removes 1-18pp everywhere. The instruction includes
@@ -1497,8 +1497,12 @@ JailbreakBench on each, six models; job 4115 completes plan 120 on Qwen2.5-3B / 
 Qwen2.5-7B the header alone induces ≥70% (p≈0.5), i.e. the push is carried by the system-block tokens, not the user's
 words; the request alone ≤40% there (p≈0.5).
 
-### 122. Do first-token log-odds predict which tokens carry refusal removal? — job 4117 (~25 min, added 2026-10-19 21:32)
+Outcome (§69): (a) failed (header 25%, 5%); (b) 1/2. The header alone induces 0-25% everywhere; Qwen2.5-7B's carrier is the user's words (74%), Llama-3.1 needs header and request together.
+
+### 122. Do first-token log-odds predict which tokens carry refusal removal? — job 4117 (~25 min, added 2026-10-19 21:32) — DONE
 
 §67 found the first-token refusal log-odds predict which prompt span carries induced refusal (ρ = 0.87-0.90). §68:
 removal runs through the template on every model. push_positions.py with r̂ subtracted, harmful eval prompts, eight
 models, against §68's (and job 4115's) refusal rates. Predicted: ρ ≥ 0.7 over the 24 model × subset cells (p≈0.6).
+
+Outcome (§68): held (ρ = 0.90, sign 21/24).
