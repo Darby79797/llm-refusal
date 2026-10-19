@@ -1468,11 +1468,13 @@ instruction alone ≤30% on the Llamas (p≈0.6).
 
 Outcome (§66): (a) failed (4/6); (b) held (5/6); (c) failed (Llama-3.1 instruction 94%). Carrier differs by model and direction; Llama-3-8B needs both spans; on Llama-3.1 refusal sits on the instruction, unknown on the template.
 
-### 119. Do first-token log-odds explain which prompt tokens carry induced refusal? — job 4112 (~20 min, added 2026-10-19 19:20)
+### 119. Do first-token log-odds explain which prompt tokens carry induced refusal? — job 4112 (~20 min, added 2026-10-19 19:20) — DONE
 
 §66: r̂ on the instruction alone induces 94% refusal on Llama-3.1 but 10% on Llama-3-8B; the template alone 23-95%.
 push_positions.py, r̂ added, refusal log-odds on harmless prompts per subset, six models. Predicted: a subset's log-odds
 rank its generated refusal rate across the 18 model × subset cells with ρ ≥ 0.7 (p≈0.6), as for the jailbreak (§54).
+
+Outcome (§67): held (ρ = 0.90; sign 16/18).
 
 ### 120. Which prompt tokens carry refusal removal? — job 4113 (~1 h, added 2026-10-19 19:25)
 
