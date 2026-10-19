@@ -1561,6 +1561,10 @@ only). Predicted: §61 / §65 / plan 123 replicate within 15pp on ≥5/7 (p≈0.
 
 ### 130. The rest of the hide map — job 4180 (~50 min)
 
+Revised 22:55 after plan 123's first models: hiding a span that contains BOS (header, instruction, all) breaks the Llamas
+into loops, so only the last token is hidden (with and without the push); the predictions below about the instruction
+and the whole prompt are withdrawn.
+
 Harmless, r̂ on the prompt only, with the instruction / last token / whole prompt hidden after the first token, and the
 whole prompt hidden with no push (control), eight models. Predicted: hiding the instruction costs ≤15pp on the four
 template-carried models and ≥40pp on Llama-3.1 (p≈0.4); hiding the whole prompt ends the refusal (≤30%) on ≥6/8 (p≈0.5).
