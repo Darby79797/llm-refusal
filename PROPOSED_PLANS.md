@@ -1303,7 +1303,7 @@ r̂'s reading at the last layer stays ≥0.5 on the harmless → harmful scale w
 i.e. later layers keep (or re-write) refusal against unknown's push (p≈0.5); on Llama-3-8B unknown ×2 brings it below 0.5
 (p≈0.6).
 
-### 105. Do the boundary log-odds rank the prompt-only jailbreak on a Qwen? — job 4045 (~50 min, added 2026-10-19 02:30)
+### 105. Do the boundary log-odds rank the prompt-only jailbreak on a Qwen? — job 4045 (~50 min, added 2026-10-19 02:18)
 
 §54: on both 8B Llamas the refusal log-odds at the boundary under a prompt-only push rank its JailbreakBench unsafe rate
 across six directions (ρ = 0.91). Qwen2.5-7B differs in where it reads the push (the request too, §52) and in how its
