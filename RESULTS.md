@@ -1793,6 +1793,21 @@ Predictions (plan 112): (a) K = 16 recovers ≥70% of the every-token "I don't k
 
 Predictions (plan 114): (a) prompt-only keeps ≥70% of the every-token rate on ≥4/6: held (6/6, 94-100%). (b) K = 16 recovers it where it does not: not needed.
 
+### 62. Plan 113: is the answer's reversion visible in the model's own state? (2026-10-19) **[six models; `claim_trajectory.py` (new, no generation): plan 108's saved answers to the 30 famous questions teacher-forced after their templated prompt, with the condition's push on the prompt tokens only so every answer token's residual is the model's own; unknown's projection (unit vector) on each answer token at its layer +2, +6 and the last layer, averaged over answer tokens 1-4 / 5-16 / 17-64 / 65+; `...-claim-trajectory.json`]**
+
+Share of the way from the baseline answers' reading to the every-token answers' reading at answer tokens 17-64 (layer +2), for the answers written under the prompt-only push (0 = back at baseline, 1 = as high as with the push held):
+
+| | Llama-3.1 | Llama-3.2-1B | Qwen2.5-1.5B | Qwen2.5-7B | Llama-2 | Llama-3-8B |
+|---|---|---|---|---|---|---|
+| prompt-only answers keep the claim (§57, famous) | 43% | 50% | 0% | 3% | 0% | 0% |
+| reading at tokens 1-4 (share) | ≈1.0 | ≈0.9 | ≈1.0 | ≈0.9 | ≈1.0 | ≈0.8 |
+| reading at tokens 17-64 (share) | **0.83** | **0.66** | 0.49 | 0.34 | 0.27 | **0.13** |
+
+- **The model's own reading of "unknown" follows the answer.** In the first four answer tokens the prompt-only answers read as high as the every-token ones on every model (the push has just set the opening). By tokens 17-64 the two models whose prompt-only answers keep the claim still read 66-83% of the way up, and the four that drop it 13-49%, in the same order as the drop (Llama-3-8B, which keeps the claim least, falls furthest). The two groups separate without overlap.
+- This is a reading on each model's own text, so it cannot say whether the falling reading causes the reversion or reflects the reverted words; it shows the representation of "I don't know this" is not held by itself over the answer on the reverting models, as the push experiments (§60) imply.
+
+Predictions (plan 113): (a) back within 25% of baseline on ≥3/4 reverting models: failed (1/4: Llama-3-8B 0.13; Llama-2 0.27, Qwen2.5-7B 0.34, Qwen2.5-1.5B 0.49). (b) Llama-3.1 stays ≥50% of the way: held (0.83).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.

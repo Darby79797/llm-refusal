@@ -1396,7 +1396,7 @@ pivot "However, I can…" comes after the AI disclaimer; p≈0.4).
 
 Partial outcome (job 4095, §60, Llama-3-8B): (a) failed (K = 16 famous dk 13% vs 43%, 30%); (b) held (K = 16 25% vs 56%; K = 64 53%). Graded: K = 64 gives 77-95% of the every-token effect for both claims. Llama-2 (job 4096): (a) failed (K = 16 famous 20% vs 53%); (b) held (K = 16 6%, K = 64 9% vs 25%). Qwen2.5-7B (job 4097): effects small at ×1 (every-token famous dk 13%, little-known 37%); K = 64 10% / 23%; no "I can't" on text tasks at any K. Qwen2.5-1.5B (job 4098): K = 64 reaches the every-token rate (17% / 47%). Outcome (§60): (a) failed (famous 0-38% at K = 16 on 4/4); (b) held where inducible. Claims need the push held for most of the answer.
 
-### 113. Is the answer's reversion visible in the model's own state? — job 4101 (~25 min, added 2026-10-19 14:05; renumbered after 4100)
+### 113. Is the answer's reversion visible in the model's own state? — job 4101 (~25 min, added 2026-10-19 14:05; renumbered after 4100) — DONE
 
 §59-§60: a prompt-only push opens "I don't know" and the answer reverts within a sentence on four models, not on
 Llama-3.1. New `claim_trajectory.py` (no generation): plan 108's saved answers to famous questions teacher-forced with
@@ -1404,6 +1404,8 @@ the push on the prompt tokens only, unknown's projection on every answer token (
 bucket. Predicted: under the prompt-only push the projection at answer tokens 17-64 is back within 25% of the baseline
 answers' level (relative to the every-token answers') on ≥3/4 reverting models (p≈0.6), and stays ≥50% of the way on
 Llama-3.1 (p≈0.5).
+
+Outcome (§62): (a) failed (1/4; 0.13-0.49); (b) held (0.83). The share at tokens 17-64 separates the two groups (keepers 0.66-0.83, reverters 0.13-0.49) in the order of the drop.
 
 ### 114. Is refusal induction decided at the prompt? — job 4100 (~1.5 h, added 2026-10-19 14:25) — DONE
 
