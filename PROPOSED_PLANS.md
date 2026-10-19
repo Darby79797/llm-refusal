@@ -1393,3 +1393,5 @@ and the first K generated tokens. Unknown added on famous questions and the limi
 4 / 16 / 64 (K = 0 and all in §57-§58). Predicted: K = 16 recovers ≥70% of the every-token claim rate for unknown on
 ≥2/3 (p≈0.5), i.e. the claim is settled once its first clause is written; the limitation claim needs K ≥ 64 (the
 pivot "However, I can…" comes after the AI disclaimer; p≈0.4).
+
+Partial outcome (job 4095, §60, Llama-3-8B): (a) failed (K = 16 famous dk 13% vs 43%, 30%); (b) held (K = 16 25% vs 56%; K = 64 53%). Graded: K = 64 gives 77-95% of the every-token effect for both claims.
