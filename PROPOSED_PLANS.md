@@ -1507,7 +1507,7 @@ models, against §68's (and job 4115's) refusal rates. Predicted: ρ ≥ 0.7 ove
 
 Outcome (§68): held (ρ = 0.90, sign 21/24).
 
-### 123. Which prompt tokens does the answer read a refusal from as it goes on? — jobs 4118-4119 (~1.3 h, added 2026-10-19 22:02)
+### 123. Which prompt tokens does the answer read a refusal from as it goes on? — jobs 4118-4119 (~1.3 h, added 2026-10-19 22:02) — DONE
 
 §65: an induced refusal survives r̂ being removed from the answer, so the answer reads it from the prompt. New `hide:<subset>`
 (generation.py `hide`: after the first token, the answer's attention mask drops that prompt subset). Harmless prompts,
@@ -1518,6 +1518,8 @@ hiding the request by ≤10pp on ≥5/8 (p≈0.5), and the control answers norma
 refusal survives hiding the template on ≥5/8 (p≈0.4), since its request is still visible.
 
 (Job 4119: the same for a carried "I don't know", unknown on the prompt with the template / request hidden, Llama-3.1 and the 1B.)
+
+Outcome (§70): (a) held 8/8 but confounded (hiding the template after an "I" opener loses the assistant role: user's voice, stops, drift); (b) held 8/8 (request hidden ≤8pp, also for natural refusal and "I don't know"); (c) held; (d) failed. Header hiding breaks the Llamas (BOS). The hide:template arms of plans 124-127 and 129 carry the same confound.
 
 ## Overnight batch to 09:00 (added 2026-10-19 22:20, user: "extend the queue until at least 0900h"); numbering leaves gaps for follow-ups
 
