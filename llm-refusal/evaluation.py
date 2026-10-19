@@ -267,6 +267,8 @@ class BigEvaluator:
 
         def generate(chunk):
             extra = {"prefixes": [prefill] * len(chunk)} if prefill else {}
+            if getattr(self, "hide", None) is not None:   # set by jbb_safety.py's `hide:<subset>` condition
+                extra["hide"] = self.hide
             texts = generate_with_hooks(self.model, self.tokenizer, self.framework.prompt_formatter,
                                         chunk, max_new_tokens=max_new_tokens, **extra)
             progress.update(len(chunk))

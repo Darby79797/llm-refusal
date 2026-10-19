@@ -1,8 +1,14 @@
 import torch as t
-from typing import List, Optional
+from typing import Callable, List, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from formatting import ChatPromptFormatter, last_real_token_indices, assert_right_padded
+
+
+def hide_positions(attention_mask: t.Tensor, hide: Callable[[t.Tensor], t.Tensor]) -> t.Tensor:
+    """The attention mask with the positions `hide` selects (from the prompt's mask) set to 0."""
+    mask = hide(attention_mask.cpu()).to(attention_mask.device)
+    return attention_mask.masked_fill(mask, 0)
 
 
 def generate_with_hooks(
@@ -12,6 +18,7 @@ def generate_with_hooks(
     prompts: List[str],  # raw prompts; formatted with the chat template here
     max_new_tokens: int = 64,
     prefixes: Optional[List[str]] = None,
+    hide: Optional[Callable[[t.Tensor], t.Tensor]] = None,
 ) -> List[str]:
     """
     A robust, manual greedy decoding loop that correctly handles KV caching
@@ -19,6 +26,8 @@ def generate_with_hooks(
     right padding decodes from pad slots and applies the model's generation_config.
     With `prefixes`, each answer is prefilled: generation continues from the templated
     prompt followed by the prefix's tokens, and only the continuation is returned.
+    With `hide` (prompt attention mask [B, T] -> bool [B, T]), the first token is chosen from
+    the whole prompt as usual, and every later token cannot attend to the hidden prompt positions.
     """
     if prefixes is not None:
         batch = prompt_formatter.format_with_completions(prompts, prefixes)
@@ -58,6 +67,8 @@ def generate_with_hooks(
         # a true_len==1 sequence exceeds the real max position (0). The true next
         # position is always the true sequence length (real tokens occupy 0..true_len-1).
         next_position = attention_mask.sum(dim=1).to(position_ids.dtype)
+        if hide is not None:
+            attention_mask = hide_positions(attention_mask, hide)
 
         for _ in range(max_new_tokens):
             if all(finished_sequences): break

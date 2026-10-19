@@ -1506,3 +1506,13 @@ removal runs through the template on every model. push_positions.py with r̂ sub
 models, against §68's (and job 4115's) refusal rates. Predicted: ρ ≥ 0.7 over the 24 model × subset cells (p≈0.6).
 
 Outcome (§68): held (ρ = 0.90, sign 21/24).
+
+### 123. Which prompt tokens does the answer read a refusal from as it goes on? — job 4118 (~1.3 h, added 2026-10-19 22:15)
+
+§65: an induced refusal survives r̂ being removed from the answer, so the answer reads it from the prompt. New `hide:<subset>`
+(generation.py `hide`: after the first token, the answer's attention mask drops that prompt subset). Harmless prompts,
+r̂ on the prompt only, with the template / request / header hidden; the template hidden with no push (control); and
+the model's own refusal on JailbreakBench with the template / request hidden (phrase rate only). Eight models.
+Predicted: hiding the template cuts induced refusal by ≥30pp on ≥5/8 (p≈0.5; the CPU smoke check on the 1B: 3/3 → 1/3),
+hiding the request by ≤10pp on ≥5/8 (p≈0.5), and the control answers normally (≤10% refusal, p≈0.7); the model's own
+refusal survives hiding the template on ≥5/8 (p≈0.4), since its request is still visible.
