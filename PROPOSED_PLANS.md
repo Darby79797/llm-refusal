@@ -1485,3 +1485,14 @@ same subset that carries induction on each model (§66) carries removal, i.e. pe
 (p≈0.6).
 
 Outcome (§68): (a) held by the strongest subset (template 5/6; Llama-3.1 request for induction, template for removal); (b) held (5/6). Removal runs through the template on every model; the request alone removes 1-18pp.
+
+### 121. Header or request: what carries a request-carried refusal? — jobs 4115-4116 (~1.2 h, added 2026-10-19 21:15)
+
+§66 / §68: r̂ added on the instruction tokens (everything before the template suffix) induces 92-94% refusal on
+Llama-3.1 and Qwen2.5-7B but 10-27% elsewhere; subtracted there it removes 1-18pp everywhere. The instruction includes
+the template's header (BOS, a system block with the date / default system prompt, the user header): 30 / 24 tokens on
+Llama-3.1 / Qwen, 4-5 on Llama-3-8B / Llama-2, 24-30 on the two small models. New `header` / `request` subsets
+(`header_tokens(fmt)`: the shared prefix before the user's text). r̂ added on harmless prompts and subtracted on
+JailbreakBench on each, six models; job 4115 completes plan 120 on Qwen2.5-3B / 0.5B. Predicted: on Llama-3.1 and
+Qwen2.5-7B the header alone induces ≥70% (p≈0.5), i.e. the push is carried by the system-block tokens, not the user's
+words; the request alone ≤40% there (p≈0.5).

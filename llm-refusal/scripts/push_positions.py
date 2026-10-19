@@ -42,13 +42,27 @@ from probe import save_json  # noqa: E402
 SUBSETS = ["all", "instruction", "template", "last"]
 
 
-def position_masks(attention_mask: t.Tensor, n_suffix: int) -> Dict[str, t.Tensor]:
-    """Bool [B, T] masks of each subset's token positions in a right-padded batch."""
+def position_masks(attention_mask: t.Tensor, n_suffix: int, n_header: int = 0) -> Dict[str, t.Tensor]:
+    """Bool [B, T] masks of each subset's token positions in a right-padded batch. `instruction` (everything before the
+    template suffix) splits into `header` (its first n_header tokens: BOS and the chat template's tokens before the
+    user's text; see header_tokens) and `request` (the rest)."""
     last = last_real_token_indices(attention_mask)[:, None]          # [B, 1]
     pos = t.arange(attention_mask.shape[1])[None]                    # [1, T]
     real = attention_mask.bool()
     template = (pos > last - n_suffix) & (pos <= last)
-    return {"all": real, "instruction": real & ~template, "template": template, "last": pos == last}
+    instruction = real & ~template
+    return {"all": real, "instruction": instruction, "template": template, "last": pos == last,
+            "header": instruction & (pos < n_header), "request": instruction & (pos >= n_header)}
+
+
+def header_tokens(fmt) -> int:
+    """How many tokens every templated prompt shares before the user's text (BOS, system block, user header): the
+    common prefix of two prompts that differ from their first character."""
+    a, b = (fmt.format_batch([x])["input_ids"][0].tolist() for x in ("Zebras graze.", "Quokkas smile."))
+    n = 0
+    while n < min(len(a), len(b)) and a[n] == b[n]:
+        n += 1
+    return n
 
 
 def split_strength(stem: str):
@@ -58,7 +72,8 @@ def split_strength(stem: str):
 
 
 @contextlib.contextmanager
-def positional_push(model, block, vec: t.Tensor, subset: str, n_suffix: int, generated: Union[bool, int]):
+def positional_push(model, block, vec: t.Tensor, subset: str, n_suffix: int, generated: Union[bool, int],
+                    n_header: int = 0):
     """Add `vec` at `block`'s input on `subset`'s prompt tokens only, during a forward pass or a KV-cached
     generation (generation.generate_with_hooks): the prompt's attention mask is read from the model call's kwargs on
     the prefill step; on each decode step (one new token) the push is applied if `generated` is True, never if it
@@ -70,7 +85,7 @@ def positional_push(model, block, vec: t.Tensor, subset: str, n_suffix: int, gen
     def grab(module, args, kwargs):
         ids = kwargs.get("input_ids")
         if ids is not None and ids.shape[1] > 1:
-            state["mask"] = position_masks(kwargs["attention_mask"].cpu(), n_suffix)[subset]
+            state["mask"] = position_masks(kwargs["attention_mask"].cpu(), n_suffix, n_header)[subset]
             state["step"] = 0
         return None
 

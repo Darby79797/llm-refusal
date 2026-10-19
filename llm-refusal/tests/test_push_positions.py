@@ -96,7 +96,7 @@ def test_jbb_condition_subpos_parses_subset_gen_and_strength(tmp_path):
     stem = str(tmp_path / "x-direction")
     DirectionVector(vector=t.tensor([1.0, 0.0]), layer=0, position_index=-1, score=0.0).save(stem)
     calls = []
-    js.positional_push = lambda model, block, vec, subset, n, generated: (
+    js.positional_push = lambda model, block, vec, subset, n, generated, n_header=0: (
         calls.append((vec.tolist(), subset, n, generated)) or contextlib.nullcontext())
 
     class Fmt:
@@ -136,3 +136,22 @@ def test_generated_ablation_touches_decode_steps_only():
         m(input_ids=t.zeros(1, 1, dtype=t.long), attention_mask=t.ones(1, 4))     # decode: u removed
     pre, step = m.seen
     assert pre[0, :, 0].tolist() == [3.0, 3.0, 3.0] and step[0, 0].tolist() == [0.0, 4.0]
+
+
+def test_header_and_request_split_the_instruction():
+    pp = _mod()
+    am = t.tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 0]])
+    m = pp.position_masks(am, n_suffix=2, n_header=2)
+    assert m["header"].int().tolist() == [[1, 1, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0]]
+    assert m["request"].int().tolist() == [[0, 0, 1, 1, 0, 0], [0, 0, 1, 0, 0, 0]]
+    assert (m["header"] | m["request"]).equal(m["instruction"])
+
+
+def test_header_tokens_is_the_shared_prefix_before_the_users_text():
+    pp = _mod()
+
+    class Fmt:
+        def format_batch(self, prompts):
+            ids = [1, 50, 51] + [ord(c) for c in prompts[0]] + [60, 61]   # BOS, header, text, suffix
+            return {"input_ids": t.tensor([ids])}
+    assert pp.header_tokens(Fmt()) == 3
