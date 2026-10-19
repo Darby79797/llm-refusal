@@ -1496,3 +1496,9 @@ Llama-3.1 / Qwen, 4-5 on Llama-3-8B / Llama-2, 24-30 on the two small models. Ne
 JailbreakBench on each, six models; job 4115 completes plan 120 on Qwen2.5-3B / 0.5B. Predicted: on Llama-3.1 and
 Qwen2.5-7B the header alone induces ≥70% (p≈0.5), i.e. the push is carried by the system-block tokens, not the user's
 words; the request alone ≤40% there (p≈0.5).
+
+### 122. Do first-token log-odds predict which tokens carry refusal removal? — job 4117 (~25 min, added 2026-10-19 21:32)
+
+§67 found the first-token refusal log-odds predict which prompt span carries induced refusal (ρ = 0.87-0.90). §68:
+removal runs through the template on every model. push_positions.py with r̂ subtracted, harmful eval prompts, eight
+models, against §68's (and job 4115's) refusal rates. Predicted: ρ ≥ 0.7 over the 24 model × subset cells (p≈0.6).
