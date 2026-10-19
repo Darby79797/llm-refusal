@@ -1347,6 +1347,8 @@ tokens. Predicted: added on the prompt only keeps ≥70% of the every-token "I d
 only keeps ≥70% of the every-token assertion rate on invented questions on ≥4/6 (p≈0.5); template-only carries less
 than the prompt on the Qwens (p≈0.6, §43).
 
+Partial outcome (jobs 4060-4062, §57): (a) 1/3 so far (Llama-3.1 prompt-only famous dk 43% vs 37%; Llama-3-8B 0% vs 43%, Qwen2.5-7B 3% vs 13%); (b) 2/3 at ≥70% (Llama-3-8B 86%, Qwen2.5-7B 83%; Llama-3.1 67%); (c) Qwen2.5-7B template ≤ prompt (held so far).
+
 ### 109. Are limitation claims decided at the template in generation? — jobs 4070-4075 (~3.5 h, added 2026-10-19 04:40)
 
 §43 found by first-token log-odds that the Llamas decide limit claims at the template and the Qwens also on the request.

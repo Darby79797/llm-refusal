@@ -1657,6 +1657,28 @@ Predictions (plan 106, Llamas):
 - (b) none under the mean on Llama-3.1: held (min −0.02).
 - (c) none under either on Llama-3-8B: failed (MLP L30 −0.19 under unknown ×2, −0.14 under the mean).
 
+### 57. Plan 108: where is "I don't know" decided? (2026-10-19) **[Llama-3.1-8B, Llama-3-8B, Qwen2.5-7B so far (Qwen2.5-1.5B, Llama-3.2-1B, Llama-2 queued); `familiarity_dial.py`, invented / little-known real / famous questions (30 each), 128 tokens, five-flag qwen3:4b judge (dk = says it doesn't know, as = asserts facts as known); unknown's own direction at its own layer, added or subtracted ×1 on every token / every prompt token (`addpos:all`) / the five template tokens / template + generated tokens; `...-familiarity-dial-pos.json`]**
+
+"I don't know" % under unknown **added** (invented / little-known / famous), and assertion % on invented questions under it **subtracted**:
+
+| | Llama-3.1-8B | Llama-3-8B | Qwen2.5-7B |
+|---|---|---|---|
+| baseline: dk | 97 / 7 / 0 | 43 / 3 / 0 | 23 / 0 / 0 |
+| added, every token | 100 / 77 / 37 | 90 / 67 / 43 | 77 / 37 / 13 |
+| added, prompt only | 100 / 77 / **43** | 53 / **13 / 0** | 57 / **3 / 3** |
+| added, template only | 100 / 67 / 47 | 53 / 10 / 0 | 63 / 3 / 0 |
+| added, template + generated | 100 / 83 / 60 | 87 / 60 / 17 | 80 / 27 / 7 |
+| baseline: asserts on invented | 3 | 20 | 53 |
+| subtracted, every token | 90 | 97 | 100 |
+| subtracted, prompt only | 60 | 83 | 83 |
+| subtracted, template + generated | 77 | 97 | 93 |
+
+±9pp per cell (n = 30).
+
+- **Making the model disown what it knows needs the generated tokens on two of three models.** On Llama-3-8B and Qwen2.5-7B the push on the prompt alone gives little-known and famous questions almost no "I don't know" (0-13%, against 13-67% on every token), while template + generated recovers most of it. On Llama-3.1 the prompt alone is enough (77% / 43%, as on every token).
+- **Removing "I don't know" from invented questions works from the prompt on all three** (60-83% assert, 67-86% of the every-token rate): the model starts the answer as if it knew.
+- So the same direction acts at the prompt in one sense and needs the answer in the other, on Llama-3-8B and Qwen2.5-7B: pushing a question towards "unknown" has to be held while the model writes, as unknown's jailbreak did (§52), while pushing it towards "known" sets the answer's course from the start. Llama-3.1 decides both from the prompt.
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.
