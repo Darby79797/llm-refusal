@@ -1368,3 +1368,15 @@ log-odds and prompt-only JailbreakBench. Predicted: on 3B no push except r̂ tak
 which would explain the missing jailbreak; on the 1B ρ with unsafe ≥0.6 despite degeneration (p≈0.5).
 
 Partial outcome (job 4080, §54): (a) failed (the mean ×1 / ×1.5 and memory also go below zero, refusal 0-16%; the 3B jailbreak is held back by moralising, 33-35%). ρ = 0.90.
+
+### 111. Is "an unsupported claim needs the generated tokens" just strength at the decision? — jobs 4090-4094 (~2.8 h, added 2026-10-19 11:10)
+
+§57-§58: at strength 1, unknown added on the prompt alone makes famous questions "unknown" on only 2/6 models, and the
+limitation mean on the prompt alone never induces "I can't" on text tasks, while both work with the generated tokens
+pushed. For the jailbreak the same gap was strength at the first-token decision (§53: unknown ×1.5-×2 on the prompt
+alone matched the every-token effect). On Llama-3-8B, Qwen2.5-7B, Llama-2, Qwen2.5-1.5B and Llama-3.1 (the control,
+where prompt-only works): the concept's own log-odds at the boundary under ×1 / ×2 / ×3 (push_positions.py --concept),
+and generation (familiarity_dial / limit_factorial, judged) with the push on the prompt alone at ×2 / ×3, and on every
+token at ×2. Predicted: prompt-only ×2-×3 reaches the every-token ×1 claim rate on famous questions on ≥3/4 non-control
+models (p≈0.5); same for "I can't" on text tasks on the two models where ×1 induces it (p≈0.5); every-token ×2 degenerates
+(judge: no claim and no assertion) on ≥2/5 (p≈0.5).
