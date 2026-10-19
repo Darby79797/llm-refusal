@@ -115,3 +115,12 @@ def test_jbb_condition_subpos_parses_subset_gen_and_strength(tmp_path):
     import pytest
     with pytest.raises(AssertionError):
         js.condition_context(Run, f"addpos:all+foo:{stem}")
+
+
+def test_jbb_safety_eval_prompts_switches_to_the_harmless_set():
+    spec = importlib.util.spec_from_file_location(
+        "jbb_safety", os.path.join(os.path.dirname(__file__), "..", "scripts", "jbb_safety.py"))
+    js = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(js)
+    harmful, harmless = js.eval_prompts(False), js.eval_prompts(True)
+    assert len(harmful) == len(harmless) == 100 and not set(harmful) & set(harmless)

@@ -40,6 +40,12 @@ from probe import load_run, save_json  # noqa: E402
 from push_positions import positional_push, split_strength  # noqa: E402
 
 
+def eval_prompts(harmless: bool):
+    """Arditi's eval set: JailbreakBench's 100 behaviours, or with `harmless` the 100 held-out Alpaca instructions."""
+    jbb, alpaca = prompts.create_arditi_replication_eval_data()
+    return alpaca if harmless else jbb
+
+
 def condition_context(run, spec):
     """The context manager for one `kind[:spec]` condition (see the module docstring)."""
     kind, _, stem = spec.partition(":")
@@ -83,21 +89,26 @@ def main():
     ap.add_argument("--llamaguard-api-base", default="http://localhost:11434", help="empty: skip judging")
     ap.add_argument("--batch-size", type=int, default=None, help="pin (default: auto, fixed on the first run)")
     ap.add_argument("--force-cpu", action="store_true", help="for tests while the GPU is busy")
+    ap.add_argument("--harmless", action="store_true",
+                    help="Arditi's 100 harmless Alpaca eval prompts instead of JailbreakBench (refusal induction; "
+                         "pass --llamaguard-api-base '' to skip judging)")
     a = ap.parse_args()
 
     run = load_run(a.model, llamaguard_api_base=a.llamaguard_api_base or None, force_cpu=a.force_cpu)
     ev, tok = run.fw.evaluator, run.fw.tokenizer
     ev.reserve_bytes = edit_bytes(run.model)  # same headroom in every condition, so one batch size fits all
-    jbb, _ = prompts.create_arditi_replication_eval_data()
-    jbb = jbb[:a.n]
+    jbb = eval_prompts(a.harmless)[:a.n]
 
     ctx = lambda spec: condition_context(run, spec)
 
     conds = dict(c.split("=", 1) for c in a.conditions.split(","))
     path = run.path("analysis", "jbb-safety", a.tag)
-    out = {"model": a.model, "n": len(jbb), "max_new_tokens": a.max_new_tokens, "batch_size": None, "conditions": {}}
+    pset = "harmless" if a.harmless else "jbb"
+    out = {"model": a.model, "set": pset, "n": len(jbb), "max_new_tokens": a.max_new_tokens, "batch_size": None,
+           "conditions": {}}
     if os.path.exists(path):
         prev = json.load(open(path))
+        assert prev.get("set", "jbb") == pset, f"{path} holds the {prev.get('set', 'jbb')} set; use another --tag"
         if (prev["n"], prev["max_new_tokens"]) == (len(jbb), a.max_new_tokens):
             out = prev
             print("resuming:", {k: f"{sum(x is not None for x in v['responses'])} generated, "

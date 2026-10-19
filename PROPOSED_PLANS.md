@@ -1394,9 +1394,9 @@ and the first K generated tokens. Unknown added on famous questions and the limi
 ≥2/3 (p≈0.5), i.e. the claim is settled once its first clause is written; the limitation claim needs K ≥ 64 (the
 pivot "However, I can…" comes after the AI disclaimer; p≈0.4).
 
-Partial outcome (job 4095, §60, Llama-3-8B): (a) failed (K = 16 famous dk 13% vs 43%, 30%); (b) held (K = 16 25% vs 56%; K = 64 53%). Graded: K = 64 gives 77-95% of the every-token effect for both claims. Llama-2 (job 4096): (a) failed (K = 16 famous 20% vs 53%); (b) held (K = 16 6%, K = 64 9% vs 25%).
+Partial outcome (job 4095, §60, Llama-3-8B): (a) failed (K = 16 famous dk 13% vs 43%, 30%); (b) held (K = 16 25% vs 56%; K = 64 53%). Graded: K = 64 gives 77-95% of the every-token effect for both claims. Llama-2 (job 4096): (a) failed (K = 16 famous 20% vs 53%); (b) held (K = 16 6%, K = 64 9% vs 25%). Qwen2.5-7B (job 4097): effects small at ×1 (every-token famous dk 13%, little-known 37%); K = 64 10% / 23%; no "I can't" on text tasks at any K.
 
-### 113. Is the answer's reversion visible in the model's own state? — job 4099 (~25 min, added 2026-10-19 14:05)
+### 113. Is the answer's reversion visible in the model's own state? — job 4101 (~25 min, added 2026-10-19 14:05; renumbered after 4100)
 
 §59-§60: a prompt-only push opens "I don't know" and the answer reverts within a sentence on four models, not on
 Llama-3.1. New `claim_trajectory.py` (no generation): plan 108's saved answers to famous questions teacher-forced with
@@ -1404,3 +1404,13 @@ the push on the prompt tokens only, unknown's projection on every answer token (
 bucket. Predicted: under the prompt-only push the projection at answer tokens 17-64 is back within 25% of the baseline
 answers' level (relative to the every-token answers') on ≥3/4 reverting models (p≈0.6), and stays ≥50% of the way on
 Llama-3.1 (p≈0.5).
+
+### 114. Is refusal induction decided at the prompt? — job 4100 (~1.5 h, added 2026-10-19 14:25)
+
+§57-§60: an unsupported "I don't know" or "I can't" opened by a prompt-only push is dropped within a sentence on most
+models, and needs the push held for tens of answer tokens. Is refusal (Arditi's induction: r̂ added to harmless
+prompts) the same kind of claim? New `jbb_safety.py --harmless` (Arditi's 100 held-out Alpaca prompts). r̂ added ×1 at
+its layer on every token / the prompt only / the prompt + the first 4 / 16 / 64 generated tokens, 128 tokens, six
+models; phrase refusal rate, with the answers checked for a refusal opener followed by the task. Predicted: prompt-only
+induction keeps ≥70% of the every-token refusal rate on ≥4/6 (p≈0.6), since refusal is trained to be decided at the
+template (§39, §46), unlike the concept claims; where it does not, K = 16 recovers it (p≈0.5).

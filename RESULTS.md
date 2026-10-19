@@ -1755,7 +1755,7 @@ The openings follow the log-odds on both: under prompt-only ×2, 24-30 of 30 fam
 
 Predictions (plan 111): (a) prompt-only ×2-×3 reaches the every-token ×1 rate on famous questions on ≥3/4 non-control models: failed (0/4; Qwen2.5-7B closest, 10% against 13%). (b) the same for "I can't" on text tasks on the two inducible models: failed (9% against 56% and 25%). (c) every-token ×2 degenerates on ≥2/5: held (limitation ×2 on text tasks 28-88% judged declines on 5/5; loops on Llama-2).
 
-### 60. Plan 112: how long must the push be held into the answer? (2026-10-19) **[Llama-3-8B, Llama-2-7b (Qwen2.5-7B, Qwen2.5-1.5B queued); the push on every prompt token and the first K generated tokens (`addpos:all+genK`, new: `positional_push(generated=K)`), K = 1 / 4 / 16 / 64, ×1; K = 0 (prompt only) and all (every token, 128 generated) from §57-§58; unknown added on famous / little-known questions and the limitation mean on text tasks; five-flag judge; `...-familiarity-dial-genk.json`, `...-limit-factorial-genk.json`]**
+### 60. Plan 112: how long must the push be held into the answer? (2026-10-19) **[Llama-3-8B, Llama-2-7b, Qwen2.5-7B (Qwen2.5-1.5B queued); the push on every prompt token and the first K generated tokens (`addpos:all+genK`, new: `positional_push(generated=K)`), K = 1 / 4 / 16 / 64, ×1; K = 0 (prompt only) and all (every token, 128 generated) from §57-§58; unknown added on famous / little-known questions and the limitation mean on text tasks; five-flag judge; `...-familiarity-dial-genk.json`, `...-limit-factorial-genk.json`]**
 
 Llama-3-8B, claim % by K:
 
@@ -1774,6 +1774,7 @@ Llama-2-7b:
 | "I can't", text tasks | 0 | 0 | 0 | 6 | 9 | 25 |
 
 - **The claim is not settled when it is first written; it has to be held for tens of tokens.** Pushing the first 16 answer tokens gets 24-46% of the every-token effect on both models, the first 64 gets 77-95% (Llama-2's "I can't" 36%). A push that stops after the opening clause ("I'm not aware of any information about…") leaves the model to revert as it writes on, and the longer the push is held the later and rarer that reversion is. So the "recovery" of §59 is not one decision at the start of the answer: the model's knowledge of the question keeps pulling the text back towards answering, token by token, and only a push held against it for most of the answer keeps the claim.
+- Qwen2.5-7B shows the same order with smaller effects (its every-token ×1 gives only 13% / 37% "I don't know" on famous / little-known questions): K = 1-16 0-17%, K = 64 10% / 23%. None of its text tasks get "I can't" at any K.
 
 ## Two Padding Bugs
 
