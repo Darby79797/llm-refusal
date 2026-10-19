@@ -1456,3 +1456,12 @@ with r̂ ablated from the answer, answers turn back to the task (after the refus
 random control in ≤15% (p≈0.7); unknown ablated from the answer halves the kept "I don't know" on both (p≈0.5).
 
 Outcome (§65): (a) failed (0/6: +4 to +27pp turn back, 81-100% still refuse); (b) held (≤3pp); (c) failed (−3, −7pp). The answer carries a prompt-set refusal mainly through attention to the prompt, not r̂ on its own tokens.
+
+### 118. Which prompt tokens hold the refusal the answer carries? — job 4111 (~40 min, added 2026-10-19 19:00)
+
+§65: removing r̂ from the answer leaves the prompt-set refusal in place, so the pushed prompt's tokens hold it. Which
+ones? r̂ added on harmless prompts on the instruction tokens only / the five template tokens only / the last token only,
+six models; and unknown on Llama-3.1's famous questions on the instruction / last token (the template and the whole
+prompt are in §57). Predicted: the template alone keeps ≥80% of the prompt-only refusal rate on ≥5/6 (p≈0.6, §39); the
+last token alone ≤50% on ≥4/6 (p≈0.5), i.e. the carrier is spread over the template, not the decision token; the
+instruction alone ≤30% on the Llamas (p≈0.6).
