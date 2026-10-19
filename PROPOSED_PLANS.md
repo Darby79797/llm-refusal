@@ -1486,7 +1486,7 @@ same subset that carries induction on each model (§66) carries removal, i.e. pe
 
 Outcome (§68): (a) held by the strongest subset (template 5/6; Llama-3.1 request for induction, template for removal); (b) held (5/6). Removal runs through the template on every model; the request alone removes 1-18pp.
 
-### 121. Header or request: what carries a request-carried refusal? — jobs 4115-4116 (~1.2 h, added 2026-10-19 21:15)
+### 121. Header or request: what carries a request-carried refusal? — jobs 4115-4116 (~1.2 h, added 2026-10-19 20:58)
 
 §66 / §68: r̂ added on the instruction tokens (everything before the template suffix) induces 92-94% refusal on
 Llama-3.1 and Qwen2.5-7B but 10-27% elsewhere; subtracted there it removes 1-18pp everywhere. The instruction includes
