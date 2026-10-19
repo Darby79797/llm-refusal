@@ -8,7 +8,7 @@ fixed on the first run and stored, so a resumed run produces the same batches as
 
 Conditions, comma-separated `name=kind[:spec]`: `baseline`, `edit:<spec>` (weight orthogonalisation against that
 direction or span, every block), `ablate:<spec>` (hook ablation at every layer), `sub:<stem>` (the saved direction
-subtracted at its own layer and position, strength 1, as evaluate's layer_specific_subtraction), `add:<stem>` (the same, added); `sub:<stem>*0.5` / `add:<stem>*0.5` scale the push. `prefill:<text>` starts every answer with <text> (no intervention). `subpos:<subset>[+gen[K]]:<stem>` / `addpos:...` apply it to one prompt-token subset only (all /
+subtracted at its own layer and position, strength 1, as evaluate's layer_specific_subtraction), `add:<stem>` (the same, added); `sub:<stem>*0.5` / `add:<stem>*0.5` scale the push. `prefill:<text>` starts every answer with <text> (no intervention); `ablategen:<stem>` projects the stem out of every layer on generated tokens only. Several joined with `|` apply together. `subpos:<subset>[+gen[K]]:<stem>` / `addpos:...` apply it to one prompt-token subset only (all /
 instruction / template / last, push_positions.py), and to the generated tokens with +gen (the first K of them with +genK). A spec is a saved stem or any
 `dirspecs.py` spec (`rhat`, `pc:1/2@A+B`, `perp:...`, `A&B`...). `label_deflection.py` reads the output (refuse /
 moralise / other / comply, reusing the verdicts saved here). All responses are generated first (the
@@ -37,7 +37,7 @@ import dirspecs  # noqa: E402
 from datatypes import DirectionVector  # noqa: E402
 from orthogonalize import edit_bytes, orthogonalized  # noqa: E402
 from probe import load_run, save_json  # noqa: E402
-from push_positions import positional_push, split_strength  # noqa: E402
+from push_positions import generated_ablation, positional_push, split_strength  # noqa: E402
 
 
 def eval_prompts(harmless: bool):
@@ -57,11 +57,26 @@ def prefilled(ev, text: str):
         ev.prefill = None
 
 
+@contextlib.contextmanager
+def stacked_context(run, spec: str):
+    """Several conditions joined with `|`, all active together (applier.intervened's exit clears every hook, so all
+    stay active until the last one exits)."""
+    with contextlib.ExitStack() as stack:
+        for sp in spec.split("|"):
+            stack.enter_context(condition_context(run, sp))
+        yield
+
+
 def condition_context(run, spec):
     """The context manager for one `kind[:spec]` condition (see the module docstring)."""
     kind, _, stem = spec.partition(":")
     if kind == "baseline":
         return contextlib.nullcontext()
+    if kind == "ablategen":
+        # ablategen:<stem> — the stem's direction projected out of every layer's input on generated tokens only
+        # (stack with a prompt push via `|`: does the answer need the direction to carry what the prompt set?)
+        d = DirectionVector.load(stem)
+        return generated_ablation(run.blocks, d.vector.float())
     if kind == "prefill":
         # prefill:<text> — no intervention; every answer starts with <text> (written into the answer, then generated
         # on from it; the returned response includes it). Token-subset pushes (subpos:) read the template's end as the
@@ -115,7 +130,7 @@ def main():
     ev.reserve_bytes = edit_bytes(run.model)  # same headroom in every condition, so one batch size fits all
     jbb = eval_prompts(a.harmless)[:a.n]
 
-    ctx = lambda spec: condition_context(run, spec)
+    ctx = lambda spec: stacked_context(run, spec)
 
     conds = dict(c.split("=", 1) for c in a.conditions.split(","))
     path = run.path("analysis", "jbb-safety", a.tag)

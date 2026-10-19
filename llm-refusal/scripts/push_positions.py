@@ -93,6 +93,27 @@ def positional_push(model, block, vec: t.Tensor, subset: str, n_suffix: int, gen
             hd.remove()
 
 
+@contextlib.contextmanager
+def generated_ablation(blocks, u: t.Tensor):
+    """Project `u` out of every block's input on generated tokens only (each one-token decode step of a KV-cached
+    generation); the prompt, read in the prefill step, keeps its component, so a push on the prompt stays."""
+    u = u / u.norm()
+
+    def ablate(module, args):
+        h = args[0]
+        if h.shape[1] != 1:
+            return None
+        v = u.to(h.device, h.dtype)
+        return (h - (h @ v)[..., None] * v,) + args[1:]
+
+    handles = [b.register_forward_pre_hook(ablate) for b in blocks]
+    try:
+        yield
+    finally:
+        for hd in handles:
+            hd.remove()
+
+
 def share(subset: float, full: float, base: float) -> float:
     """The subset's effect as a fraction of the full push's (NaN when the full push moves < 0.5 nats)."""
     return (subset - base) / (full - base) if abs(full - base) >= 0.5 else float("nan")

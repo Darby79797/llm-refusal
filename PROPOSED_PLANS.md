@@ -1442,3 +1442,13 @@ on plan 114's harmless answers (baseline, prompt only, every token) and plan 115
 Predicted: under the prompt-only push r̂'s reading at answer tokens 17-64 stays ≥50% of the way to the every-token
 answers' on ≥5/6 (p≈0.6); the prefilled "I cannot" raises it at tokens 17-64 by more on the Llama-3s than on Qwen2.5-7B
 and Llama-2, relative to their baselines (p≈0.5).
+
+### 117. Does the answer need r̂ to carry the refusal the prompt set? — job 4109 (~1.5 h, added 2026-10-19 18:00)
+
+§61-§63: a prompt-only r̂ push makes every model refuse and keep refusing, and (§116) r̂'s reading stays up along the
+answer. Causal test: new `ablategen:<stem>` (r̂ projected out of every layer's input on generated tokens only; the
+prompt keeps its push) and `|` stacking in jbb_safety.py. Harmless prompts, six models: r̂ on the prompt; the same with
+r̂ ablated from the answer; the same with a random direction ablated (control). And unknown on the prompt with unknown
+ablated from the answer, on the two models that keep a prompt-pushed "I don't know" (Llama-3.1, the 1B). Predicted:
+with r̂ ablated from the answer, answers turn back to the task (after the refusal opener) in ≥50% on ≥4/6 (p≈0.5), the
+random control in ≤15% (p≈0.7); unknown ablated from the answer halves the kept "I don't know" on both (p≈0.5).

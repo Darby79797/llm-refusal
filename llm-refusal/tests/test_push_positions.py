@@ -124,3 +124,15 @@ def test_jbb_safety_eval_prompts_switches_to_the_harmless_set():
     spec.loader.exec_module(js)
     harmful, harmless = js.eval_prompts(False), js.eval_prompts(True)
     assert len(harmful) == len(harmless) == 100 and not set(harmful) & set(harmless)
+
+
+def test_generated_ablation_touches_decode_steps_only():
+    pp = _mod()
+    m = _Model()
+    m.block.register_forward_pre_hook(lambda mod, args: (args[0] + t.tensor([3.0, 4.0]),))  # a component to remove
+    u = t.tensor([1.0, 0.0])
+    with pp.generated_ablation([m.block], u):
+        m(input_ids=t.zeros(1, 3, dtype=t.long), attention_mask=t.ones(1, 3))     # prefill: untouched
+        m(input_ids=t.zeros(1, 1, dtype=t.long), attention_mask=t.ones(1, 4))     # decode: u removed
+    pre, step = m.seen
+    assert pre[0, :, 0].tolist() == [3.0, 3.0, 3.0] and step[0, 0].tolist() == [0.0, 4.0]
