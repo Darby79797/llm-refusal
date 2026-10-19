@@ -1445,7 +1445,7 @@ and Llama-2, relative to their baselines (p≈0.5).
 
 Outcome (§64): (a) held (6/6, 0.60-1.11; unknown 0.13-0.83); (b) held (Llama-3.1 0.44, 1B 0.52, Llama-3-8B >1; Qwen2.5-7B −0.03, Llama-2 0.18).
 
-### 117. Does the answer need r̂ to carry the refusal the prompt set? — job 4109 (~1.5 h, added 2026-10-19 18:00)
+### 117. Does the answer need r̂ to carry the refusal the prompt set? — job 4109 (~1.5 h, added 2026-10-19 18:00) — DONE
 
 §61-§63: a prompt-only r̂ push makes every model refuse and keep refusing, and (§116) r̂'s reading stays up along the
 answer. Causal test: new `ablategen:<stem>` (r̂ projected out of every layer's input on generated tokens only; the
@@ -1454,3 +1454,5 @@ r̂ ablated from the answer; the same with a random direction ablated (control).
 ablated from the answer, on the two models that keep a prompt-pushed "I don't know" (Llama-3.1, the 1B). Predicted:
 with r̂ ablated from the answer, answers turn back to the task (after the refusal opener) in ≥50% on ≥4/6 (p≈0.5), the
 random control in ≤15% (p≈0.7); unknown ablated from the answer halves the kept "I don't know" on both (p≈0.5).
+
+Outcome (§65): (a) failed (0/6: +4 to +27pp turn back, 81-100% still refuse); (b) held (≤3pp); (c) failed (−3, −7pp). The answer carries a prompt-set refusal mainly through attention to the prompt, not r̂ on its own tokens.
