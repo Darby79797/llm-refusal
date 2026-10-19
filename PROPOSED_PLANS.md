@@ -1313,3 +1313,12 @@ unsafe answers look (refusal opener then compliance under unknown, §51), which 
 Boundary log-odds for ten pushes (the mean ×1 / ×1.5 / 3 up, r̂, random, feelings, future, unknown ×1 / ×2, persona),
 prompt-only JailbreakBench for six. Predicted: ρ ≥ 0.7 over the nine with unsafe rates (p≈0.6); unknown ×2 is the
 largest outlier, more unsafe than its log-odds predict (p≈0.4), since its compliance follows a refusal opener.
+
+### 106. Which sublayers oppose unknown's push on Llama-3.1? — jobs 4046-4047 (~1.7 h, added 2026-10-19 02:52)
+
+§55: on Llama-3.1 the layers after the push restore r̂'s reading against unknown (fully at ×1), not against the mean, and
+unknown moves the refusal log-odds half as fast as on Llama-3-8B. component_patching.py from the push layer (L15) to the
+last, for unknown ×1 / ×2 and the mean ×1, on both 8B Llamas: each sublayer's necessity / sufficiency for the push's
+log-odds effect. Predicted: on Llama-3.1 at least one late sublayer (L20 on) has necessity ≤ −0.1 under unknown, i.e.
+removing its pushed output makes the push stronger (p≈0.5), and none under the mean (p≈0.6); on Llama-3-8B none under
+either (p≈0.5).
