@@ -1267,7 +1267,7 @@ is ≤60% of the mean's on both (p≈0.6), i.e. it is weaker at the decision, no
 
 Outcome (§52): (a) 1/2 (unknown's shift 39% of the mean's on Llama-3.1, 74% on Llama-3-8B); (b) held 2/2 (template share 0.94, 0.57). On both, the mean's prompt-only log-odds cross zero (−1.4, −2.9) and unknown's stay positive (+1.6, +3.6), so unknown needs the generated tokens to finish the flip.
 
-### 102. Does crossing zero at the boundary decide whether the prompt alone jailbreaks? — jobs 4039-4040 (~40 min, added 2026-10-19 00:25)
+### 102. Does crossing zero at the boundary decide whether the prompt alone jailbreaks? — jobs 4039-4040 (~40 min, added 2026-10-19 00:25) — DONE
 
 §52: the mean's prompt-only push ends below zero in refusal log-odds and keeps its jailbreak on the prompt; unknown's
 ends above zero (+1.6 / +3.6) and keeps only 20%. If zero-crossing is what matters, a stronger unknown push on the
@@ -1275,6 +1275,8 @@ prompt alone should cross and then jailbreak. Llama-3-8B and Llama-3.1: unknown 
 subset (push_positions.py, which now takes `STEM*s`), then JailbreakBench prompt only. Predicted: every condition whose
 all-token log-odds are below zero gives ≥35% unsafe, and every one above zero ≤25% (p≈0.6); ×2 crosses on both models
 (p≈0.7). Degenerate output to be checked at ×2.
+
+Outcome (§53): (a) failed (Llama-3-8B 3/3; Llama-3.1 +2.0 → 27% and +0.6 → 33% break the threshold); (b) failed (Llama-3.1 saturates at +0.6). Graded, not a threshold: on both models the log-odds order matches the unsafe order; on Llama-3-8B unknown ×1.5 matches the mean ×1 in both (−1.7 / 42% against −1.4 / 40%). Degenerate ≤1%.
 
 ### 103. Do the boundary log-odds predict the prompt-only jailbreak for any direction? — job 4041 (~35 min, added 2026-10-19 00:58)
 
