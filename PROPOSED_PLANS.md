@@ -1419,7 +1419,7 @@ template (§39, §46), unlike the concept claims; where it does not, K = 16 reco
 
 Outcome (§61): (a) held (6/6: prompt-only 92-100% refused, 94-100% of every-token); (b) not needed. No reversion after the opener. Refusal is carried by the answer once begun; the concept claims are not.
 
-### 115. Does the answer carry an opening it did not choose? — jobs 4102-4105 (~2 h, added 2026-10-19 15:35)
+### 115. Does the answer carry an opening it did not choose? — jobs 4102-4107 (~2.5 h, added 2026-10-19 15:35; 1.5B and 1B 16:40)
 
 §61: refusal pushed in at the prompt carries itself through the answer; "I don't know" about a famous fact and "I can't"
 about a text task are begun by the same push and then dropped (§59-§60). Is that a property of the text, with no
