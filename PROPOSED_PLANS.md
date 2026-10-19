@@ -1419,7 +1419,7 @@ template (§39, §46), unlike the concept claims; where it does not, K = 16 reco
 
 Outcome (§61): (a) held (6/6: prompt-only 92-100% refused, 94-100% of every-token); (b) not needed. No reversion after the opener. Refusal is carried by the answer once begun; the concept claims are not.
 
-### 115. Does the answer carry an opening it did not choose? — jobs 4102-4107 (~2.5 h, added 2026-10-19 15:35; 1.5B and 1B 16:40)
+### 115. Does the answer carry an opening it did not choose? — jobs 4102-4107 (~2.5 h, added 2026-10-19 15:35; 1.5B and 1B 16:40) — DONE
 
 §61: refusal pushed in at the prompt carries itself through the answer; "I don't know" about a famous fact and "I can't"
 about a text task are begun by the same push and then dropped (§59-§60). Is that a property of the text, with no
@@ -1433,7 +1433,7 @@ aware" opening more than the others (p≈0.5).
 
 Outcome (§63, five models): (a) held (3/4); (b) failed (2/4: the Llama-3s 89-92%, Qwen2.5-7B 15%, Llama-2 16%); (c) failed (Llama-3.1 20% vs Llama-3-8B 87%). Carrying a written opening is model-specific and differs from carrying a pushed one; r̂-induced refusal is carried on 6/6, written "I cannot" on 2/4.
 
-### 116. Is induced refusal held in the model's state along the answer? — job 4108 (~25 min, added 2026-10-19 17:30)
+### 116. Is induced refusal held in the model's state along the answer? — job 4108 (~25 min, added 2026-10-19 17:30) — DONE
 
 §61-§63: a prompt-only r̂ push makes all six models refuse harmless requests with no turn back, while a written
 "I cannot" is kept only by the Llama-3s, and a prompt-pushed "I don't know" is dropped with unknown's reading falling
@@ -1442,6 +1442,8 @@ on plan 114's harmless answers (baseline, prompt only, every token) and plan 115
 Predicted: under the prompt-only push r̂'s reading at answer tokens 17-64 stays ≥50% of the way to the every-token
 answers' on ≥5/6 (p≈0.6); the prefilled "I cannot" raises it at tokens 17-64 by more on the Llama-3s than on Qwen2.5-7B
 and Llama-2, relative to their baselines (p≈0.5).
+
+Outcome (§64): (a) held (6/6, 0.60-1.11; unknown 0.13-0.83); (b) held (Llama-3.1 0.44, 1B 0.52, Llama-3-8B >1; Qwen2.5-7B −0.03, Llama-2 0.18).
 
 ### 117. Does the answer need r̂ to carry the refusal the prompt set? — job 4109 (~1.5 h, added 2026-10-19 18:00)
 
