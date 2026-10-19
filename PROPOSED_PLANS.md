@@ -1335,7 +1335,7 @@ size, §50): ten pushes, boundary log-odds and prompt-only JailbreakBench for ea
 
 Outcome (§54): (a) held (ρ = 0.95 with not-refused); (b) held (0.94 with unsafe); (c) failed (prompt-only ×1.5 degenerate 2%; unknown ×2 11%). Zero is not the line on 1.5B either (feelings / future / memory at −0.25 to −0.89 stay 70-81% refused).
 
-### 108. Where is "I don't know" decided? — jobs 4060-4065 (~3 h, added 2026-10-19 04:40)
+### 108. Where is "I don't know" decided? — jobs 4060-4065 (~3 h, added 2026-10-19 04:40) — DONE
 
 §52: unknown's direction jailbreaks only with the push kept on the generated tokens, while the limitation mean's
 jailbreak is decided at the template. Does unknown's own behaviour work the same way? familiarity_dial.py (invented /
@@ -1349,7 +1349,9 @@ than the prompt on the Qwens (p≈0.6, §43).
 
 Partial outcome (jobs 4060-4062, §57): (a) 1/3 so far (Llama-3.1 prompt-only famous dk 43% vs 37%; Llama-3-8B 0% vs 43%, Qwen2.5-7B 3% vs 13%); (b) 2/3 at ≥70% (Llama-3-8B 86%, Qwen2.5-7B 83%; Llama-3.1 67%); (c) Qwen2.5-7B template ≤ prompt (held so far).
 
-### 109. Are limitation claims decided at the template in generation? — jobs 4070-4075 (~3.5 h, added 2026-10-19 04:40)
+Outcome (§57): (a) failed (2/6: Llama-3.1, Llama-3.2-1B); (b) held (5/6); (c) not testable (Qwens 0-3% on famous under both).
+
+### 109. Are limitation claims decided at the template in generation? — jobs 4070-4075 (~3.5 h, added 2026-10-19 04:40) — DONE
 
 §43 found by first-token log-odds that the Llamas decide limit claims at the template and the Qwens also on the request.
 Generation check with limit_factorial.py (32 rows × four cells, five-flag judge), same six models: the limitation mean
@@ -1357,8 +1359,12 @@ Generation check with limit_factorial.py (32 rows × four cells, five-flag judge
 tasks), every token / prompt / template / template + generated. Predicted: on the Llamas the template alone keeps ≥70% of
 the every-token effect in both directions (p≈0.6); on the Qwens <50% (p≈0.5); prompt only ≥70% on ≥5/6 (p≈0.6).
 
+Outcome (§58): (a) failed (removal 2/4 Llamas, induction 0/2); (b) 1/2 (1.5B 25%, 7B 67%); (c) failed narrowly (4/6; 67%, 69%). Removing a claim works from the prompt; inducing an unsupported one needs the generated tokens (with §57).
+
 ### 110. The log-odds ranking where the jailbreak fails or breaks — jobs 4080-4081 (~1 h, added 2026-10-19 04:40)
 
 §54 on four models. Qwen2.5-3B (no clean jailbreak) and Llama-3.2-1B (breakage, §50), eight pushes each, boundary
 log-odds and prompt-only JailbreakBench. Predicted: on 3B no push except r̂ takes the log-odds below zero (p≈0.5),
 which would explain the missing jailbreak; on the 1B ρ with unsafe ≥0.6 despite degeneration (p≈0.5).
+
+Partial outcome (job 4080, §54): (a) failed (the mean ×1 / ×1.5 and memory also go below zero, refusal 0-16%; the 3B jailbreak is held back by moralising, 33-35%). ρ = 0.90.
