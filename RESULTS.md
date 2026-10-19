@@ -1725,7 +1725,7 @@ Predictions (plan 108): (a) prompt-only keeps ≥70% of the every-token "I don't
 
 Predictions (plan 109): (a) on the Llamas the template alone keeps ≥70% of the effect in both directions: failed (removal 2/4: Llama-3.1, 1B; induction 0/2). (b) on the Qwens <50%: 1/2 (1.5B 25%; 7B 67%). (c) prompt only ≥70% on ≥5/6: failed narrowly (4/6 removal; Llama-3-8B 67%, Llama-2 69%).
 
-### 59. Plan 111: is "an unsupported claim needs the generated tokens" just strength at the decision? (2026-10-19) **[Llama-3-8B so far (Qwen2.5-7B, Llama-2, Qwen2.5-1.5B, Llama-3.1 queued); `push_positions.py --concept unknown / inability` (the claim's first-token log-odds at the boundary, famous questions / text tasks, push on every prompt token, no generation) at ×1 / ×2 / ×3; generation (`familiarity_dial.py`, `limit_factorial.py`, five-flag judge) with the push on the prompt only at ×2 / ×3 and on every token at ×2; unknown's own direction and the limitation mean, added; `...-push-positions-dose{u,i}.json`, `...-familiarity-dial-dose.json`, `...-limit-factorial-dose.json`]**
+### 59. Plan 111: is "an unsupported claim needs the generated tokens" just strength at the decision? (2026-10-19) **[Llama-3-8B, Qwen2.5-7B, Llama-2-7b (Qwen2.5-1.5B, Llama-3.1 queued); `push_positions.py --concept unknown / inability` (the claim's first-token log-odds at the boundary, famous questions / text tasks, push on every prompt token, no generation) at ×1 / ×2 / ×3; generation (`familiarity_dial.py`, `limit_factorial.py`, five-flag judge) with the push on the prompt only at ×2 / ×3 and on every token at ×2; unknown's own direction and the limitation mean, added; `...-push-positions-dose{u,i}.json`, `...-familiarity-dial-dose.json`, `...-limit-factorial-dose.json`]**
 
 Llama-3-8B:
 
@@ -1734,9 +1734,20 @@ Llama-3-8B:
 | unknown added, famous questions: "I don't know" | +1.2 / +6.0 / +1.6 (−14.2) | 7 / 10% | 43 / 77% |
 | the mean added, text tasks: "I can't" | +6.4 / +7.7 / +1.2 (−12.2) | 6 / 9% | 56 / 16% (+25% "don't know") |
 
-- **No: on Llama-3-8B the prompt-only push wins the first token and loses the answer.** It moves the claim's first-token log-odds 15-20 nats, well past zero, and every answer under it opens the claim: all 30 famous-question answers start "I…" ("I'm not aware of any information about a mathematician named Emmy Noether…", "I must correct you that there was no FIFA World Cup held in 1994…"), and 29 of 32 text-task answers start "I'm afraid you've come to the wrong place!". Then the model recovers and answers from what it knows ("…The 1994 FIFA World Cup was held in…", "However, I can tell you…"), so the judge finds the claim in only 6-10%.
+Qwen2.5-7B and Llama-2-7b, the same columns:
+
+| | first-token log-odds ×1 / ×2 / ×3 (baseline) | prompt only ×2 / ×3 | every token ×1 / ×2 |
+|---|---|---|---|
+| Qwen2.5-7B, "I don't know" on famous | −3.1 / +3.8 / +2.3 (−19.2) | 3 / 10% | 13 / 67% |
+| Qwen2.5-7B, "I can't" on text tasks | +11.0 / +7.8 / +2.9 (−14.7) | 0 / 0% | 0% / 0% (47% declines, 34% "don't know") |
+| Llama-2, "I don't know" on famous | +1.6 / +6.0 / +3.3 (−15.0) | 0 / 0% | 53 / 100% |
+| Llama-2, "I can't" on text tasks | +6.7 / +10.0 / +5.5 (−11.1) | 9 / 6% | 25% / 0% (53% declines) |
+
+The openings follow the log-odds on both: under prompt-only ×2, 24-30 of 30 famous answers open "I'm sorry," / "I apologize," ("…but there is no FIFA World Cup in 1994. The 1994 FIFA World Cup was held in the United States…"), and 28-31 of 32 text-task answers open "I'm sorry," / "I'm just an AI, I don't have personal experiences or memories, but I can provide you with a detailed history of the Eiffel Tower…".
+
+- **No: on all three models the prompt-only push wins the first token and loses the answer.** It moves the claim's first-token log-odds 15-20 nats, well past zero, and every answer under it opens the claim: all 30 famous-question answers start "I…" ("I'm not aware of any information about a mathematician named Emmy Noether…", "I must correct you that there was no FIFA World Cup held in 1994…"), and 29 of 32 text-task answers start "I'm afraid you've come to the wrong place!". Then the model recovers and answers from what it knows ("…The 1994 FIFA World Cup was held in…", "However, I can tell you…"), so the judge finds the claim in only 6-10%.
 - So the gap in §57-§58 is not strength at the decision, unlike the jailbreak's (§53). A claim the content does not support is started by the prompt push but has to be sustained by the push on the generated tokens; without it the model's own knowledge of the question reasserts itself within a sentence. The first-token log-odds, which ranked the jailbreak well (§54), overstate what a prompt-only push does to these claims.
-- Every-token ×2 strengthens "I don't know" (77%) but on text tasks turns "I can't" partly into "I don't know" and other text (16% / 25%), which looks like the start of breakdown.
+- **Every-token ×2 breaks the limitation push down.** On text tasks it gives 0-16% "I can't" and 47-59% judged declines on all three, and on physical tasks Llama-2's answers become loops ("I am unable to provide me to please check the I am una…", 88% declines, 3% clear "I can't"). "I don't know" survives ×2 (67-100% on famous questions).
 
 ## Two Padding Bugs
 

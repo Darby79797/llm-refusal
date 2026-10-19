@@ -1381,4 +1381,4 @@ token at ×2. Predicted: prompt-only ×2-×3 reaches the every-token ×1 claim r
 models (p≈0.5); same for "I can't" on text tasks on the two models where ×1 induces it (p≈0.5); every-token ×2 degenerates
 (judge: no claim and no assertion) on ≥2/5 (p≈0.5).
 
-Partial outcome (job 4090, §59, Llama-3-8B): prompt-only ×2 / ×3 famous dk 7 / 10% (every-token ×1 43%: not reached), text-task "I can't" 6 / 9% (56%: not reached), though the first-token log-odds go to +6 to +8. The answers open the claim and then recover.
+Partial outcome (job 4090, §59, Llama-3-8B): prompt-only ×2 / ×3 famous dk 7 / 10% (every-token ×1 43%: not reached), text-task "I can't" 6 / 9% (56%: not reached), though the first-token log-odds go to +6 to +8. The answers open the claim and then recover. Qwen2.5-7B, Llama-2 (jobs 4091-4092): the same (prompt-only famous dk 0-10%, text-task "I can't" 0-9%, log-odds +2 to +11; openings 80-100% claim-style). Every-token ×2 breaks the limitation push on all three (47-88% judged declines, loops on Llama-2).
