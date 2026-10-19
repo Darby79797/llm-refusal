@@ -1310,4 +1310,4 @@ across six directions (ρ = 0.91). Qwen2.5-7B differs in where it reads the push
 unsafe answers look (refusal opener then compliance under unknown, §51), which a first-token measure could miss.
 Boundary log-odds for ten pushes (the mean ×1 / ×1.5 / 3 up, r̂, random, feelings, future, unknown ×1 / ×2, persona),
 prompt-only JailbreakBench for six. Predicted: ρ ≥ 0.7 over the nine with unsafe rates (p≈0.6); unknown ×2 is the
-largest outlier, with lower log-odds-predicted than actual unsafe (p≈0.4), since its compliance follows a refusal opener.
+largest outlier, more unsafe than its log-odds predict (p≈0.4), since its compliance follows a refusal opener.
