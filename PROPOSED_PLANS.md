@@ -1405,7 +1405,7 @@ bucket. Predicted: under the prompt-only push the projection at answer tokens 17
 answers' level (relative to the every-token answers') on ≥3/4 reverting models (p≈0.6), and stays ≥50% of the way on
 Llama-3.1 (p≈0.5).
 
-### 114. Is refusal induction decided at the prompt? — job 4100 (~1.5 h, added 2026-10-19 14:25)
+### 114. Is refusal induction decided at the prompt? — job 4100 (~1.5 h, added 2026-10-19 14:25) — DONE
 
 §57-§60: an unsupported "I don't know" or "I can't" opened by a prompt-only push is dropped within a sentence on most
 models, and needs the push held for tens of answer tokens. Is refusal (Arditi's induction: r̂ added to harmless
@@ -1414,3 +1414,5 @@ its layer on every token / the prompt only / the prompt + the first 4 / 16 / 64 
 models; phrase refusal rate, with the answers checked for a refusal opener followed by the task. Predicted: prompt-only
 induction keeps ≥70% of the every-token refusal rate on ≥4/6 (p≈0.6), since refusal is trained to be decided at the
 template (§39, §46), unlike the concept claims; where it does not, K = 16 recovers it (p≈0.5).
+
+Outcome (§61): (a) held (6/6: prompt-only 92-100% refused, 94-100% of every-token); (b) not needed. No reversion after the opener. Refusal is carried by the answer once begun; the concept claims are not.
