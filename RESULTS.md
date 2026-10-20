@@ -2056,6 +2056,38 @@ Predictions (plan 130): all withdrawn before the run (BOS spans); the last-token
 
 Prediction (plan 131): prompt-only "I don't know" on famous questions ≤20%: held (0%); removal from the prompt ≥70% of its effect: held (80% for unknown, 96% for the limitation mean).
 
+### 79. Plan 132: why does r̂ pushed past its layer stop inducing, and does the prompt carry fail first? (2026-10-20) **[eight models; r̂ moved to its layer +1 (×1) and +3 (×2, ×4), norm kept (`save_control_direction.py --layer`); harmless prompts, added on every token vs the prompt only; 128 tokens, phrase refusal (degenerate = the repetition flag); +3 ×1 and −3 from §74; `...-jbb-safety-latedose.json`]**
+
+| refusal %: every token / prompt only | Ll-3.1 | Ll-3-8B | Q-7B | Ll-2 | Q-3B | Q-1.5B | Q-0.5B | Ll-3.2-1B |
+|---|---|---|---|---|---|---|---|---|
+| r̂'s layer (§61) | 100 / 100 | 97 / 94 | 100 / 100 | 97 / 95 | 100 / 100 | 96 / 96 | 93 / 91 | 95 / 92 |
+| +1, ×1 | 98 / 98 | 99 / 100 | 100 / 100 | 96 / 93 | 98 / 96 | 88 / 87 | **39 / 37** | 90 / **62** |
+| +3, ×1 (§74) | 1 / 3 | 12 / 6 | 13 / 5 | 23 / 14 | 38 / 26 | 12 / 12 | 11 / 12 | 0 / 0 |
+| +3, ×2 | 0* / 0 | 89 / **48** | 91 / **12** | 92 / 87 | 61 / 43 | 57 / 54 | 19 / 17 | 5 / 1 |
+| +3, ×4 | 0* / 0 | 74* / 47 | 2* / 29 | 97* / 95 | 0* / 31 | 77* / 85 | 1* / 1 | 4* / 2 |
+
+\* every-token ×4 (and Llama-3.1 at ×2) is mostly degenerate (50-100% flagged): the push breaks the model, so these are not induction rates.
+
+- **Past r̂'s layer, both push size and a layer window matter.** Doubling the push at +3 restores every-token induction on Llama-3-8B, Qwen2.5-7B and Llama-2 (89-92%), so there the ×1 failure was push size against a growing residual. On Llama-3.1, Qwen2.5-0.5B and the 1B nothing at +3 induces refusal before the model breaks. On the 0.5B and the 1B the window already closes one layer past r̂ (0.5B: 39% at +1). The search's layer is near the end of each model's window.
+- **Near the window's end, the prompt carry fails before every-token induction.** Where every-token induction still works at +3 ×2, the prompt-only push falls 36-79pp short on Llama-3-8B and Qwen2.5-7B (48%, 12%) but not on Llama-2 (87%). The 1B already lags at +1 (62% vs 90%). With §76 (Qwen2.5-3B's late Arditi direction: 28% prompt-only vs 95%): a late push can still steer the answer's own tokens but writes less into the prompt for the answer to read. At ×4, the prompt-only push stays fluent (≤4% degenerate) and is the cleaner measure: Llama-2 95%, Qwen2.5-1.5B 85%, the rest ≤47%.
+
+Predictions (plan 132): (a) at +3, ×4 every-token ≥80% on ≥5/8: failed (×4 breaks the models; ×2 reaches ≥80% on 3/8). (b) where every-token ≥80% past r̂'s layer, prompt-only ≥20pp short on ≥half of those cells: failed (3/11: the 1B at +1, Llama-3-8B and Qwen2.5-7B at +3), but those are the late cells: at +1 the carry holds on 7/8, at +3 it fails on 2/3.
+
+### 80. Plan 133: do the late Arditi-exact directions carry when pushed at r̂'s layer? (2026-10-20) **[Qwen2.5-3B, Qwen2.5-1.5B; the Arditi-exact direction moved to r̂'s layer and norm (`save_control_direction.py --like`; cosine with r̂ 0.22 / 0.36); harmless: every token / prompt only / + itself projected out of the answer / + template hidden; 128 tokens, phrase refusal; own layer from §76; `...-jbb-safety-arditimid.json`]**
+
+| refusal % | every token | prompt only | + itself out of the answer | + template hidden |
+|---|---|---|---|---|
+| Qwen2.5-3B, its own layer (27) | 95 | 28 | 9 | 40 |
+| Qwen2.5-3B, r̂'s layer (21) | 92 | **88** | **21** | 33 |
+| Qwen2.5-1.5B, its own layer (21) | 96 | 92 | 43 | 43 |
+| Qwen2.5-1.5B, r̂'s layer (16) | 92 | 89 | **53** | 40 |
+| r̂ (§61, §65, §70; 3B: no ablation run) | 100 / 96 | 100 / 96 | – / 83 | 51 / 45 |
+
+- **Where the push is decides whether the prompt alone sets the refusal.** Moved to r̂'s layer, the 3B's Arditi direction induces from the prompt alone (28% → 88%). That matches §79: the late layer, not the direction, kept it from carrying.
+- **Which direction is pushed decides whether the answer needs it.** At r̂'s layer, projecting the Arditi direction out of the answer cuts the prompt-set refusal by 67pp (3B) and 36pp (1.5B), against 13pp for r̂ on the 1.5B (§65) and ≤3pp for a random direction. On these two Qwens the answer re-reads, or rewrites, the Arditi direction as it goes on, which r̂'s answers do not need. Two readings remain: the Arditi direction is a refusal feature the answer itself uses (removing it would then cut the model's own refusals, and refusal carried from an r̂ push, as well), or ablating it on every layer damages refusal text in general. Plan 134 separates them.
+
+Prediction (plan 133): prompt-only ≥80% on both: held (88%, 89%); removing it from the answer ≤15pp on both: failed (−67, −36pp).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.

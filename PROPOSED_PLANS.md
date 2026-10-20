@@ -1595,7 +1595,7 @@ Outcome (§78): both held (famous "I don't know" prompt-only 0%; removal 80% / 9
 
 ## 2026-10-20 morning
 
-### 132. Push size or layer window, and does the prompt carry fail first? — job 4200 (~50 min, added 2026-10-20 09:40)
+### 132. Push size or layer window, and does the prompt carry fail first? — job 4200 (~50 min, added 2026-10-20 09:40) — DONE
 
 §74: r̂ moved 3 layers up, norm kept, induces nothing even on every token; §76: the Arditi-exact directions that sit 5-6
 layers late induce on every token but carry less from the prompt. Eight models, harmless: r̂ at L+1 ×1, and at L+3 ×2
@@ -1603,9 +1603,23 @@ and ×4, every token vs prompt only. Predicted: at L+3, ×4 on every token induc
 push size against a growing residual); where every-token induction reaches ≥80% past r̂'s layer, prompt-only falls
 ≥20pp short of it on ≥half of those cells (p≈0.4).
 
-### 133. Do the late Arditi-exact directions carry when pushed at r̂'s layer? — job 4210 (~15 min, added 2026-10-20 09:40)
+Outcome (§79): (a) failed (×4 breaks the models; ×2 restores induction on Llama-3-8B, Qwen2.5-7B, Llama-2; Llama-3.1, the 0.5B and the 1B have no induction past +1-3 at any dose); (b) failed overall (3/11) but held at +3 (2/3): the prompt carry fails first at the window's end.
+
+### 133. Do the late Arditi-exact directions carry when pushed at r̂'s layer? — job 4210 (~15 min, added 2026-10-20 09:40) — DONE
 
 Qwen2.5-3B and 1.5B, the Arditi-exact direction moved to r̂'s layer and norm (`save_control_direction.py --like`; cosine
 with r̂ there 0.22 on the 3B): every token / prompt only / + itself out of the answer / + template hidden. Predicted: on
 both, prompt-only ≥80% and removing it from the answer costs ≤15pp (p≈0.5): carrying is a property of where the push
 is, not of which refusal direction.
+
+Outcome (§80): prompt-only held (88%, 89%; the 3B's was 28% at its own layer); removal from the answer failed (−67, −36pp): where decides the prompt carry, which direction decides whether the answer needs it.
+
+### 134. Is the Arditi-exact direction a refusal feature the answer uses? — job 4220 (~30 min, added 2026-10-20 13:00)
+
+§80: on Qwen2.5-3B / 1.5B, removing the Arditi-exact direction from the answer cuts a refusal it set from the prompt by
+36-67pp, where r̂'s costs ≤13pp. Four models (the two Qwens; Qwen2.5-7B and Llama-3-8B, whose Arditi direction sits at
+r̂'s layer, as comparison): harmless, r̂ on the prompt with the Arditi direction out of the answer, and the Arditi
+direction on the prompt with r̂ out of the answer; JailbreakBench, the model's own refusal with each out of the answer.
+Predicted: on the two Qwens, the Arditi direction out of the answer cuts r̂-carried refusal ≥30pp and own refusal on
+JailbreakBench ≥30pp (p≈0.4 each: then it is an answer-side refusal feature); r̂ out of the answer costs ≤15pp in both
+(p≈0.6); on Qwen2.5-7B and Llama-3-8B all four cells cost ≤15pp (p≈0.5).
