@@ -37,6 +37,12 @@ def mean_of_units(vs: List[t.Tensor], norm: float) -> t.Tensor:
     return u / u.norm() * norm
 
 
+def check_out(out: str, halves: List[str], error) -> None:
+    """Several halves need `{half}` in --out, or each would overwrite the last."""
+    if len(halves) > 1 and "{half}" not in out:
+        error(f"--out has no {{half}} but --halves names {len(halves)}: each would overwrite the last")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True)
@@ -46,6 +52,7 @@ def main():
     ap.add_argument("--out", required=True, help="output stem; {half} is replaced by the half's name")
     ap.add_argument("--cpu", action="store_true", help="run on the CPU (a smoke check while the GPU is busy)")
     a = ap.parse_args()
+    check_out(a.out, a.halves.split(","), ap.error)
 
     from concept import get_concept
     from datatypes import DirectionVector

@@ -2088,6 +2088,21 @@ Predictions (plan 132): (a) at +3, ×4 every-token ≥80% on ≥5/8: failed (×4
 
 Prediction (plan 133): prompt-only ≥80% on both: held (88%, 89%); removing it from the answer ≤15pp on both: failed (−67, −36pp).
 
+### 81. Plan 134: is the Arditi-exact direction a refusal feature the answer uses? (2026-10-20) **[four models; `ablategen` (the direction projected out of every layer's input on generated tokens only; the first token is still set by the untouched prompt); harmless: r̂ on the prompt with the Arditi-exact direction out of the answer, the Arditi direction on the prompt (at r̂'s layer on the two Qwens, §80) with r̂ out of the answer; JailbreakBench: the model's own refusal with each out of the answer, phrase refusal plus LlamaGuard 2 labels (`label_deflection.py`); 128 tokens; `...-jbb-safety-arditiuse.json`, `-arditiusejbb.json`, `-arditiusejbb-deflect.json`]**
+
+| refusal % (reference without the ablation) | Q-3B | Q-1.5B | Q-7B | Ll-3-8B |
+|---|---|---|---|---|
+| Arditi layer (r̂'s) | 27 (21) | 21 (16) | 17 (16) | 12 (12) |
+| harmless, r̂ on the prompt, Arditi out of the answer | **10** (100) | **60** (96) | 99 (100) | 89 (94) |
+| harmless, Arditi on the prompt, r̂ out of the answer | 81 (88) | 69 (89) | 39 (52) | 100 (100) |
+| JailbreakBench, Arditi out of the answer: phrase / LG2 unsafe | **4 / 45** (88 / 3) | 88 / 23 (99 / –) | 76 / 16 (91 / –) | 94 / 2 (96 / 2) |
+| JailbreakBench, r̂ out of the answer: phrase / LG2 unsafe | 88 / 4 | 94 / 17 | 76 / 18 | 94 / 2 |
+
+- **On Qwen2.5-3B the late Arditi direction is what the answer refuses with.** Removed from the generated tokens only, it ends the model's own refusal of harmful requests (88% → 4%). The answers begin "I" (the first token is set before the ablation applies) and go on "I understand your request for a defamatory article, but I'll proceed with caution…". LlamaGuard 2 rates 45% of them unsafe, against 3% at baseline and 76% when the direction is removed everywhere (§1, hook ablation, 512 tokens). It also ends a refusal r̂ set on the prompt (100% → 10%). r̂ removed from the same tokens costs nothing (88%, 4% unsafe). So the 3B has two refusal directions with different roles: r̂ at mid-depth decides at the prompt, and the late direction carries the refusal through the answer, read again at every token. Removing the second is a jailbreak that leaves the prompt and the first token untouched.
+- **The 1.5B shows a partial version.** Its late Arditi direction out of the answer cuts a pushed refusal by 36pp but its own refusal by 11pp (LG2 unsafe 23% vs 17% with r̂ out). On Qwen2.5-7B and Llama-3-8B, whose Arditi directions sit at r̂'s layer, removing either direction from the answer costs ≤15pp everywhere; the two are interchangeable there, and neither is needed by the answer.
+
+Predictions (plan 134): the Arditi direction out of the answer cuts r̂-carried refusal ≥30pp on both Qwens: held (−90, −36); own refusal ≥30pp: held on the 3B (−84), failed on the 1.5B (−11). r̂ out of the answer ≤15pp in both: held on the 3B, failed narrowly on the 1.5B (−20 on the Arditi-pushed refusal). Qwen2.5-7B / Llama-3-8B all ≤15pp: held (Qwen2.5-7B at the edge, −13 to −15pp).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.

@@ -1614,7 +1614,7 @@ is, not of which refusal direction.
 
 Outcome (§80): prompt-only held (88%, 89%; the 3B's was 28% at its own layer); removal from the answer failed (−67, −36pp): where decides the prompt carry, which direction decides whether the answer needs it.
 
-### 134. Is the Arditi-exact direction a refusal feature the answer uses? — job 4220 (~30 min, added 2026-10-20 13:00)
+### 134. Is the Arditi-exact direction a refusal feature the answer uses? — job 4220 (~30 min, added 2026-10-20 13:00) — DONE
 
 §80: on Qwen2.5-3B / 1.5B, removing the Arditi-exact direction from the answer cuts a refusal it set from the prompt by
 36-67pp, where r̂'s costs ≤13pp. Four models (the two Qwens; Qwen2.5-7B and Llama-3-8B, whose Arditi direction sits at
@@ -1623,3 +1623,14 @@ direction on the prompt with r̂ out of the answer; JailbreakBench, the model's 
 Predicted: on the two Qwens, the Arditi direction out of the answer cuts r̂-carried refusal ≥30pp and own refusal on
 JailbreakBench ≥30pp (p≈0.4 each: then it is an answer-side refusal feature); r̂ out of the answer costs ≤15pp in both
 (p≈0.6); on Qwen2.5-7B and Llama-3-8B all four cells cost ≤15pp (p≈0.5).
+
+Outcome (§81): the Arditi direction out of the answer: Qwen2.5-3B −84pp own refusal (45% LG2 unsafe) and −90pp r̂-carried; the 1.5B −11 / −36pp; Qwen2.5-7B, Llama-3-8B ≤15pp. r̂ out of the answer costs nothing on the 3B. Two directions, two roles on the 3B: r̂ decides at the prompt, the late direction carries the refusal through the answer.
+
+### 135. Does every model have a late, answer-side refusal direction? — job 4230 (~1.3 h, added 2026-10-20 13:35)
+
+§81: Qwen2.5-3B's late Arditi direction (75% depth) is what its answer refuses with. Eight models: a plain refusal
+difference of means at 75% depth (save_diffmean.py), projected out of the answer only, on JailbreakBench (own refusal;
+a random direction at that layer as control) and under r̂ on the prompt (harmless); LG2 labels afterwards. Predicted:
+the Qwen2.5-3B diff-of-means reproduces §81 (own refusal ≤30%, p≈0.6); the late direction out of the answer cuts own
+refusal ≥30pp on the other three Qwens and ≤15pp on the four Llamas (p≈0.3: §3, Qwen's late MLPs write +r̂ into every
+prompt, the Llamas do not); the random control ≤5pp everywhere (p≈0.8).

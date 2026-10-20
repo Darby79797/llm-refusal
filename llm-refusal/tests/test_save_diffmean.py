@@ -24,3 +24,12 @@ def test_mean_of_units_weights_members_equally_and_takes_the_norm():
     sd = _mod()
     v = sd.mean_of_units([t.tensor([10.0, 0.0]), t.tensor([0.0, 0.1])], norm=4.0)
     assert abs(float(v.norm()) - 4.0) < 1e-6 and abs(float(v[0] - v[1])) < 1e-6
+
+
+def test_several_halves_need_a_half_placeholder():
+    sd = _mod()
+    errors = []
+    sd.check_out("results/x-direction", ["all", "a", "b"], errors.append)
+    sd.check_out("results/x{half}-direction", ["all", "a", "b"], errors.append)
+    sd.check_out("results/x-direction", ["all"], errors.append)
+    assert len(errors) == 1
