@@ -2130,7 +2130,7 @@ Predictions (plan 135): the 3B reproduces §81 (≤30%): held (17%). The other Q
 Harmless prompts, no push: 4% refusal at baseline, 1% with L27 out of the answer; the answers read the same ("To compute the expression…", "Certainly! Here are three…"; mean length 545 vs 522 characters).
 
 - **The effect peaks sharply at L27.** The same construction 3 layers either side gives a third to a half of it, and at r̂'s depth (L18-L21) nothing. It is a late feature, distinct from r̂, that the answer reads at every token.
-- **It needs the outlier coordinate together with the rest.** Zeroing dim 1874 (4% of the direction's angle) keeps less than a third of the effect (88 → 66% instead of → 17%), but dim 1874 alone does nothing (90%). On this model the outlier coordinate is part of how the late refusal signal is written, as §1 found for r̂'s weight edit on the 3B (zeroing 1874 left 22% refusal).
+- **It needs the outlier coordinate together with the rest.** Zeroing dim 1874 (8% of its squared norm; cosine 0.96 with it) keeps less than a third of the effect (88 → 66% instead of → 17%), but dim 1874 alone does nothing (90%). On this model the outlier coordinate is part of how the late refusal signal is written, as §1 found for r̂'s weight edit on the 3B (zeroing 1874 left 22% refusal).
 - **It is specific to refusal.** With nothing pushed, removing it from harmless answers leaves them as they were, so the jailbreak is not general damage to the answer.
 
 Predictions (plan 136): zeroing 1874 keeps ≥70% of the effect: failed (31%). 1874 alone does little: held (90%). L18/L21 ≥70%: held (86%); the effect spans L24-L33 at partial strength, with a peak at L27. Harmless answers normal: held (1%).
