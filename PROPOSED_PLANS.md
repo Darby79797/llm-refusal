@@ -1592,3 +1592,20 @@ one model not yet covered. Predicted: as on the other Qwens (prompt-only "I don'
 from the prompt ≥70% of its effect).
 
 Outcome (§78): both held (famous "I don't know" prompt-only 0%; removal 80% / 96%).
+
+## 2026-10-20 morning
+
+### 132. Push size or layer window, and does the prompt carry fail first? — job 4200 (~50 min, added 2026-10-20 09:40)
+
+§74: r̂ moved 3 layers up, norm kept, induces nothing even on every token; §76: the Arditi-exact directions that sit 5-6
+layers late induce on every token but carry less from the prompt. Eight models, harmless: r̂ at L+1 ×1, and at L+3 ×2
+and ×4, every token vs prompt only. Predicted: at L+3, ×4 on every token induces ≥80% on ≥5/8 (p≈0.5; if the failure is
+push size against a growing residual); where every-token induction reaches ≥80% past r̂'s layer, prompt-only falls
+≥20pp short of it on ≥half of those cells (p≈0.4).
+
+### 133. Do the late Arditi-exact directions carry when pushed at r̂'s layer? — job 4210 (~15 min, added 2026-10-20 09:40)
+
+Qwen2.5-3B and 1.5B, the Arditi-exact direction moved to r̂'s layer and norm (`save_control_direction.py --like`; cosine
+with r̂ there 0.22 on the 3B): every token / prompt only / + itself out of the answer / + template hidden. Predicted: on
+both, prompt-only ≥80% and removing it from the answer costs ≤15pp (p≈0.5): carrying is a property of where the push
+is, not of which refusal direction.
