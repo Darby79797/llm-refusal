@@ -1523,7 +1523,7 @@ Outcome (§70): (a) held 8/8 but confounded (hiding the template after an "I" op
 
 ## Overnight batch to 09:00 (added 2026-10-19 22:20, user: "extend the queue until at least 0900h"); numbering leaves gaps for follow-ups
 
-### 124. Do the concept claims read the template as the answer goes on? — jobs 4120-4125 (~1.7 h)
+### 124. Do the concept claims read the template as the answer goes on? — jobs 4120-4125 (~1.7 h) — DONE
 
 Plan 123 asks it for refusal. Six models: unknown added on the prompt / on every token and subtracted on the prompt,
 each with the template hidden after the first token (familiarity_dial.py, judged); the limitation mean subtracted on the
@@ -1531,6 +1531,8 @@ prompt (removes "I can't" from physical tasks) and added on every token, each wi
 judged); references in §57-§58. Predicted: claims held by a push on every token survive hiding the template (≥70% of
 the reference) on ≥4/6 (p≈0.6), since the push is on the answer; removal from the prompt (unknown subtracted, "I can't"
 subtracted) loses ≥30% of its effect with the template hidden on ≥3/6 (p≈0.4).
+
+Outcome (§71): (a) held for unknown (5/6), not for the limitation's induced claim (Llama-3-8B collapses); (b) failed (1/6, 0/6). Hiding the template raises a prompt-pushed "I don't know" on the four models that normally drop it.
 
 ### 125. Is refusal removal read from the template as the answer goes on? — job 4130 (~45 min)
 
