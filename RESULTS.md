@@ -2220,6 +2220,42 @@ Predictions (plan 140): both halves ≤30%: held. r̂ off the prompt alone leave
 
 Predictions (plan 141): the stack ≥60% unsafe: held (68%). MMLU within 3 points: held narrowly (−2.8).
 
+### 89. Plan 142: do the concept claims have a late, answer-side direction? (2026-10-20) **[seven models; each direction projected out of the generated tokens only: the search-selected unknown / limitation direction, and diff-of-means at 75% / 85% depth of unknown (invented vs real) and of the limitation concepts (inability realtime memory persona; Llama-2 has no limitation direction); on Qwen2.5-3B also its L27 refusal direction (§82); `familiarity_dial.py` (30 questions per set) / `limit_factorial.py` (32 per cell), qwen3:4b judge, ±~17pp; `...-familiarity-dial-conclate7585.json`, `...-limit-factorial-conclate7585.json`]**
+
+"I don't know" % on invented entities (asserts % in brackets):
+
+| | baseline | search-selected out | 75% out | 85% out |
+|---|---|---|---|---|
+| Llama-3.1-8B | 97 (3) | 93 (10) | 90 (3) | 97 (10) |
+| Llama-3-8B | 43 (20) | 17 (57) | 50 (30) | 40 (30) |
+| Qwen2.5-7B | 23 (53) | 3 (93) | 37 (33) | 40 (30) |
+| Llama-2-7b | 33 (33) | 3 (67) | **3 (60)** | **0 (63)** |
+| Qwen2.5-3B | 70 (17) | 33 (57) | **0 (87)** | **10 (67)** |
+| Qwen2.5-1.5B | 27 (30) | 3 (27) | 3 (60) | 0 (97) |
+| Llama-3.2-1B | 80 (23) | 57 (47) | 80 (17) | 83 (17) |
+
+On the 3B, its L27 refusal direction out of the answer: invented 17% (77% asserts).
+
+"I can't" % on physical tasks (limit_factorial's capability-only cell):
+
+| | baseline | search-selected out | 75% out | 85% out |
+|---|---|---|---|---|
+| Llama-3.1-8B | 47 | 19 | 62 | 59 |
+| Llama-3-8B | 66 | 34 | 69 | 75 |
+| Qwen2.5-7B | 75 | 75 | 59 | 69 |
+| Qwen2.5-3B | 81 | 91 | 91 | 88 |
+| Qwen2.5-1.5B | 75 | 62 | 53 | 69 |
+| Llama-3.2-1B | 44 | 59 | 53 | 59 |
+
+On the 3B, its L27 refusal direction out of the answer: 44% "I can't"; on the knowledge-limit cell, "I don't know" 62 → 12%.
+
+- **"I don't know" is partly kept up by the answer.** Removing the search-selected unknown direction from the generated tokens alone cuts it by 20-37pp on six of seven models. Llama-3.1, which holds the claim from the prompt (§59), is the exception. The answers do not go blank: they assert facts about the invented entity, so the claim is replaced by confabulation. This revises §71, which found these claims set at the prompt. The prompt sets them, but the answer has to keep reading the direction to keep them.
+- **A late unknown direction exists only where the refusal one does, plus Llama-2.** At 75-85% depth it removes "I don't know" on Qwen2.5-3B (70 → 0%), Qwen2.5-1.5B (27 → 0-3%) and Llama-2 (33 → 0-3%). It does nothing on the three other Llamas, and on Qwen2.5-7B the claim rises. On the 3B and the 1.5B the late layer is the refusal window (§86), on Llama-2 it is not.
+- **"I can't" has no late direction.** The 75% and 85% limitation directions move it ≤22pp on every model. The search-selected limitation direction out of the answer cuts it on Llama-3.1 and Llama-3-8B (−28, −32pp) only.
+- **On Qwen2.5-3B the late refusal direction is a general "decline" direction.** Out of the answer, it removes refusal (§82), "I can't" (−37pp) and "I don't know" (invented −53, knowledge-limit −50pp), and the answers assert instead.
+
+Predictions (plan 142): search-selected out of the answer ≤15pp on ≥5/7: failed for unknown (1/7) and narrowly for the limitation (4/6). Some late concept direction ≥30pp somewhere: held (3B, Llama-2, 1.5B within noise). The 3B's late refusal direction cuts "I can't" ≥20pp: held (−37).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.

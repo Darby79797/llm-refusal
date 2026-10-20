@@ -1698,7 +1698,7 @@ stack ≥60% LG2 unsafe (p≈0.5), near the every-token hook ablation (69%, §84
 
 Outcome (§88): stack 68% unsafe (held; = hook ablation's 69%), MMLU −2.8 (held narrowly), ARC −10.5 from the prompt-side r̂.
 
-### 142. Do the concept claims have a late, answer-side direction? — jobs 4300-4306 (~3 h)
+### 142. Do the concept claims have a late, answer-side direction? — jobs 4300-4306 (~3 h) — DONE
 
 Seven models: diff-of-means at 75% and 85% depth of unknown (invented vs real) and of the limitation concepts
 (inability realtime memory persona; not Llama-2, which has no limitation direction), each projected out of the answer
@@ -1706,6 +1706,8 @@ only; the search-selected unknown / limitation direction out of the answer as co
 refusal direction. familiarity_dial / limit_factorial, judged. Predicted: the search-selected directions out of the
 answer cut their claim by ≤15pp on ≥5/7 (p≈0.6: claims are decided at the prompt, §57-§58, §71); some late concept
 direction cuts its claim ≥30pp on ≥1 model (p≈0.4); the 3B's late refusal direction cuts "I can't" ≥20pp (p≈0.3).
+
+Outcome (§89): the search-selected unknown direction out of the answer cuts invented-entity "I don't know" 20-37pp on 6/7 (failed; the answers confabulate instead). Late unknown directions remove it on the 3B, 1.5B and Llama-2 (held). No late "I can't" direction anywhere. The 3B's late refusal direction removes "I can't" −37pp (held) and "I don't know" too.
 
 ### 143. The same at 55% and 65% depth — jobs 4310-4316 (~2.5 h)
 
