@@ -1626,7 +1626,7 @@ JailbreakBench ≥30pp (p≈0.4 each: then it is an answer-side refusal feature)
 
 Outcome (§81): the Arditi direction out of the answer: Qwen2.5-3B −84pp own refusal (45% LG2 unsafe) and −90pp r̂-carried; the 1.5B −11 / −36pp; Qwen2.5-7B, Llama-3-8B ≤15pp. r̂ out of the answer costs nothing on the 3B. Two directions, two roles on the 3B: r̂ decides at the prompt, the late direction carries the refusal through the answer.
 
-### 135. Does every model have a late, answer-side refusal direction? — job 4230 (~1.3 h, added 2026-10-20 13:35)
+### 135. Does every model have a late, answer-side refusal direction? — job 4230 (~1.3 h, added 2026-10-20 13:35) — DONE
 
 §81: Qwen2.5-3B's late Arditi direction (75% depth) is what its answer refuses with. Eight models: a plain refusal
 difference of means at 75% depth (save_diffmean.py), projected out of the answer only, on JailbreakBench (own refusal;
@@ -1634,3 +1634,13 @@ a random direction at that layer as control) and under r̂ on the prompt (harmle
 the Qwen2.5-3B diff-of-means reproduces §81 (own refusal ≤30%, p≈0.6); the late direction out of the answer cuts own
 refusal ≥30pp on the other three Qwens and ≤15pp on the four Llamas (p≈0.3: §3, Qwen's late MLPs write +r̂ into every
 prompt, the Llamas do not); the random control ≤5pp everywhere (p≈0.8).
+
+Outcome (§82): only Qwen2.5-3B (88 → 17%, 31% LG2 unsafe); the 1.5B partial; the other six ≤9pp, random control ≤4pp.
+
+### 136. Qwen2.5-3B's late refusal direction: outlier coordinate, layer map, harmless control — job 4240 (~25 min, added 2026-10-20 14:25)
+
+The late direction loads 8% on the outlier dim 1874. JailbreakBench own refusal with, out of the answer only: the L27
+direction with 1874 zeroed / only 1874; diff-of-means at L18 / 21 / 24 / 30 / 33. Harmless, no push, with L27 out of
+the answer (does the answer stay normal?). Predicted: zeroing 1874 keeps ≥70% of the effect (refusal ≤40%, p≈0.6),
+1874 alone does little (≥70%, p≈0.6); the effect is confined to L24-L30 (L18/21 ≥70%, p≈0.5); harmless answers stay
+normal (≤5% refusal, judged by eye on 20, p≈0.7).

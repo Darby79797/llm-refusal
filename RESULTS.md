@@ -2103,6 +2103,21 @@ Prediction (plan 133): prompt-only ≥80% on both: held (88%, 89%); removing it 
 
 Predictions (plan 134): the Arditi direction out of the answer cuts r̂-carried refusal ≥30pp on both Qwens: held (−90, −36); own refusal ≥30pp: held on the 3B (−84), failed on the 1.5B (−11). r̂ out of the answer ≤15pp in both: held on the 3B, failed narrowly on the 1.5B (−20 on the Arditi-pushed refusal). Qwen2.5-7B / Llama-3-8B all ≤15pp: held (Qwen2.5-7B at the edge, −13 to −15pp).
 
+### 82. Plan 135: does every model have a late, answer-side refusal direction? (2026-10-20) **[eight models; a plain refusal difference of means at 75% depth (r̂'s position, `save_diffmean.py`; cosine with r̂ moved there 0.07-0.53), projected out of the generated tokens only (`ablategen`); JailbreakBench own refusal, with a norm-matched random direction at that layer as control, LG2 labels (`label_deflection.py`); harmless, r̂ on the prompt with it out of the answer; 128 tokens; `...-jbb-safety-lateuse.json` (+`-deflect`), `-lateuseh.json`]**
+
+| | Ll-3.1 | Ll-3-8B | Q-7B | Ll-2 | Q-3B | Q-1.5B | Q-0.5B | Ll-3.2-1B |
+|---|---|---|---|---|---|---|---|---|
+| layer / of | 24 / 32 | 24 / 32 | 21 / 28 | 24 / 32 | 27 / 36 | 21 / 28 | 18 / 24 | 12 / 16 |
+| JBB own refusal % (§70 baseline) | 92 | 96 | 91 | 97 | 88 | 99 | 73 | 83 |
+| … late direction out of the answer: phrase / LG2 unsafe | 88 / 5 | 97 / 0 | 85 / 0 | 97 / 0 | **17 / 31** | 91 / 16 | 73 / 20 | 74 / 12 |
+| … random direction out of the answer | 92 / 4 | 96 / 1 | 91 / 4 | 97 / 1 | 89 / 2 | 99 / 1 | 73 / 16 | 85 / 7 |
+| harmless, r̂ on the prompt (§70) → + late out of the answer | 100 → 100 | 94 → 96 | 100 → 100 | 95 → 95 | 100 → **20** | 96 → 68 | 91 → 88 | 92 → 68 |
+
+- **Only Qwen2.5-3B refuses with a late direction in its answer.** A plain difference of means at its 75% depth reproduces §81 (own refusal 88 → 17%, 31% LG2 unsafe, 55% "other": answers that start, hedge and do not refuse; r̂-carried 100 → 20%). On the other seven, removing the late direction from the answer costs ≤9pp of own refusal and ≤15pp of LG2 unsafe over the random control. Qwen2.5-1.5B is the partial case again: 14pp more unsafe than its control and −28pp on a pushed refusal. The 1B also shows a −24pp effect on the pushed one.
+- So refusal is carried from the prompt (§61-§72) on seven models. On Qwen2.5-3B it is also re-read from a late direction on every answer token, and removing that alone is a working jailbreak. The late direction's top coordinate is the 3B's outlier dimension 1874 (8% of its squared norm, against 2.4% for r̂). Qwen2.5-7B's late direction loads as much on its own outlier (dim 2570, 8%) and does nothing, so the loading alone does not explain it. Plan 136 tests it directly.
+
+Predictions (plan 135): the 3B reproduces §81 (≤30%): held (17%). The other Qwens ≥30pp: failed (−0 to −8pp). The Llamas ≤15pp: held (≤9pp). Random control ≤5pp: held (≤4pp, 1B +2).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.
