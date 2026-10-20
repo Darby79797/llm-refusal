@@ -1534,11 +1534,13 @@ subtracted) loses ≥30% of its effect with the template hidden on ≥3/6 (p≈0
 
 Outcome (§71): (a) held for unknown (5/6), not for the limitation's induced claim (Llama-3-8B collapses); (b) failed (1/6, 0/6). Hiding the template raises a prompt-pushed "I don't know" on the four models that normally drop it.
 
-### 125. Is refusal removal read from the template as the answer goes on? — job 4130 (~45 min)
+### 125. Is refusal removal read from the template as the answer goes on? — job 4130 (~45 min) — DONE
 
 JailbreakBench, r̂ subtracted on the prompt only, alone and with the template / request hidden after the first token,
 eight models, phrase refusal only. Predicted: hiding the template restores ≥30pp of refusal on ≥4/8 (p≈0.5); hiding the
 request restores more than hiding the template on ≥4/8 (p≈0.4: the harmful request itself stays visible otherwise).
+
+Outcome (§72): (a) failed (0/8, ≤19pp); (b) held narrowly (4/8, within noise). The answer keeps complying whatever it can see.
 
 ### 126. Template channel or push strength? — job 4140 (~50 min)
 
