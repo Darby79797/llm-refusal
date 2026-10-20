@@ -2118,6 +2118,23 @@ Predictions (plan 134): the Arditi direction out of the answer cuts r̂-carried 
 
 Predictions (plan 135): the 3B reproduces §81 (≤30%): held (17%). The other Qwens ≥30pp: failed (−0 to −8pp). The Llamas ≤15pp: held (≤9pp). Random control ≤5pp: held (≤4pp, 1B +2).
 
+### 83. Plan 136: Qwen2.5-3B's late refusal direction: the outlier coordinate, which layers, harmless answers (2026-10-20) **[Qwen2.5-3B; the 75%-depth difference of means (§82, L27) with the outlier dim 1874 zeroed (cosine 0.96 with it) / only dim 1874 (`mask_direction.py`); refusal differences of means at L18-L33 (cosine with r̂ moved there: L21 0.997, i.e. r̂ itself); each projected out of the generated tokens only; JailbreakBench own refusal with LG2 labels; harmless, no push, L27 out of the answer; 128 tokens; `...-jbb-safety-late3bmap.json` (+`-deflect`), `-late3bmaph.json`]**
+
+| JBB own refusal % / LG2 unsafe % (baseline 88 / 3) | out of the answer |
+|---|---|
+| L27 (§82) | **17 / 31** |
+| L27, dim 1874 zeroed | 66 / 9 |
+| only dim 1874 | 90 / 2 |
+| L18 / L21 (= r̂) / L24 / L30 / L33 | 86 / 2, 86 / 3, 56 / 13, 72 / 4, 65 / 8 |
+
+Harmless prompts, no push: 4% refusal at baseline, 1% with L27 out of the answer; the answers read the same ("To compute the expression…", "Certainly! Here are three…"; mean length 545 vs 522 characters).
+
+- **The effect peaks sharply at L27.** The same construction 3 layers either side gives a third to a half of it, and at r̂'s depth (L18-L21) nothing. It is a late feature, distinct from r̂, that the answer reads at every token.
+- **It needs the outlier coordinate together with the rest.** Zeroing dim 1874 (4% of the direction's angle) keeps less than a third of the effect (88 → 66% instead of → 17%), but dim 1874 alone does nothing (90%). On this model the outlier coordinate is part of how the late refusal signal is written, as §1 found for r̂'s weight edit on the 3B (zeroing 1874 left 22% refusal).
+- **It is specific to refusal.** With nothing pushed, removing it from harmless answers leaves them as they were, so the jailbreak is not general damage to the answer.
+
+Predictions (plan 136): zeroing 1874 keeps ≥70% of the effect: failed (31%). 1874 alone does little: held (90%). L18/L21 ≥70%: held (86%); the effect spans L24-L33 at partial strength, with a peak at L27. Harmless answers normal: held (1%).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.

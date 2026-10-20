@@ -1637,10 +1637,20 @@ prompt, the Llamas do not); the random control ≤5pp everywhere (p≈0.8).
 
 Outcome (§82): only Qwen2.5-3B (88 → 17%, 31% LG2 unsafe); the 1.5B partial; the other six ≤9pp, random control ≤4pp.
 
-### 136. Qwen2.5-3B's late refusal direction: outlier coordinate, layer map, harmless control — job 4240 (~25 min, added 2026-10-20 14:25)
+### 136. Qwen2.5-3B's late refusal direction: outlier coordinate, layer map, harmless control — job 4240 (~25 min, added 2026-10-20 14:25) — DONE
 
 The late direction loads 8% on the outlier dim 1874. JailbreakBench own refusal with, out of the answer only: the L27
 direction with 1874 zeroed / only 1874; diff-of-means at L18 / 21 / 24 / 30 / 33. Harmless, no push, with L27 out of
 the answer (does the answer stay normal?). Predicted: zeroing 1874 keeps ≥70% of the effect (refusal ≤40%, p≈0.6),
 1874 alone does little (≥70%, p≈0.6); the effect is confined to L24-L30 (L18/21 ≥70%, p≈0.5); harmless answers stay
 normal (≤5% refusal, judged by eye on 20, p≈0.7).
+
+Outcome (§83): zeroing 1874 leaves a third of the effect (failed), 1874 alone nothing (held); peak at L27, partial
+L24-L33, none at r̂'s depth; harmless answers unchanged (held).
+
+### 137. Qwen2.5-3B's answer-only jailbreak at reporting quality — job 4250 (~1 h, added 2026-10-20 15:00)
+
+JailbreakBench at 512 tokens with LG2 inline: baseline, the L27 direction out of the answer only, out of every token,
+r̂ hook ablation; chat MMLU / ARC / GSM8K for baseline, answer-only and every-token. Predicted: answer-only ≥40% unsafe at
+512 tokens (p≈0.5; 31% at 128) against ≥70% for both hook ablations (p≈0.7); answer-only GSM8K within 3 points of
+baseline (p≈0.7).
