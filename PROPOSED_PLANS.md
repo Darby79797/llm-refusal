@@ -1656,3 +1656,11 @@ r̂ hook ablation; chat MMLU / ARC / GSM8K for baseline, answer-only and every-t
 baseline (p≈0.7).
 
 Outcome (§84): answer-only 37% unsafe (vs 69% everywhere, 55% r̂), GSM8K unchanged within noise; predictions failed narrowly on the unsafe thresholds.
+
+### 138. Is the late refusal direction present along refusing answers on every model, and only used on Qwen2.5-3B? — job 4260 (~50 min, added 2026-10-20 16:20)
+
+Baseline JailbreakBench answers (mostly refusals) and harmless answers, 128 tokens, eight models; the 75%-depth refusal
+direction's projection at its layer on every answer token (claim_trajectory.py, teacher-forced). Predicted: the
+refusing answers read above the harmless ones through the 65+ bucket on ≥6/8, at ≥50% of their 1-4 token gap (p≈0.5).
+Then the direction is present along the answer on every model and only the 3B depends on it, as r̂'s reading stays high
+but is not needed (§64-§65). If only the 3B keeps it, the difference is what the answer writes.
