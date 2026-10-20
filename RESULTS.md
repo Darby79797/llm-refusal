@@ -1976,6 +1976,86 @@ Predictions (plan 124): (a) claims held by an every-token push keep ≥70% with 
 
 Predictions (plan 125): (a) hiding the template restores ≥30pp on ≥4/8: failed (0/8; at most 19pp). (b) hiding the request restores more than hiding the template on ≥4/8: held narrowly (4/8, differences ≤26pp, mostly within noise).
 
+### 73. Plan 126: template channel or push strength? (2026-10-20) **[eight models; harmless prompts, r̂ ×0.5 / ×1 / ×2 on the prompt only, each alone and with the template hidden from the answer after its first token (`hide:template`, §70); ×1 from §70; 128 tokens, phrase refusal; `...-jbb-safety-hidedose.json`]**
+
+| refusal %: alone / template hidden | Ll-3.1 | Ll-3-8B | Q-7B | Ll-2 | Q-3B | Q-1.5B | Q-0.5B | Ll-3.2-1B |
+|---|---|---|---|---|---|---|---|---|
+| r̂ ×0.5 | 10 / 0 | 9 / 0 | 55 / 4 | 24 / 4 | 66 / 31 | 54 / 15 | 50 / 30 | 36 / 4 |
+| r̂ ×1 (§70) | 100 / 19 | 94 / 9 | 100 / 19 | 95 / 11 | 100 / 51 | 96 / 45 | 91 / 52 | 92 / 31 |
+| r̂ ×2 | 100 / 37 | 100 / 27 | 98 / 51 | 100 / 74 | 100 / 74 | 100 / 72 | 75 / 21 | 67 / 19 |
+| pp lost by hiding the template, ×1 → ×2 | 81 → 63 | 85 → 73 | 81 → 47 | 84 → 26 | 49 → 26 | 51 → 28 | 39 → 54 | 61 → 48 |
+
+- **How much refusal survives the template being hidden depends on how hard the prompt was pushed.** Doubling the push cuts the loss by 40-70% on Llama-2 and three Qwens (7B, 3B, 1.5B; 51-74% surviving) and reduces it on the rest except Qwen2.5-0.5B. So the template is not a channel the answer must read for the refusal to continue. It is where a ×1 push is held most strongly, and with a stronger push the rest of the prompt (or the answer's own first token) holds enough on its own. This also weakens the role-loss reading of §70: the same "I" opener with the same template hidden continues as a refusal far more often when the prompt was pushed harder.
+- ×2 overshoots on the two smallest models. Qwen2.5-0.5B and the 1B refuse less than at ×1 (75%, 67%): the rest open with a disclaimer and answer ("**Please note that I'll be providing a general response…**", "There are several issues with the given instruction…").
+
+Prediction (plan 126): at ×2, hiding the template costs fewer pp than at ×1 on ≥5/8: held (7/8).
+
+### 74. Plan 127: do the carry results hold with r̂ pushed 3 layers lower or higher? (2026-10-20) **[eight models; r̂ moved to its layer −3 / +3 with its norm kept (`save_control_direction.py --layer`); harmless prompts, added on every token, on the prompt only, on the prompt only with r̂ (the original, at every layer) projected out of the answer (`ablategen`), and on the prompt only with the template hidden; 128 tokens, phrase refusal; `...-jbb-safety-layerdn3.json`, `-layerup3.json`]**
+
+| refusal %: every token / prompt only / + r̂ out of the answer / + template hidden | Ll-3.1 | Ll-3-8B | Q-7B | Ll-2 | Q-3B | Q-1.5B | Q-0.5B | Ll-3.2-1B |
+|---|---|---|---|---|---|---|---|---|
+| r̂'s layer (§61, §65, §70) | 100 / 100 / 100 / 19 | 97 / 94 / 81 / 9 | 100 / 100 / 99 / 19 | 97 / 95 / 95 / 11 | 100 / 100 / – / 51 | 96 / 96 / 83 / 45 | 93 / 91 / – / 52 | 95 / 92 / 87 / 31 |
+| 3 layers lower | 99 / 100 / 100 / 19 | 98 / 100 / 91 / 1 | 99 / 96 / 93 / 35 | 100 / 100 / 100 / 47 | 98 / 94 / 82 / 26 | 94 / 95 / 89 / 71 | 100 / 100 / 100 / 63 | 91 / 90 / 88 / 25 |
+| 3 layers higher | 1 / 3 / 2 / 0 | 12 / 6 / 5 / 1 | 13 / 5 / 4 / 2 | 23 / 14 / 9 / 2 | 38 / 26 / 15 / 20 | 12 / 12 / 9 / 6 | 11 / 12 / 12 / 10 | 0 / 0 / 0 / 0 |
+
+- **Three layers lower, every carry result replicates.** The prompt-only push keeps 96-102% of the every-token rate, removing r̂ from the answer costs 0-12pp, and hiding the template still costs the most (24-99pp; as at r̂'s layer the Llama-3s lose almost all of it and Qwen2.5-1.5B and 0.5B keep most).
+- **Three layers higher, the same push does not induce refusal at all**, even on every token (0-38%). At a fixed norm, three layers past r̂'s layer is too late on all eight models. Refusal induction has a window that ends at or just after the layer the search picked (cf. the search's layer cutoff, ~60% depth). That makes the higher layer a failed dose, not a test of carry.
+
+Predictions (plan 127): (a) prompt-only keeps ≥80% of every-token at both layers on ≥6/8: held at −3 (8/8); untestable at +3 (no induction). (b) r̂ out of the answer costs ≤15pp on ≥6/8: held at −3 (8/8, ≤12pp); untestable at +3.
+
+### 75. Plan 128: do carried refusal and "I don't know" last over long answers? (2026-10-20) **[eight models; harmless prompts, r̂ added on every token vs the prompt only, 384 tokens, phrase refusal; offline, a refusal phrase in the first / last third of each answer's characters (`concept.heuristic_detect`); unknown on every token vs the prompt only on Llama-3.1 and the 1B, invented / little-known / famous questions, 384 tokens, five-flag judge; `...-jbb-safety-long.json`, `...-familiarity-dial-long.json`]**
+
+| every token / prompt only | Ll-3.1 | Ll-3-8B | Q-7B | Ll-2 | Q-3B | Q-1.5B | Q-0.5B | Ll-3.2-1B |
+|---|---|---|---|---|---|---|---|---|
+| refusal % (anywhere in 384 tokens) | 100 / 100 | 97 / 94 | 100 / 100 | 97 / 95 | 100 / 100 | 96 / 96 | 93 / 91 | 95 / 92 |
+| refusal phrase in the last third % | 14 / 0 | 0 / 0 | **79 / 1** | **29 / 6** | **31 / 4** | 6 / 2 | 1 / 0 | 0 / 0 |
+| median answer length (characters) | 119 / 123 | 111 / 110 | 799 / 602 | 1351 / 1292 | 824 / 579 | 247 / 213 | 112 / 40 | 75 / 141 |
+
+"I don't know" on little-known / famous questions, every token / prompt only: Llama-3.1 73 / 77, 37 / 43%; the 1B 80 / 70, 57 / 47% (at 128 tokens, §57: 77 / 77, 37 / 43; 83 / 73, 60 / 50).
+
+- **The refusal rate does not decay with length.** At 384 tokens the prompt-only push keeps 96-102% of the every-token rate, as at 128 (§61), and a carried "I don't know" keeps its 128-token rate within 10pp on both models.
+- **Most answers stop after the refusal, so length rarely matters.** The Llama-3s, Qwen2.5-0.5B and the 1B end at a median of 40-141 characters either way.
+- **Where answers do go on, the prompt-only push yields an opener and the every-token push a sustained refusal.** On Qwen2.5-7B, Qwen2.5-3B and Llama-2, the last third of the answer still refuses or moralises in 29-79% under the every-token push but in 1-6% prompt-only. Prompt-only long answers turn to the task after the opening line ("I'm sorry, but there is a misunderstanding in your question. Blockchain and distributed ledger technology (DLT) are closely related concepts…" and then a full comparison), the §65 pattern carried further. On these three models what the prompt sets is the refusal opener, and the content after it reverts towards the task.
+
+Predictions (plan 128): (a) prompt-only within 10pp of every-token at 384 tokens on ≥6/8: held (8/8, ≤3pp). (b) last-third refusal does not fall more under prompt-only: failed on the three models with long answers (Qwen2.5-7B, Qwen2.5-3B, Llama-2: −78, −27, −23pp more), held on the five whose answers stop.
+
+### 76. Plan 129: does an independently extracted refusal direction (Arditi-exact) give the same carry results? (2026-10-20) **[seven models (no Arditi-exact stem for the 1B); `refusal_arditi_exact`'s direction (Arditi's data and refusal list, its own search) at its own layer; harmless: every token / prompt only / prompt only with it projected out of the answer / prompt only with the template hidden; JailbreakBench: subtracted on the prompt only, alone and with the template hidden; 128 tokens, phrase refusal; `...-jbb-safety-arditi.json`, `-arditijbb.json`]**
+
+| | Ll-3.1 | Ll-3-8B | Q-7B | Ll-2 | Q-3B | Q-1.5B | Q-0.5B |
+|---|---|---|---|---|---|---|---|
+| layer (r̂'s) / of n; cosine with r̂ | 12 (11) / 32; 0.69 | 12 (12) / 32; 0.57 | 17 (16) / 28; 0.53 | 12 (12) / 32; 0.68 | **27 (21) / 36**; 0.22 | **21 (16) / 28**; 0.36 | 15 (14) / 24; 0.55 |
+| harmless %: every token / prompt only / + out of the answer / + template hidden | 89 / 89 / 89 / 9 | 100 / 100 / 100 / 3 | 70 / 52 / 42 / 4 | 95 / 93 / 90 / 12 | 95 / **28** / 9 / 40 | 96 / 92 / **43** / 43 | 94 / 90 / 79 / 54 |
+| … r̂ (§61, §65, §70) | 100 / 100 / 100 / 19 | 97 / 94 / 81 / 9 | 100 / 100 / 99 / 19 | 97 / 95 / 95 / 11 | 100 / 100 / – / 51 | 96 / 96 / 83 / 45 | 93 / 91 / – / 52 |
+| JailbreakBench %: subtracted on the prompt / + template hidden | 6 / 9 | 5 / 4 | 44 / 28 | 12 / 16 | 18 / 31 | 24 / 18 | 4 / 5 |
+| … r̂ (§72) | 6 / 5 | 16 / 11 | 1 / 20 | 47 / 30 | 3 / 17 | 36 / 19 | 2 / 3 |
+
+(Cosines between different layers on Qwen2.5-3B and 1.5B compare different bases and are only indicative.)
+
+- **Where the Arditi-exact direction sits at r̂'s layer (±1), the carry results replicate.** On five models its prompt-only push keeps 74-100% of its every-token rate, removing it from the answer costs ≤11pp, hiding the template costs the most (to 3-54%, the Qwens again keeping most), and subtracting it on the prompt removes refusal with the template hidden too (≤+4pp back on the Llamas). It is weaker on Qwen2.5-7B (70% every token), and on Llama-2 it removes refusal better than r̂ (12% vs 47%).
+- **Where its search picked a later layer, the prompt push carries less.** On Qwen2.5-3B (layer 27 of 36, 6 past r̂) the every-token push still induces 95%, but on the prompt only 28%. On Qwen2.5-1.5B (21 of 28, 5 past r̂) the prompt-only push works (92%) but the answer needs the direction to keep it (43% with it projected out). With §74's +3 result: a late push changes the answer's tokens directly but writes less into the prompt's tokens for the answer to read. The carry results are a property of mid-depth refusal directions, which r̂ and five of seven Arditi-exact directions are.
+
+Prediction (plan 129): §61 / §65 / plan 123 replicate within 15pp on ≥5/7: held for the template hidden (7/7) and prompt-only induction (5/7: not Qwen2.5-7B, 3B); r̂ out of the answer within 15pp of r̂'s cost on 5/7 (not Qwen2.5-3B, 1.5B); removal at the prompt (§72) 5/7 (Qwen2.5-7B removes less, Llama-2 more).
+
+### 77. Plan 130: hiding the last prompt token (2026-10-20) **[eight models; harmless prompts, r̂ on the prompt only with the last prompt token (the generation boundary) hidden from the answer after its first token, and the same with no push; 128 tokens, phrase refusal; spans containing BOS (header, instruction, whole prompt) not run, since hiding BOS breaks the Llamas (§70); `...-jbb-safety-hidemap.json`]**
+
+| refusal % | Ll-3.1 | Ll-3-8B | Q-7B | Ll-2 | Q-3B | Q-1.5B | Q-0.5B | Ll-3.2-1B |
+|---|---|---|---|---|---|---|---|---|
+| r̂ on the prompt (§70) | 100 | 94 | 100 | 95 | 100 | 96 | 91 | 92 |
+| … last token hidden | 100 | 94 | 100 | 96 | 98 | 96 | 91 | 100 |
+| no push, last token hidden | 0 | 1 | 3 | 1 | 5 | 8 | 5 | 0 |
+
+- **The answer does not need the boundary token after reading it once.** Hiding it changes induced refusal by ≤8pp (the 1B +8) and leaves unpushed answers normal. The boundary token is where r̂'s first-token effect is largest (§66-§67), but once the first answer token is written the rest of the answer reads nothing from it that it cannot get elsewhere. §70's template effect comes from the other four template tokens or the role they set, not the last one.
+
+Predictions (plan 130): all withdrawn before the run (BOS spans); the last-token arms were measurement only.
+
+### 78. Plan 131: §57-§58 on Qwen2.5-3B (2026-10-20) **[Qwen2.5-3B, the one model §57-§58 had not covered; `familiarity_dial.py` and `limit_factorial.py` as there, judged; `...-familiarity-dial-pos.json`, `...-limit-factorial-pos.json`]**
+
+"I don't know" on invented / little-known / famous questions under unknown added: baseline 70 / 0 / 0, every token 93 / 63 / 20, **prompt only 83 / 13 / 0**, template only 77 / 10 / 0, template + generated 87 / 17 / 3. Asserting on invented questions under it subtracted: baseline 17, every token 87, prompt only 73, template + generated 77. "I can't" on physical tasks, baseline 81 → limitation mean subtracted on every token 0 / prompt only 3 / template only 72. "I can't" on text tasks under the mean added: 0% in every condition. The every-token push gives "I don't know" there instead (22%).
+
+- **Qwen2.5-3B behaves like the other Qwens.** Pushed towards "unknown", it disowns little-known or famous facts only with the push on the answer (prompt only 13 / 0% vs 63 / 20%). Pushed towards "known", or away from "I can't", it decides from the prompt (80% and 96% of the every-token effect). The template alone does little in either direction. With it, the §57-§58 split holds on all seven models with both directions: claims are removed from the prompt and induced only by holding the answer, on every model except Llama-3.1 and the 1B (which induce "I don't know" from the prompt too).
+
+Prediction (plan 131): prompt-only "I don't know" on famous questions ≤20%: held (0%); removal from the prompt ≥70% of its effect: held (80% for unknown, 96% for the limitation mean).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.
