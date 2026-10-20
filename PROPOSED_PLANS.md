@@ -1657,7 +1657,7 @@ baseline (p≈0.7).
 
 Outcome (§84): answer-only 37% unsafe (vs 69% everywhere, 55% r̂), GSM8K unchanged within noise; predictions failed narrowly on the unsafe thresholds.
 
-### 138. Is the late refusal direction present along refusing answers on every model, and only used on Qwen2.5-3B? — job 4260 (~50 min, added 2026-10-20 16:20)
+### 138. Is the late refusal direction present along refusing answers on every model, and only used on Qwen2.5-3B? — job 4260 (~50 min, added 2026-10-20 16:20) — DONE
 
 Baseline JailbreakBench answers (mostly refusals) and harmless answers, 128 tokens, eight models; the 75%-depth refusal
 direction's projection at its layer on every answer token (claim_trajectory.py, teacher-forced). Predicted: the
@@ -1665,30 +1665,38 @@ refusing answers read above the harmless ones through the 65+ bucket on ≥6/8, 
 Then the direction is present along the answer on every model and only the 3B depends on it, as r̂'s reading stays high
 but is not needed (§64-§65). If only the 3B keeps it, the difference is what the answer writes.
 
+Outcome (§85): failed (1/8). The gap decays to a fifth to a third of its start everywhere; only the 3B holds it flat through token 64.
+
 ## Overnight batch to 09:00+ (added 2026-10-20 18:25, user: "extend the research plan to run to at least 9am"); ~14 h, numbering leaves gaps
 
 (Job 4260 sat at the GPU gate 15:39-18:10: the runner's own-model check matched the shell waiting on it, whose command
 line held the job text. Fixed in runner.sh: the pattern now needs a Python interpreter at the head of the command.)
 
-### 139. Is "only Qwen2.5-3B" a 75%-depth artifact? — job 4270 (~2.5 h)
+### 139. Is "only Qwen2.5-3B" a 75%-depth artifact? — job 4270 (~2.5 h) — DONE
 
 Seven models (not the 3B, mapped in §83): refusal diff-of-means at 55 / 65 / 85% depth, each out of the answer only,
 JailbreakBench own refusal, 128 tokens; Qwen2.5-1.5B (partial at 75%) at every other layer L14-L26. LG2 labels after.
 Predicted: no other model loses ≥30pp of own refusal at any depth (p≈0.6); the 1.5B peaks somewhere in L18-L24 at
 ≤60% refusal (p≈0.4).
 
-### 140. Does the 3B's answer-side direction replicate from disjoint halves, and do its two parts add? — job 4280 (~25 min)
+Outcome (§86): first prediction failed: Qwen2.5-7B L18 (91 → 20%), Qwen2.5-1.5B L20 (99 → 22%) and Llama-3.2-1B L10 (84 → 41%) all have a window, 2-6 layers past r̂ and 1-2 layers wide. Second prediction held (1.5B peak at L20).
+
+### 140. Does the 3B's answer-side direction replicate from disjoint halves, and do its two parts add? — job 4280 (~25 min) — DONE
 
 Qwen2.5-3B, JailbreakBench, 128 tokens: L27 diff-of-means from half a / half b of the pairs, each out of the answer;
 r̂ subtracted on the prompt only, alone and with the L27 direction out of the answer. Predicted: both halves ≤30%
 refusal (p≈0.7); prompt-only r̂ subtraction alone leaves ≥40% refusal (the answer reverts, §75, p≈0.5) and with the
 L27 direction out of the answer ≤10% (p≈0.6).
 
-### 141. The two-part jailbreak at reporting quality — job 4290 (~45 min)
+Outcome (§87): halves held (12%, 23%). r̂ off the prompt leaves 3% refusal but 29% moralising: failed. The stack goes to 0% (held), with moralising gone too.
+
+### 141. The two-part jailbreak at reporting quality — job 4290 (~45 min) — DONE
 
 Qwen2.5-3B, the two plan-140 r̂ conditions at 512 tokens, LG2 inline, plus chat MMLU / ARC / GSM8K. Predicted: the
 stack ≥60% LG2 unsafe (p≈0.5), near the every-token hook ablation (69%, §84), with MMLU within 3 points of baseline
 (p≈0.5; r̂ subtracted on the prompt touches the first token).
+
+Outcome (§88): stack 68% unsafe (held; = hook ablation's 69%), MMLU −2.8 (held narrowly), ARC −10.5 from the prompt-side r̂.
 
 ### 142. Do the concept claims have a late, answer-side direction? — jobs 4300-4306 (~3 h)
 
@@ -1714,3 +1722,33 @@ others within 10pp of baseline on ≥6/7 (p≈0.6).
 Seven models: the 75% unknown diff-of-means' projection at its layer on every answer token, teacher-forced, baseline
 answers to invented and to famous questions (plan 142's generations). Predicted: invented answers read above famous
 ones through the 65+ bucket on ≥5/7 (p≈0.5), as plan 138 asks for refusal.
+
+## Overnight extension (added 2026-10-20 23:15; the batch ran ~40% faster than estimated). Jobs 4307-4309 run before 4310-4316
+
+### 146. Every layer of the late window, eight models — job 4307 (~2 h)
+
+§86's windows are 1-2 layers wide, so a 10%-depth grid can miss them. Every untested layer from r̂ + 1 to depth − 3,
+refusal diff-of-means out of the answer only, JailbreakBench own refusal, 128 tokens, LG2 labels. Predicted: at least
+one of the three 7-8B Llamas has a layer cutting own refusal ≥30pp (p≈0.4); the 0.5B does not (p≈0.6).
+
+### 147. The answer-only jailbreak at each new peak, at reporting quality — job 4308 (~1.5 h)
+
+Qwen2.5-7B L18, Qwen2.5-1.5B L20, Llama-3.2-1B L10: split halves at 128 tokens; baseline and answer-only at 512 tokens
+with LG2 inline; chat MMLU / ARC / GSM8K. Predicted: both halves within 15pp of the full direction on all three
+(p≈0.6); answer-only ≥25% LG2-unsafe on ≥2/3 (p≈0.5); GSM8K within noise (p≈0.7).
+
+### 148. Is the late refusal direction a general answer-side "decline" direction? — job 4309 (~1 h)
+
+On the 3B it also removes "I can't" and "I don't know" (plan 142). The same at the three new peaks (familiarity_dial,
+limit_factorial, judged). Predicted: it cuts invented-entity "I don't know" ≥30pp on ≥2/3 (p≈0.4).
+
+### 149. Plan 138 at the peak layers — job 4340 (~10 min)
+
+Refusing vs harmless projection along the answer at Qwen2.5-7B L18, 1.5B L20, 1B L10. Predicted: the 65+ gap ≥50% of
+the 1-4 gap on ≥2/3 (p≈0.4: a direction the answer uses should be held).
+
+### 150. The two roles at the new peaks — job 4350 (~45 min)
+
+Harmless with r̂ on the prompt, alone / with the peak direction out of the answer; JailbreakBench with r̂ off the
+prompt, alone / with it. Predicted: the peak direction out of the answer cuts r̂-carried refusal ≥30pp on ≥2/3
+(p≈0.5); the stack ≥20pp more compliant (LG2) than r̂ off the prompt alone on ≥2/3 (p≈0.5).
