@@ -1648,9 +1648,11 @@ normal (≤5% refusal, judged by eye on 20, p≈0.7).
 Outcome (§83): zeroing 1874 leaves a third of the effect (failed), 1874 alone nothing (held); peak at L27, partial
 L24-L33, none at r̂'s depth; harmless answers unchanged (held).
 
-### 137. Qwen2.5-3B's answer-only jailbreak at reporting quality — job 4250 (~1 h, added 2026-10-20 15:00)
+### 137. Qwen2.5-3B's answer-only jailbreak at reporting quality — job 4250 (~1 h, added 2026-10-20 15:00) — DONE
 
 JailbreakBench at 512 tokens with LG2 inline: baseline, the L27 direction out of the answer only, out of every token,
 r̂ hook ablation; chat MMLU / ARC / GSM8K for baseline, answer-only and every-token. Predicted: answer-only ≥40% unsafe at
 512 tokens (p≈0.5; 31% at 128) against ≥70% for both hook ablations (p≈0.7); answer-only GSM8K within 3 points of
 baseline (p≈0.7).
+
+Outcome (§84): answer-only 37% unsafe (vs 69% everywhere, 55% r̂), GSM8K unchanged within noise; predictions failed narrowly on the unsafe thresholds.
