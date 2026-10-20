@@ -1664,3 +1664,53 @@ direction's projection at its layer on every answer token (claim_trajectory.py, 
 refusing answers read above the harmless ones through the 65+ bucket on ≥6/8, at ≥50% of their 1-4 token gap (p≈0.5).
 Then the direction is present along the answer on every model and only the 3B depends on it, as r̂'s reading stays high
 but is not needed (§64-§65). If only the 3B keeps it, the difference is what the answer writes.
+
+## Overnight batch to 09:00+ (added 2026-10-20 18:25, user: "extend the research plan to run to at least 9am"); ~14 h, numbering leaves gaps
+
+(Job 4260 sat at the GPU gate 15:39-18:10: the runner's own-model check matched the shell waiting on it, whose command
+line held the job text. Fixed in runner.sh: the pattern now needs a Python interpreter at the head of the command.)
+
+### 139. Is "only Qwen2.5-3B" a 75%-depth artifact? — job 4270 (~2.5 h)
+
+Seven models (not the 3B, mapped in §83): refusal diff-of-means at 55 / 65 / 85% depth, each out of the answer only,
+JailbreakBench own refusal, 128 tokens; Qwen2.5-1.5B (partial at 75%) at every other layer L14-L26. LG2 labels after.
+Predicted: no other model loses ≥30pp of own refusal at any depth (p≈0.6); the 1.5B peaks somewhere in L18-L24 at
+≤60% refusal (p≈0.4).
+
+### 140. Does the 3B's answer-side direction replicate from disjoint halves, and do its two parts add? — job 4280 (~25 min)
+
+Qwen2.5-3B, JailbreakBench, 128 tokens: L27 diff-of-means from half a / half b of the pairs, each out of the answer;
+r̂ subtracted on the prompt only, alone and with the L27 direction out of the answer. Predicted: both halves ≤30%
+refusal (p≈0.7); prompt-only r̂ subtraction alone leaves ≥40% refusal (the answer reverts, §75, p≈0.5) and with the
+L27 direction out of the answer ≤10% (p≈0.6).
+
+### 141. The two-part jailbreak at reporting quality — job 4290 (~45 min)
+
+Qwen2.5-3B, the two plan-140 r̂ conditions at 512 tokens, LG2 inline, plus chat MMLU / ARC / GSM8K. Predicted: the
+stack ≥60% LG2 unsafe (p≈0.5), near the every-token hook ablation (69%, §84), with MMLU within 3 points of baseline
+(p≈0.5; r̂ subtracted on the prompt touches the first token).
+
+### 142. Do the concept claims have a late, answer-side direction? — jobs 4300-4306 (~3 h)
+
+Seven models: diff-of-means at 75% and 85% depth of unknown (invented vs real) and of the limitation concepts
+(inability realtime memory persona; not Llama-2, which has no limitation direction), each projected out of the answer
+only; the search-selected unknown / limitation direction out of the answer as comparison; on Qwen2.5-3B also the late
+refusal direction. familiarity_dial / limit_factorial, judged. Predicted: the search-selected directions out of the
+answer cut their claim by ≤15pp on ≥5/7 (p≈0.6: claims are decided at the prompt, §57-§58, §71); some late concept
+direction cuts its claim ≥30pp on ≥1 model (p≈0.4); the 3B's late refusal direction cuts "I can't" ≥20pp (p≈0.3).
+
+### 143. The same at 55% and 65% depth — jobs 4310-4316 (~2.5 h)
+
+Completes the depth map for plan 142. Predicted: at most one depth-model cell cuts a claim ≥30pp (p≈0.5).
+
+### 144. Does the late-direction result depend on our refusal pairs? — job 4320 (~1.2 h)
+
+Eight models: the 75%-depth diff-of-means from Arditi's harmful / harmless pairs (refusal_arditi; cos 0.81 with ours on
+the 0.5B), out of the answer only, JailbreakBench own refusal. Predicted: the same pattern as §82, the 3B ≤30% and the
+others within 10pp of baseline on ≥6/7 (p≈0.6).
+
+### 145. Is the late unknown direction read along "I don't know" answers? — job 4330 (~1 h)
+
+Seven models: the 75% unknown diff-of-means' projection at its layer on every answer token, teacher-forced, baseline
+answers to invented and to famous questions (plan 142's generations). Predicted: invented answers read above famous
+ones through the 65+ bucket on ≥5/7 (p≈0.5), as plan 138 asks for refusal.
