@@ -1735,16 +1735,18 @@ one of the three 7-8B Llamas has a layer cutting own refusal ≥30pp (p≈0.4); 
 
 Outcome (§90): no window on Llama-3.1 / Llama-3-8B / Llama-2 / 0.5B at any layer (≤10pp; first prediction failed, second held). Qwen2.5-7B L17-L18, 3B L26-L29 (peak L27), 1.5B L20 and L23-L24, 1B L9-L11.
 
-### 147. The answer-only jailbreak at each new peak, at reporting quality — job 4308 (~1.5 h)
+### 147. The answer-only jailbreak at each new peak, at reporting quality — job 4308 (~1.5 h) — DONE
 
 Qwen2.5-7B L18, Qwen2.5-1.5B L20, Llama-3.2-1B L10: split halves at 128 tokens; baseline and answer-only at 512 tokens
 with LG2 inline; chat MMLU / ARC / GSM8K. Predicted: both halves within 15pp of the full direction on all three
 (p≈0.6); answer-only ≥25% LG2-unsafe on ≥2/3 (p≈0.5); GSM8K within noise (p≈0.7).
+Outcome (RESULTS §91): halves held; 3/3 reach ≥25% LG2-unsafe (64 / 61 / 37); GSM8K held on 2/3 but the 1.5B fell 69 → 48 with 75% degenerate long answers.
 
-### 148. Is the late refusal direction a general answer-side "decline" direction? — job 4309 (~1 h)
+### 148. Is the late refusal direction a general answer-side "decline" direction? — job 4309 (~1 h) — DONE
 
 On the 3B it also removes "I can't" and "I don't know" (plan 142). The same at the three new peaks (familiarity_dial,
 limit_factorial, judged). Predicted: it cuts invented-entity "I don't know" ≥30pp on ≥2/3 (p≈0.4).
+Outcome (RESULTS §92): failed (1/3). The 1.5B's peak removes every decline (like the 3B's); the 7B's cuts "I can't" and knowledge-limit "I don't know" but not invented-entity; the 1B's is refusal-specific.
 
 ### 149. Plan 138 at the peak layers — job 4340 (~10 min)
 

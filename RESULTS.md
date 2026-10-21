@@ -2277,6 +2277,39 @@ Phrase refusal % by the layer the direction was taken at (r̂'s layer in bracket
 
 Predictions (plan 146): one of the three 7-8B Llamas cuts ≥30pp at some layer: failed (≤10pp). The 0.5B does not: held.
 
+### 91. Plan 147: the answer-side peaks at 512 tokens, split halves and capability (2026-10-21) **[Qwen2.5-7B L18, Qwen2.5-1.5B L20, Llama-3.2-1B L10 (§86, §90); refusal diff-of-means from each disjoint half of the pairs and from all of them, projected out of the generated tokens only; halves at 128 tokens, full direction at 512 tokens with LG2 inline; chat MMLU / ARC / GSM8K (GSM8K ±9pp); `...-jbb-safety-latepeakhalves.json`, `...-latepeak512.json`, `...-push-capability-latepeak.json`]**
+
+| | refusal: half a / half b (128) | refusal (512) | LG2 unsafe (512) | degenerate (512) | MMLU | ARC | GSM8K |
+|---|---|---|---|---|---|---|---|
+| Qwen2.5-7B baseline | 91 | 91 | 6 | 0 | 74.7 | 89.0 | 77 |
+| Qwen2.5-7B L18 removed | 21 / 26 | 21 | 64 | 0 | 74.7 | 89.0 | 79 |
+| Qwen2.5-1.5B baseline | 99 | 99 | 1 | 1 | 62.8 | 75.0 | 69 |
+| Qwen2.5-1.5B L20 removed | 23 / 33 | 22 | 61 | 75 | 62.8 | 75.0 | 48 |
+| Llama-3.2-1B baseline | 88 | 88 | 10 | 0 | 37.9 | 47.5 | 45 |
+| Llama-3.2-1B L10 removed | 45 / 43 | 43 | 37 | 1 | 37.9 | 47.5 | 38 |
+
+- **The peak directions replicate from either half of the pairs** (within 10pp of the full direction; cos a/b 0.98 on the 7B).
+- **The refusal cut holds at 512 tokens**, and LG2 agrees with the phrase detector: the unsafe rate rises by 27-60pp. MMLU and ARC are read at the first token, which the removal does not touch, so they are identical by construction.
+- **Qwen2.5-7B: no measured cost** (GSM8K 79 vs 77, no degenerate answers). The prompt-side decision is untouched, so on this model the answer-side direction alone carries most of the refusal.
+- **Qwen2.5-1.5B: the removal also damages long generation.** 75% of 512-token answers are flagged degenerate (mostly repetition loops after a coherent start, not gibberish) and GSM8K drops 21 points. The direction carries more than refusal on this model (see §92).
+- **Llama-3.2-1B: a partial effect** (refusal 88 → 43%), GSM8K −7, within noise.
+
+Predictions (plan 147): halves within 15pp on all three: held. ≥25% LG2-unsafe on ≥2/3: held (3/3). GSM8K within noise: held on 2/3, failed on the 1.5B.
+
+### 92. Plan 148: is the peak direction a general "decline" direction? (2026-10-21) **[the §91 directions projected out of the generated tokens only; `familiarity_dial.py` (30 invented / obscure / famous questions) and `limit_factorial.py` (32 rows per cell), qwen3:4b five-flag judge; `...-familiarity-dial-latepeakc.json`, `...-limit-factorial-latepeakc.json`]**
+
+| | invented "I don't know" | invented asserts | "I can't" (cant cell) | "I don't know" (dontknow cell) |
+|---|---|---|---|---|
+| Qwen2.5-7B baseline → L18 removed | 23 → 33 | | 75 → 41 | 41 → 16 |
+| Qwen2.5-1.5B baseline → L20 removed | 27 → 3 | 30 → 87 | 75 → 0 | 47 → 0 |
+| Llama-3.2-1B baseline → L10 removed | 83 → 83 | | 44 → 44 | |
+
+- **Qwen2.5-1.5B's peak is a general "decline" direction**, like the 3B's (§89): removing it from the answer removes refusal, "I can't" and "I don't know" alike, and invented-entity questions get confident made-up answers instead. That fits its GSM8K and degeneracy cost in §91.
+- **Qwen2.5-7B's is mostly about refusal and inability**: "I can't" −34pp and knowledge-limit "I don't know" −25pp, but invented-entity "I don't know" does not fall.
+- **Llama-3.2-1B's is refusal-specific**: neither "I don't know" nor "I can't" moves.
+
+Predictions (plan 148): cuts invented-entity "I don't know" ≥30pp on ≥2/3: failed (1/3, the 1.5B).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.
