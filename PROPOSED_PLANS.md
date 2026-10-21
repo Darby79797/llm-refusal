@@ -1789,3 +1789,10 @@ Outcome (RESULTS §99): first two held (3B L29 −37, 1.5B L23 −67, mostly int
 Harmless + r̂ on the prompt at ×1 / ×0.5 / ×0.25, each with and without L18 out of the answer; at ×1 also r̂, L17,
 and L18 + r̂ out of the answer. Predicted: at ×0.25-0.5 (refusal near own baseline) L18 cuts it ≥30pp (p≈0.5);
 L18 + r̂ out of the answer cuts the ×1 refusal ≥30pp (p≈0.4).
+
+### 154. Is the answer-side direction sufficient? — job 4390 (~1 h)
+
+Removal shows the answer needs the peak direction (§86, §91). Added on the generated tokens only (new `none+gen`
+subset: the first token is untouched) at its own layer on harmless prompts, ×1 / ×2 / ×4, five models (Llama-3.1's
+75% direction as a no-role control); r̂ the same way ×1 / ×2. Predicted: some strength induces ≥30% refusal on ≥3/4
+window models without >20% degenerate (p≈0.4); the Llama-3.1 control stays ≤10% at ×1-×2 (p≈0.6).

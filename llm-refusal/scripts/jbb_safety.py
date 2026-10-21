@@ -9,7 +9,7 @@ fixed on the first run and stored, so a resumed run produces the same batches as
 Conditions, comma-separated `name=kind[:spec]`: `baseline`, `edit:<spec>` (weight orthogonalisation against that
 direction or span, every block), `ablate:<spec>` (hook ablation at every layer), `sub:<stem>` (the saved direction
 subtracted at its own layer and position, strength 1, as evaluate's layer_specific_subtraction), `add:<stem>` (the same, added); `sub:<stem>*0.5` / `add:<stem>*0.5` scale the push. `prefill:<text>` starts every answer with <text> (no intervention); `ablategen:<stem>` projects the stem out of every layer on generated tokens only; `hide:<subset>` stops the answer attending to a prompt subset after its first token. Several joined with `|` apply together. `subpos:<subset>[+gen[K]]:<stem>` / `addpos:...` apply it to one prompt-token subset only (all /
-instruction / header / request / template / last, push_positions.py), and to the generated tokens with +gen (the first K of them with +genK). A spec is a saved stem or any
+instruction / header / request / template / last / none, push_positions.py), and to the generated tokens with +gen (the first K of them with +genK). A spec is a saved stem or any
 `dirspecs.py` spec (`rhat`, `pc:1/2@A+B`, `perp:...`, `A&B`...). `label_deflection.py` reads the output (refuse /
 moralise / other / comply, reusing the verdicts saved here). All responses are generated first (the
 study model only), then judged by LlamaGuard 2 via Ollama (localhost; the model is unloaded after each pass).

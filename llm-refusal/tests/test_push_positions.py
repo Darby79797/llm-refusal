@@ -66,6 +66,17 @@ def test_positional_push_adds_on_the_subset_at_prefill_and_on_generated_tokens_o
     assert m.seen[-1].abs().sum() == 0
 
 
+def test_none_subset_pushes_generated_tokens_only():
+    pp = _mod()
+    m = _Model()
+    with pp.positional_push(m, m.block, t.tensor([1.0, 2.0]), "none", n_suffix=2, generated=True):
+        m(input_ids=t.zeros(2, 4, dtype=t.long), attention_mask=t.tensor([[1, 1, 1, 1], [1, 1, 1, 0]]))
+        m(input_ids=t.zeros(2, 1, dtype=t.long), attention_mask=t.ones(2, 5))
+    pre, step = m.seen
+    assert pre.abs().sum() == 0
+    assert step[..., 1].tolist() == [[2.0], [2.0]]
+
+
 def test_positional_push_first_k_generated_tokens_resets_at_each_prefill():
     pp = _mod()
     am = t.ones(1, 3, dtype=t.long)

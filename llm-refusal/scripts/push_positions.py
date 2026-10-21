@@ -45,14 +45,16 @@ SUBSETS = ["all", "instruction", "template", "last"]
 def position_masks(attention_mask: t.Tensor, n_suffix: int, n_header: int = 0) -> Dict[str, t.Tensor]:
     """Bool [B, T] masks of each subset's token positions in a right-padded batch. `instruction` (everything before the
     template suffix) splits into `header` (its first n_header tokens: BOS and the chat template's tokens before the
-    user's text; see header_tokens) and `request` (the rest)."""
+    user's text; see header_tokens) and `request` (the rest). `none` selects no prompt token, so `none+gen` pushes the
+    generated tokens only."""
     last = last_real_token_indices(attention_mask)[:, None]          # [B, 1]
     pos = t.arange(attention_mask.shape[1])[None]                    # [1, T]
     real = attention_mask.bool()
     template = (pos > last - n_suffix) & (pos <= last)
     instruction = real & ~template
     return {"all": real, "instruction": instruction, "template": template, "last": pos == last,
-            "header": instruction & (pos < n_header), "request": instruction & (pos >= n_header)}
+            "header": instruction & (pos < n_header), "request": instruction & (pos >= n_header),
+            "none": t.zeros_like(real)}
 
 
 def header_tokens(fmt) -> int:
