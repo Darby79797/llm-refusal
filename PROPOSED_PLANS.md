@@ -1770,3 +1770,21 @@ Llama-2, Qwen2.5-3B, Qwen2.5-1.5B (§89): unknown diff-of-means at every other l
 familiarity_dial, judged. Predicted: on the two Qwens it cuts invented-entity "I don't know" ≥30pp only within ±2
 layers of the refusal window (§90) (p≈0.4); on Llama-2 over ≥4 consecutive tested layers (p≈0.5).
 Outcome (RESULTS §98): Qwens failed (the 3B's L21 cuts 37pp, the 1.5B's spans L17-L23); Llama-2 held (every layer L16-L28 ≤7%).
+
+## Shared "decline" direction and the 7B carry puzzle (added 2026-10-21 12:05). Jobs 4370-4380
+
+### 152. Is the late "I don't know" direction a refusal direction too? — job 4370 (~1.2 h)
+
+The 3B's and 1.5B's late refusal directions remove "I don't know" (§89, §92), though late refusal and unknown
+directions at matching layers have cosine only 0.30-0.63. The converse: late unknown directions (3B L21/27/29, 1.5B
+L17-23, Llama-2 L16/18/22, 7B L21, 1B L12) out of the answer on JailbreakBench; and Llama-2's refusal directions at
+L16/L18 out of the answer on familiarity_dial (its unknown claim is removable at every layer, its refusal at none).
+Predicted: on the 3B and the 1.5B some late unknown direction cuts refusal ≥30pp (p≈0.5); on Llama-2 none moves
+refusal >10pp (p≈0.7), and its refusal directions cut invented "I don't know" ≥20pp (p≈0.4).
+
+### 153. Why does the 7B's peak not undo r̂-induced refusal? — job 4380 (~25 min)
+
+§97: L18 out of the answer removes 70pp of own refusal but none of the refusal r̂ induces on harmless prompts.
+Harmless + r̂ on the prompt at ×1 / ×0.5 / ×0.25, each with and without L18 out of the answer; at ×1 also r̂, L17,
+and L18 + r̂ out of the answer. Predicted: at ×0.25-0.5 (refusal near own baseline) L18 cuts it ≥30pp (p≈0.5);
+L18 + r̂ out of the answer cuts the ×1 refusal ≥30pp (p≈0.4).
