@@ -2428,6 +2428,34 @@ Llama-2, its refusal directions out of the answer: invented "I don't know" 33 �
 
 Predictions (plan 152): on the 3B and the 1.5B some late unknown direction cuts refusal ≥30pp: held (3B L29 −37, 1.5B L23 −67; mostly into moralising). On Llama-2 none moves refusal >10pp: held. Its refusal directions cut invented "I don't know" ≥20pp: failed (−6).
 
+### 100. Plan 153: why the 7B's peak does not undo r̂-induced refusal (2026-10-21) **[Qwen2.5-7B; harmless prompts, r̂ added on the prompt tokens (`addpos:all`) at ×1 / ×0.5 / ×0.25, alone and with the L18 direction (and r̂, L17) projected out of the generated tokens; 128 tokens, phrase refusal; `Qwen2.5-7B-Instruct-jbb-safety-carry7bdose.json`]**
+
+| r̂ on the prompt | alone | + L18 out of the answer | + r̂ out | + L17 out | + L18 and r̂ out |
+|---|---|---|---|---|---|
+| ×1 | 100 | 99 | 99 | 100 | 99 |
+| ×0.5 | 55 | **22** | | | |
+| ×0.25 | 5 | 4 | | | |
+
+- **The answer carries the 7B's refusal only when the prompt-side signal is moderate.** At half strength, where induced refusal (55%) is near the model's own level of commitment, L18 out of the answer removes 33pp, as it removes 70pp of the model's own refusal (§91). At full strength nothing removed from the answer matters, not even L18 and r̂ together: the push sets the refusal through the prompt, which the answer reads by attention (§70). On the 1.5B and the 1B the same full-strength push stays removable (§97), so their prompt-side push is weaker relative to what the answer needs.
+
+Predictions (plan 153): at ×0.25-0.5 L18 cuts ≥30pp: held (×0.5, −33). L18 + r̂ out cuts the ×1 refusal ≥30pp: failed (−1).
+
+### 101. Plan 154: is the answer-side direction sufficient? (2026-10-21) **[five models; harmless prompts, the peak direction (§90; the 3B's 75%-depth L27) added at its own layer on the generated tokens only (`addpos:none+gen`; the first token is untouched) at ×1 / ×2 / ×4; r̂ the same way ×1 / ×2; Llama-3.1's 75%-depth direction as a no-role control; 128 tokens, phrase refusal (degenerate % in brackets); `...-jbb-safety-answeradd.json`]**
+
+| | baseline | peak ×1 | peak ×2 | peak ×4 | r̂ ×1 | r̂ ×2 |
+|---|---|---|---|---|---|---|
+| Qwen2.5-7B (L18) | 3 | 34 (0) | **97 (12)** | 6 (26) | 65 (0) | 98 (11) |
+| Qwen2.5-3B (L27) | 4 | 5 (0) | **40 (2)** | 89 (98) | 28 (0) | 70 (3) |
+| Qwen2.5-1.5B (L20) | 8 | 8 (0) | 16 (3) | 89 (68) | 16 (2) | 88 (27) |
+| Llama-3.2-1B (L10) | 0 | 1 (0) | 11 (6) | 33 (99) | 14 (0) | 50 (3) |
+| Llama-3.1-8B (L24, control) | 0 | 0 | 0 | 1 (0) | 11 (1) | 76 (79) |
+
+- **On Qwen2.5-7B and the 3B the answer-side direction is sufficient as well as necessary.** Added from the second answer token on, it turns answers to harmless requests into refusals mid-stream: they open "Certainly, …" (the first token is fixed) and switch to "I cannot provide assistance…". At ×1 on the 7B half the phrase hits are safety caveats inside a helpful answer; at ×2 they are refusals.
+- **On the 1.5B and the 1B, adding it breaks the answer before it refuses** (68-99% degenerate where refusal appears), though removing it works (§91).
+- **r̂ added to the answer also induces refusal**, more strongly than the peak at ×1 on most models, even though removing r̂ from the answer does little (§65). Adding a direction and needing it are different questions; the Llama-3.1 control shows the late direction there has neither.
+
+Predictions (plan 154): ≥30% refusal without >20% degenerate on ≥3/4 window models: failed (2/4: 7B, 3B). The control ≤10% at ×1-×2: held (0%).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.
