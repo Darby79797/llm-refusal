@@ -1756,3 +1756,9 @@ the 1-4 gap on ≥2/3 (p≈0.4: a direction the answer uses should be held).
 Harmless with r̂ on the prompt, alone / with the peak direction out of the answer; JailbreakBench with r̂ off the
 prompt, alone / with it. Predicted: the peak direction out of the answer cuts r̂-carried refusal ≥30pp on ≥2/3
 (p≈0.5); the stack ≥20pp more compliant (LG2) than r̂ off the prompt alone on ≥2/3 (p≈0.5).
+
+### 151. Where along depth is the late "I don't know" direction? — job 4360 (~1.5 h, added 2026-10-21 02:20)
+
+Llama-2, Qwen2.5-3B, Qwen2.5-1.5B (§89): unknown diff-of-means at every other layer, out of the answer only,
+familiarity_dial, judged. Predicted: on the two Qwens it cuts invented-entity "I don't know" ≥30pp only within ±2
+layers of the refusal window (§90) (p≈0.4); on Llama-2 over ≥4 consecutive tested layers (p≈0.5).
