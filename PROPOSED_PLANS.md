@@ -1709,21 +1709,24 @@ direction cuts its claim ≥30pp on ≥1 model (p≈0.4); the 3B's late refusal 
 
 Outcome (§89): the search-selected unknown direction out of the answer cuts invented-entity "I don't know" 20-37pp on 6/7 (failed; the answers confabulate instead). Late unknown directions remove it on the 3B, 1.5B and Llama-2 (held). No late "I can't" direction anywhere. The 3B's late refusal direction removes "I can't" −37pp (held) and "I don't know" too.
 
-### 143. The same at 55% and 65% depth — jobs 4310-4316 (~2.5 h)
+### 143. The same at 55% and 65% depth — jobs 4310-4316 (~2.5 h) — DONE
 
 Completes the depth map for plan 142. Predicted: at most one depth-model cell cuts a claim ≥30pp (p≈0.5).
+Outcome (RESULTS §93): held (one cell: Llama-2 at 55%, −33). Llama-2's late unknown direction spans 55-85%; the 3B's only from 75%; no "I can't" cut >22pp at any depth.
 
-### 144. Does the late-direction result depend on our refusal pairs? — job 4320 (~1.2 h)
+### 144. Does the late-direction result depend on our refusal pairs? — job 4320 (~1.2 h) — DONE
 
 Eight models: the 75%-depth diff-of-means from Arditi's harmful / harmless pairs (refusal_arditi; cos 0.81 with ours on
 the 0.5B), out of the answer only, JailbreakBench own refusal. Predicted: the same pattern as §82, the 3B ≤30% and the
 others within 10pp of baseline on ≥6/7 (p≈0.6).
+Outcome (RESULTS §94): the 3B 88 → 2% held; others within 10pp failed narrowly (4/7; 7B, 1.5B, 1B at −11 to −12pp). Same pattern as our pairs.
 
-### 145. Is the late unknown direction read along "I don't know" answers? — job 4330 (~1 h)
+### 145. Is the late unknown direction read along "I don't know" answers? — job 4330 (~1 h) — DONE
 
 Seven models: the 75% unknown diff-of-means' projection at its layer on every answer token, teacher-forced, baseline
 answers to invented and to famous questions (plan 142's generations). Predicted: invented answers read above famous
 ones through the 65+ bucket on ≥5/7 (p≈0.5), as plan 138 asks for refusal.
+Outcome (RESULTS §95): held (7/7 positive at 65+), but the gap shrinks to 0.1-0.4 of its start, as for refusal.
 
 ## Overnight extension (added 2026-10-20 23:15; the batch ran ~40% faster than estimated). Jobs 4307-4309 run before 4310-4316
 
@@ -1748,19 +1751,22 @@ On the 3B it also removes "I can't" and "I don't know" (plan 142). The same at t
 limit_factorial, judged). Predicted: it cuts invented-entity "I don't know" ≥30pp on ≥2/3 (p≈0.4).
 Outcome (RESULTS §92): failed (1/3). The 1.5B's peak removes every decline (like the 3B's); the 7B's cuts "I can't" and knowledge-limit "I don't know" but not invented-entity; the 1B's is refusal-specific.
 
-### 149. Plan 138 at the peak layers — job 4340 (~10 min)
+### 149. Plan 138 at the peak layers — job 4340 (~10 min) — DONE
 
 Refusing vs harmless projection along the answer at Qwen2.5-7B L18, 1.5B L20, 1B L10. Predicted: the 65+ gap ≥50% of
 the 1-4 gap on ≥2/3 (p≈0.4: a direction the answer uses should be held).
+Outcome (RESULTS §96): failed (0/3; 0.18-0.31). Directions the answer uses decay along it like the rest.
 
-### 150. The two roles at the new peaks — job 4350 (~45 min)
+### 150. The two roles at the new peaks — job 4350 (~45 min) — DONE
 
 Harmless with r̂ on the prompt, alone / with the peak direction out of the answer; JailbreakBench with r̂ off the
 prompt, alone / with it. Predicted: the peak direction out of the answer cuts r̂-carried refusal ≥30pp on ≥2/3
 (p≈0.5); the stack ≥20pp more compliant (LG2) than r̂ off the prompt alone on ≥2/3 (p≈0.5).
+Outcome (RESULTS §97): first held (1.5B −65, 1B −44; the 7B 100 → 99); second failed (1/3: +27 / +16 / +8 compliance).
 
-### 151. Where along depth is the late "I don't know" direction? — job 4360 (~1.5 h, added 2026-10-21 02:20)
+### 151. Where along depth is the late "I don't know" direction? — job 4360 (~1.5 h, added 2026-10-21 02:20) — DONE
 
 Llama-2, Qwen2.5-3B, Qwen2.5-1.5B (§89): unknown diff-of-means at every other layer, out of the answer only,
 familiarity_dial, judged. Predicted: on the two Qwens it cuts invented-entity "I don't know" ≥30pp only within ±2
 layers of the refusal window (§90) (p≈0.4); on Llama-2 over ≥4 consecutive tested layers (p≈0.5).
+Outcome (RESULTS §98): Qwens failed (the 3B's L21 cuts 37pp, the 1.5B's spans L17-L23); Llama-2 held (every layer L16-L28 ≤7%).

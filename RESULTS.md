@@ -2310,6 +2310,104 @@ Predictions (plan 147): halves within 15pp on all three: held. ≥25% LG2-unsafe
 
 Predictions (plan 148): cuts invented-entity "I don't know" ≥30pp on ≥2/3: failed (1/3, the 1.5B).
 
+### 93. Plan 143: concept directions at 55% and 65% depth (2026-10-21) **[seven models; unknown and limitation (inability realtime memory persona) diff-of-means at 55% / 65% depth, projected out of the generated tokens only; familiarity_dial (30 per set) / limit_factorial (32 per cell), qwen3:4b judge, ±~17pp; with §89 the 55-85% range is covered; `...-familiarity-dial-conclate5565.json`, `...-limit-factorial-conclate5565.json`]**
+
+"I don't know" % on invented entities (asserts % in brackets); 75% and 85% from §89:
+
+| | baseline | 55% out | 65% out | 75% out | 85% out |
+|---|---|---|---|---|---|
+| Llama-3.1-8B | 97 (3) | 90 (33) | 90 (13) | 90 (3) | 97 (10) |
+| Llama-3-8B | 43 (20) | 23 (33) | 33 (33) | 50 (30) | 40 (30) |
+| Qwen2.5-7B | 23 (53) | 10 (67) | 3 (93) | 37 (33) | 40 (30) |
+| Llama-2-7b | 33 (33) | **0 (67)** | 7 (57) | 3 (60) | 0 (63) |
+| Qwen2.5-3B | 70 (17) | 67 (13) | 60 (10) | **0 (87)** | 10 (67) |
+| Qwen2.5-1.5B | 27 (30) | 27 (27) | 7 (53) | 3 (60) | 0 (97) |
+| Llama-3.2-1B | 83 (13) | 83 (20) | 67 (27) | 80 (17) | 83 (17) |
+
+"I can't" % on physical tasks, baseline → 55% / 65% out: Llama-3.1 47 → 62 / 59, Llama-3-8B 66 → 66 / 66, Qwen2.5-7B 75 → 62 / 53, Qwen2.5-3B 81 → 88 / 97, Qwen2.5-1.5B 75 → 66 / 59, Llama-3.2-1B 44 → 59 / 47. Knowledge-limit "I don't know" moves ≤12pp everywhere.
+
+- **Llama-2's late unknown direction spans 55-85% depth**; the 3B's appears only from 75% (L27, inside its refusal window). The 1.5B and the 7B have claims small enough at baseline (23-27%) that their cuts to 0-10% from 65% on are within the judge's noise.
+- **Still no mid-to-late "I can't" direction**: the largest cut at any depth is 22pp (Qwen2.5-7B at 65%).
+
+Predictions (plan 143): at most one depth-model cell cuts a claim ≥30pp: held (Llama-2 at 55%, −33).
+
+### 94. Plan 144: the late result with Arditi's pairs (2026-10-21) **[eight models; refusal_arditi diff-of-means at 75% depth (cos 0.80-0.98 with our pairs' direction at the same layer), projected out of the generated tokens only; JailbreakBench, 128 tokens, phrase refusal and LG2 labels (refuse / moralise / other / comply); `...-jbb-safety-latearditi.json` (+`-deflect`)]**
+
+| | layer | cos with ours | refusal: baseline → out | LG2 comply: baseline → out |
+|---|---|---|---|---|
+| Llama-3.1-8B | 24 | 0.94 | 92 → 91 | 3 → 3 |
+| Llama-3-8B | 24 | 0.98 | 96 → 96 | 1 → 3 |
+| Llama-2-7b | 24 | 0.93 | 97 → 96 | 1 → 1 |
+| Qwen2.5-7B | 21 | 0.94 | 91 → 80 | 4 → 6 |
+| Qwen2.5-3B | 27 | 0.90 | 88 → **2** | 2 → **43** |
+| Qwen2.5-1.5B | 21 | 0.93 | 99 → 87 | 1 → 26 |
+| Qwen2.5-0.5B | 18 | 0.80 | 73 → 73 | 19 → 19 |
+| Llama-3.2-1B | 12 | 0.96 | 88 → 76 | 6 → 12 |
+
+- **The late result does not depend on our refusal pairs.** Arditi's pairs give the same pattern as ours (§82): the 3B's 75%-depth direction removes refusal from the answer, the three larger Llamas and the 0.5B are untouched, and the 7B, 1.5B and 1B lose 11-12pp at a depth just past their peaks (§90).
+
+Predictions (plan 144): the 3B ≤30%: held (2%). Others within 10pp on ≥6/7: failed narrowly (4/7; the other three at 11-12pp).
+
+### 95. Plan 145: is the late unknown direction read along the answers? (2026-10-21) **[seven models; the 75%-depth unknown diff-of-means, teacher-forced projection at its layer on each answer token of the baseline answers to invented and to famous questions (§89's generations), mean per answer-token bucket; `...-claim-trajectory-unklate-invented.json` / `-famous.json`]**
+
+Invented minus famous projection by answer token:
+
+| | layer | 1-4 | 5-16 | 17-64 | 65+ | 65+ / 1-4 |
+|---|---|---|---|---|---|---|
+| Llama-3.1-8B | 24 | −2.0 | +5.1 | +3.9 | +2.9 | |
+| Llama-3-8B | 24 | +6.1 | +0.7 | +0.9 | +0.7 | 0.11 |
+| Qwen2.5-7B | 21 | +21.0 | +13.6 | +8.1 | +4.1 | 0.20 |
+| Llama-2-7b | 24 | +13.2 | +5.5 | +3.6 | +3.1 | 0.23 |
+| Qwen2.5-3B | 27 | +11.9 | +10.4 | +10.4 | +4.8 | 0.41 |
+| Qwen2.5-1.5B | 21 | +20.0 | +11.9 | +6.9 | +7.0 | 0.35 |
+| Llama-3.2-1B | 12 | +2.3 | +0.5 | +1.3 | +0.6 | 0.25 |
+
+- **Invented answers read above famous ones to the end on all seven**, but, as for refusal (§85), the gap shrinks to 0.1-0.4 of its start. The 3B holds most of it through token 64, as it does for refusal.
+
+Predictions (plan 145): invented above famous through 65+ on ≥5/7: held (7/7).
+
+### 96. Plan 149: does the answer hold the peak refusal direction? (2026-10-21) **[Qwen2.5-7B L18, Qwen2.5-1.5B L20, Llama-3.2-1B L10; teacher-forced projection on the peak direction along baseline JailbreakBench answers (mostly refusals) and harmless answers, as §85; `...-claim-trajectory-peakj.json` / `-peakh.json`]**
+
+| JailbreakBench minus harmless | 1-4 | 5-16 | 17-64 | 65+ | 65+ / 1-4 |
+|---|---|---|---|---|---|
+| Qwen2.5-7B L18 | +11.8 | +12.9 | +6.8 | +3.1 | 0.26 |
+| Qwen2.5-1.5B L20 | +19.2 | +14.8 | +4.3 | +5.9 | 0.31 |
+| Llama-3.2-1B L10 | +1.9 | +1.4 | +0.9 | +0.3 | 0.18 |
+
+- **The peak directions decay along the answer like any other** (§85): the answer depends on them (§86, §91) without holding a large projection gap. Removing a direction from the answer is the test of use; the size of its reading along the answer is not.
+
+Predictions (plan 149): 65+ gap ≥50% of 1-4 on ≥2/3: failed (0/3).
+
+### 97. Plan 150: the two roles at the new peaks (2026-10-21) **[Qwen2.5-7B L18, Qwen2.5-1.5B L20, Llama-3.2-1B L10; harmless prompts with r̂ added on the prompt tokens (`addpos:all`), alone / with the peak direction out of the answer; JailbreakBench with r̂ subtracted on the prompt tokens (`subpos:all`), alone / with it; 128 tokens; LG2 labels; `...-jbb-safety-latepeakcarry.json`, `-latepeaktwo.json` (+`-deflect`)]**
+
+| | harmless + r̂ on prompt: refusal | + peak out of answer | JBB r̂ off prompt: refuse / moralise / comply | + peak out of answer |
+|---|---|---|---|---|
+| Qwen2.5-7B | 100 | 99 | 0 / 20 / 60 | 0 / 0 / 76 |
+| Qwen2.5-1.5B | 96 | **31** | 35 / 6 / 43 | 2 / 0 / 70 |
+| Llama-3.2-1B | 90 | **46** | 4 / 2 / 64 | 1 / 2 / 72 |
+
+- **On the 1.5B and the 1B the answer carries refusal that r̂ starts on the prompt**: removing the peak direction from the answer undoes 44-65pp of refusal induced on harmless prompts, as on the 3B (§82).
+- **On Qwen2.5-7B it does not**: refusal induced by r̂ on the prompt survives (99%), though the same direction removes 70pp of the model's own refusal (§91). r̂ added on the prompt is a large push, which may reach the answer through other routes on the 7B.
+- **The second part adds little where r̂ off the prompt already works**: it removes the residual refusal and moralising, adding 8-27pp of compliance.
+
+Predictions (plan 150): the peak out of the answer cuts r̂-carried refusal ≥30pp on ≥2/3: held (2/3). The stack ≥20pp more compliant on ≥2/3: failed (1/3: the 1.5B +27; the 7B +16, the 1B +8).
+
+### 98. Plan 151: where along depth is the late "I don't know" direction? (2026-10-21) **[Llama-2, Qwen2.5-3B, Qwen2.5-1.5B; unknown diff-of-means at every other layer, out of the generated tokens only; familiarity_dial, judged; with §89, §93; `...-familiarity-dial-unkfine.json`]**
+
+"I don't know" % on invented entities (bold: ≤10%; search-selected layer in brackets; refusal window from §90):
+
+| | baseline | by layer |
+|---|---|---|
+| Llama-2-7b (L16; no window) | 33 | L14 13, **L16 3, L18 0, L20 7, L22 7, L26 3, L28 7** |
+| Qwen2.5-3B (L21; window L26-29) | 70 | L19 67, L21 33, L23 60, L25 30, **L27 0 (§89), L29 3**, L31 50, L33 60 |
+| Qwen2.5-1.5B (L17; window L20-24) | 27 | L13 30, L15 27, **L17 0, L19 0, L21 3, L23 0**, L25 10 |
+
+- **On Llama-2 the answer reads the unknown direction from any layer past L14**: every layer from L16 to L28 removes the claim, though the directions there have cosines 0.40-0.99 with each other. The answers assert facts instead (57-73%).
+- **On the 3B the strongest late unknown direction sits in the refusal window** (L27, L29), consistent with a shared "decline" direction there (§89, §92); its own search layer (L21) and L25 halve the claim.
+- **On the 1.5B it spans L17-L23**, starting three layers before the refusal window; its baseline claim (27%) is too low to show a ≥30pp cut.
+
+Predictions (plan 151): on the two Qwens ≥30pp only within ±2 layers of the refusal window: failed (the 3B's L21 cuts 37pp; the 1.5B's cut to 0 starts at L17). On Llama-2 over ≥4 consecutive tested layers: held (all seven, L16-L28 to ≤7%).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.
