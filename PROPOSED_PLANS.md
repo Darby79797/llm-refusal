@@ -1798,3 +1798,40 @@ subset: the first token is untouched) at its own layer on harmless prompts, ×1 
 75% direction as a no-role control); r̂ the same way ×1 / ×2. Predicted: some strength induces ≥30% refusal on ≥3/4
 window models without >20% degenerate (p≈0.4); the Llama-3.1 control stays ≤10% at ×1-×2 (p≈0.6).
 Outcome (RESULTS §101): first failed (2/4: 7B 97% at ×2, 3B 40%; the 1.5B / 1B degenerate first); control held (0%).
+
+## Sufficiency in the answer, refusal and concepts (added 2026-10-21 14:50, to run past 09:00). Jobs 4400-4450
+
+### 155. Answer-only addition at every late layer — job 4400 (~3 h)
+
+§101 found the peak direction sufficient on the 7B and the 3B. Every late layer's refusal diff-of-means added on the
+generated tokens only (×2) on harmless prompts, eight models; r̂ ×1 / ×2 on Llama-3-8B, Llama-2, the 0.5B. Predicted:
+on the 7B and the 3B the layers that induce ≥30% refusal without >20% degenerate are the removal window ±1 (p≈0.4);
+no layer does so on the three larger Llamas (p≈0.6).
+
+### 156. Is the unknown direction sufficient in the answer? — job 4410 (~2 h)
+
+familiarity_dial with the search-selected and 75%-depth unknown directions added on the generated tokens only, ×1 / ×2,
+seven models, judged. Predicted: famous-entity "I don't know" rises ≥30pp at some strength without breaking the answer
+on ≥3/7 (p≈0.4).
+
+### 157. Is the limitation direction sufficient in the answer? — job 4420 (~1.5 h)
+
+limit_factorial with the search-selected limitation direction added on the generated tokens only, ×1 / ×2, six models.
+Predicted: "I can't" on the neither cell rises ≥30pp on ≥2/6 (p≈0.4), most likely Llama-3.1 and Llama-3-8B, where
+removing it from the answer works (§89).
+
+### 158. Carry against dose on the other window models — job 4430 (~1.2 h)
+
+§100 on the 3B, 1.5B, 1B (and the 7B at ×0.75): r̂ on the prompt ×0.5 / ×0.75 / ×1 / ×1.5, alone and with the peak
+out of the answer. Predicted: the share of induced refusal the peak removes falls with dose on ≥3/4 (p≈0.6).
+
+### 159. Long answers under answer-only addition — job 4440 (~40 min)
+
+The 7B L18 and the 3B L27 ×2 on harmless prompts at 512 tokens, generated tokens only and boundary + generated.
+Predicted: the induced refusal rate at 512 tokens is within 10pp of 128 (p≈0.6); pushing the boundary token too makes
+≥50% of answers open with a refusal (p≈0.5).
+
+### 160. Llama-2's unknown direction, addition per layer — job 4450 (~45 min)
+
+Removable from the answer at every layer L16-L28 (§98); added ×2 at L14-L28. Predicted: famous "I don't know" rises
+≥30pp at ≥3 layers (p≈0.4).
