@@ -1727,11 +1727,13 @@ ones through the 65+ bucket on ≥5/7 (p≈0.5), as plan 138 asks for refusal.
 
 ## Overnight extension (added 2026-10-20 23:15; the batch ran ~40% faster than estimated). Jobs 4307-4309 run before 4310-4316
 
-### 146. Every layer of the late window, eight models — job 4307 (~2 h)
+### 146. Every layer of the late window, eight models — job 4307 (~2 h) — DONE
 
 §86's windows are 1-2 layers wide, so a 10%-depth grid can miss them. Every untested layer from r̂ + 1 to depth − 3,
 refusal diff-of-means out of the answer only, JailbreakBench own refusal, 128 tokens, LG2 labels. Predicted: at least
 one of the three 7-8B Llamas has a layer cutting own refusal ≥30pp (p≈0.4); the 0.5B does not (p≈0.6).
+
+Outcome (§90): no window on Llama-3.1 / Llama-3-8B / Llama-2 / 0.5B at any layer (≤10pp; first prediction failed, second held). Qwen2.5-7B L17-L18, 3B L26-L29 (peak L27), 1.5B L20 and L23-L24, 1B L9-L11.
 
 ### 147. The answer-only jailbreak at each new peak, at reporting quality — job 4308 (~1.5 h)
 
