@@ -1773,7 +1773,7 @@ Outcome (RESULTS §98): Qwens failed (the 3B's L21 cuts 37pp, the 1.5B's spans L
 
 ## Shared "decline" direction and the 7B carry puzzle (added 2026-10-21 12:05). Jobs 4370-4380
 
-### 152. Is the late "I don't know" direction a refusal direction too? — job 4370 (~1.2 h)
+### 152. Is the late "I don't know" direction a refusal direction too? — job 4370 (~1.2 h) — DONE
 
 The 3B's and 1.5B's late refusal directions remove "I don't know" (§89, §92), though late refusal and unknown
 directions at matching layers have cosine only 0.30-0.63. The converse: late unknown directions (3B L21/27/29, 1.5B
@@ -1781,6 +1781,7 @@ L17-23, Llama-2 L16/18/22, 7B L21, 1B L12) out of the answer on JailbreakBench; 
 L16/L18 out of the answer on familiarity_dial (its unknown claim is removable at every layer, its refusal at none).
 Predicted: on the 3B and the 1.5B some late unknown direction cuts refusal ≥30pp (p≈0.5); on Llama-2 none moves
 refusal >10pp (p≈0.7), and its refusal directions cut invented "I don't know" ≥20pp (p≈0.4).
+Outcome (RESULTS §99): first two held (3B L29 −37, 1.5B L23 −67, mostly into moralising; Llama-2 ≤1pp); third failed (−6). The overlap runs one way: the late refusal direction removes "I don't know", the late unknown direction mostly does not remove refusal.
 
 ### 153. Why does the 7B's peak not undo r̂-induced refusal? — job 4380 (~25 min)
 

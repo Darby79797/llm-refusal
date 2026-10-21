@@ -2408,6 +2408,26 @@ Predictions (plan 150): the peak out of the answer cuts r̂-carried refusal ≥3
 
 Predictions (plan 151): on the two Qwens ≥30pp only within ±2 layers of the refusal window: failed (the 3B's L21 cuts 37pp; the 1.5B's cut to 0 starts at L17). On Llama-2 over ≥4 consecutive tested layers: held (all seven, L16-L28 to ≤7%).
 
+### 99. Plan 152: is the late "I don't know" direction a refusal direction too? (2026-10-21) **[five models; the late unknown diff-of-means (§93, §98) projected out of the generated tokens only on JailbreakBench, 128 tokens, phrase refusal and LG2 labels (refuse / moralise / other / comply); on Llama-2 also its refusal directions at L16 / L18 out of the answer on familiarity_dial, judged; `...-jbb-safety-unklatejbb.json` (+`-deflect`), `Llama-2-7b-chat-hf-familiarity-dial-reflatefam.json`]**
+
+JailbreakBench, refuse / moralise / comply % with the unknown direction out of the answer (invented-entity "I don't know" with the same direction out, from §98, in brackets):
+
+| | baseline | unknown direction out of the answer |
+|---|---|---|
+| Qwen2.5-3B | 88 / 4 / 2 | L21 88 / 5 / 2 (33); L27 76 / 8 / 4 (0); L29 **51 / 25 / 9** (3) |
+| Qwen2.5-1.5B | 99 / 0 / 1 | L17 95 / 0 / 2 (0); L19 94 / 2 / 2 (0); L21 **41 / 16 / 20** (3); L23 **32 / 31 / 2** (0) |
+| Llama-2-7b | 97 / 0 / 1 | L16 97 (3); L18 97 (0); L22 96 (7) |
+| Qwen2.5-7B | 91 / 0 / 4 | L21 83 / 4 / 4 |
+| Llama-3.2-1B | 88 / 1 / 6 | L12 86 / 0 / 7 |
+
+Llama-2, its refusal directions out of the answer: invented "I don't know" 33 → 27% (L16) / 27% (L18).
+
+- **The overlap runs one way.** On the 3B, the L27 refusal direction removes "I don't know" (§89), but the L27 unknown direction, which also removes it, leaves 76% refusal. On the 1.5B the unknown directions at L17-L19 remove "I don't know" completely and leave refusal at 94-95%. The late refusal direction carries every kind of declining; the unknown direction is specific to "I don't know" at these layers.
+- **Deeper in the refusal window the unknown direction does cut refusal phrasing** (the 3B's L29, the 1.5B's L21-L23), but mostly into moralising and other non-compliant answers rather than compliance (2-20%), unlike the refusal direction (§91: 61% LG2-unsafe on the 1.5B).
+- **On Llama-2 the two are separate in both directions.** Its unknown direction, removable from the answer at every layer, does not move refusal, and its refusal directions do not move "I don't know".
+
+Predictions (plan 152): on the 3B and the 1.5B some late unknown direction cuts refusal ≥30pp: held (3B L29 −37, 1.5B L23 −67; mostly into moralising). On Llama-2 none moves refusal >10pp: held. Its refusal directions cut invented "I don't know" ≥20pp: failed (−6).
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.
