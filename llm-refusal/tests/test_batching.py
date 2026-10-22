@@ -210,3 +210,18 @@ def test_auto_resolves_to_power_of_two_on_real_model(tiny_setup):
     ev = _evaluator(tiny_setup, "auto")
     bs = ev.resolve_batch_size(PROMPTS, 512)
     assert bs >= 1 and bs & (bs - 1) == 0 and bs <= batching.MAX_AUTO_BATCH_SIZE
+
+
+def test_resolve_auto_shrinks_with_declared_memory_reserve(monkeypatch):
+    """env.MEMORY_RESERVE_ENV (memory another process holds) comes off the planning budget."""
+    import env
+    monkeypatch.setattr(batching, "weight_bytes", lambda m: 16 * 10**9)
+    monkeypatch.setattr(batching, "device_total_bytes", lambda d: 38 * 10**9)
+    model, fmt = _fake_model(), _formatter(60)
+    monkeypatch.delenv(env.MEMORY_RESERVE_ENV, raising=False)
+    alone = resolve_batch_size(AUTO, model, fmt, ["p"] * 10, 128)
+    monkeypatch.setenv(env.MEMORY_RESERVE_ENV, "16")
+    shared = resolve_batch_size(AUTO, model, fmt, ["p"] * 10, 128)
+    assert 1 <= shared < alone
+    monkeypatch.setenv(env.MEMORY_RESERVE_ENV, "0")
+    assert resolve_batch_size(AUTO, model, fmt, ["p"] * 10, 128) == alone

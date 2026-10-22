@@ -15,7 +15,8 @@ So "auto" is dynamic in what it adapts to, but deterministic in outcome. It pick
 the largest power of two whose ESTIMATED peak memory fits a budget derived from
 the device's TOTAL memory and the model's weights. That budget does not depend
 on current free memory, so the same machine, model, prompt set and generation
-length always resolve to the same batch size. OOM is handled by a backstop,
+length always resolve to the same batch size (a declared reserve for other
+processes, env.MEMORY_RESERVE_ENV, shrinks the budget and is logged). OOM is handled by a backstop,
 not by the choice: `map_batched` splits a failing batch in half and records
 that it did, because those rows then ran at a different batch shape.
 """
@@ -45,7 +46,18 @@ ESTIMATE_SAFETY_FACTOR = 1.25
 
 # MPS allocator watermarks live in env.py (torch-free, so entry points can set
 # them before importing torch); re-exported here for callers of batching.
-from env import MPS_WATERMARKS  # noqa: E402,F401
+from env import MPS_WATERMARKS, memory_reserve_bytes  # noqa: E402,F401
+
+
+def plannable_bytes(model, reserve_bytes: int = 0) -> int:
+    """device total - weights - reserve_bytes - the process-wide reserve for other processes
+    (env.MEMORY_RESERVE_ENV, e.g. a training job sharing the machine)."""
+    return device_total_bytes(model.device) - weight_bytes(model) - reserve_bytes - memory_reserve_bytes()
+
+
+def _reserve_note() -> str:
+    r = memory_reserve_bytes()
+    return f", {r / 1e9:.0f} GB reserved for other processes" if r else ""
 
 
 def parse_batch_size(value: Union[str, int]) -> Union[str, int]:
@@ -128,7 +140,7 @@ def forward_token_budget(model, memory_fraction: float = AUTO_MEMORY_FRACTION) -
     inter = getattr(c, "intermediate_size", None) or 4 * c.hidden_size
     per_token = ESTIMATE_SAFETY_FACTOR * (2 * c.num_hidden_layers * kv_heads * head_dim * b
                                           + (4 * c.hidden_size + 3 * inter) * b)
-    budget = memory_fraction * (device_total_bytes(model.device) - weight_bytes(model))
+    budget = memory_fraction * plannable_bytes(model)
     return int(budget / per_token)
 
 
@@ -140,12 +152,12 @@ def resolve_forward_batch_size(requested: Union[str, int], model, max_tokens: in
     if requested != AUTO:
         return requested
     per_row = estimate_forward_bytes_per_row(model.config, model.dtype, max_tokens)
-    budget = memory_fraction * (device_total_bytes(model.device) - weight_bytes(model) - reserve_bytes)
+    budget = memory_fraction * plannable_bytes(model, reserve_bytes)
     bs = 1
     while bs * 2 <= cap and bs * 2 * per_row <= budget:
         bs *= 2
     logger.info(f"Auto forward batch size: {bs} (longest sequence {max_tokens} tokens; "
-                f"~{per_row / 1e6:.0f} MB/row est. vs {budget / 1e9:.1f} GB budget, cap {cap})")
+                f"~{per_row / 1e6:.0f} MB/row est. vs {budget / 1e9:.1f} GB budget{_reserve_note()}, cap {cap})")
     return bs
 
 
@@ -166,12 +178,12 @@ def resolve_batch_size(requested: Union[str, int], model, prompt_formatter, prom
         return 1
     prompt_tokens = max(int(prompt_formatter.format_batch([p])['attention_mask'].sum()) for p in prompts)
     per_row = estimate_bytes_per_row(model.config, model.dtype, prompt_tokens, max_new_tokens)
-    budget = memory_fraction * (device_total_bytes(model.device) - weight_bytes(model) - reserve_bytes)
+    budget = memory_fraction * plannable_bytes(model, reserve_bytes)
     bs = 1
     while bs * 2 <= cap and bs * 2 * per_row <= budget:
         bs *= 2
     logger.info(f"Auto batch size: {bs} (longest prompt {prompt_tokens} tokens + {max_new_tokens} new; "
-                f"~{per_row / 1e6:.0f} MB/row est. vs {budget / 1e9:.1f} GB budget, cap {cap})")
+                f"~{per_row / 1e6:.0f} MB/row est. vs {budget / 1e9:.1f} GB budget{_reserve_note()}, cap {cap})")
     return bs
 
 
