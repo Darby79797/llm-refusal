@@ -2456,6 +2456,88 @@ Predictions (plan 153): at ×0.25-0.5 L18 cuts ≥30pp: held (×0.5, −33). L18
 
 Predictions (plan 154): ≥30% refusal without >20% degenerate on ≥3/4 window models: failed (2/4: 7B, 3B). The control ≤10% at ×1-×2: held (0%).
 
+### 102. Plan 155: answer-only addition at every late layer (2026-10-22) **[eight models; the refusal diff-of-means of every late layer added at its own layer on the generated tokens only (`addpos:none+gen`, ×2; the first token is untouched) on harmless prompts; r̂ the same way ×1 / ×2 on Llama-3-8B, Llama-2, the 0.5B; 128 tokens, phrase refusal (degenerate % in brackets); with §101 for the layers it covered (7B L18, 3B L27, 1.5B L20, 1B L10, Llama-3.1 L24); `...-jbb-safety-answeraddmap.json`]**
+
+Phrase refusal % by the layer the direction was taken at (r̂'s layer in brackets; bold ≥30% with ≤20% degenerate; §90's removal peaks in the last column):
+
+| | baseline | layers that induce refusal | every other layer | r̂ ×1 / ×2 in the answer | removal peaks (§90) |
+|---|---|---|---|---|---|
+| Llama-3.1-8B (11) | 0 | L12 60 (36), **L14 48 (7)**, **L16 34 (2)**; L13 29, L15 20 (11) | ≤7 (L17-L29) | 11 / 76 (79) (§101) | none |
+| Llama-3-8B (12) | 0 | **L14 39 (2), L15 48 (5), L16 61 (2), L17 39 (8)** | L13 6, L18 10, ≤6 after | 1 / 10 | none |
+| Llama-2-7b (12) | 1 | **L13 90 (0), L14 81 (2), L15 73 (3), L16 38 (0)** | L17-L18 10, ≤6 after | 15 / 85 | none |
+| Qwen2.5-0.5B (14) | 5 | none: L13 18 (35) | L15-L21 6-12 (5-11) | 11 / 39 (7) | none |
+| Qwen2.5-7B (16) | 3 | L15 95 (48), **L17 96 (18), L18 97 (12), L19 90 (10), L20 60 (0)** | L21 6, ≤4 after | 65 / 98 (§101) | L17-L18 |
+| Qwen2.5-3B (21) | 4 | **L21 65 (6), L22 97 (5), L23 58 (15), L24 90 (11), L25 80 (8), L26 83 (8), L27 40 (2)** | L28 6, ≤8 after | 28 / 70 (§101) | L26-L29 |
+| Qwen2.5-1.5B (16) | 8 | L16 89 (28), **L17 65 (6), L18 57 (14), L19 34 (13)** | L20 16, L21 12, ≤9 after | 16 / 88 (27) (§101) | L20, L23-L24 |
+| Llama-3.2-1B (8) | 0 | none: L8 18 (4), L9 23 (3), L10 11 (6) | ≤1 (L11-L14) | 14 / 50 (§101) | L9-L11 |
+
+- **Sufficiency sits just past r̂; necessity sits at the far end of that band.** On every model with an inducing band it starts one or two layers after r̂ and runs four to seven layers; §90's removal peaks are at its end (7B L18 in L17-L20, 3B L27 the last of L21-L27, 1.5B L20 just past L17-L19). At the band's start the direction induces refusal but removing it does nothing (3B L21-L25: 58-97% induced, ≤11pp removed in §90). Past the band every layer is ≤10%: beyond about 60% depth a refusal direction added to the answer does nothing on any model, including the 75%-depth directions (except the 3B's L27).
+- **The three large Llamas, with no answer-side necessity at any layer (§90), do have sufficiency.** Llama-2 L13 induces 90% with no degenerate answers ("Sure, I cannot fulfill your request as I cannot provide information that promotes or encourages harmful or unethical activities, including the creation of endangered species"), Llama-3-8B L16 61%, Llama-3.1 L14 48%. The refusal register is written into an answer that has already opened. Llama-3.1's are the weakest: refusal sentences tacked onto a helpful answer ("I can't provide information on that."), with repetition at L12 and L16. So on the Llamas the direction can write a refusal, but the refusals the model produces itself are not carried by it (they are set at the prompt and read by attention, §70): sufficient without being necessary.
+- **r̂ ×2 in the answer induces refusal on Llama-2 (85%) and the 0.5B (39%) but barely on Llama-3-8B (10%)**, whose r̂ is the earliest of the three relative to its band.
+- **The 0.5B and the 1B have no layer that induces refusal without breaking the answer** (the 0.5B's best is L13, 18% with 35% degenerate), as they had none that removes it cleanly (§90, §101).
+
+Predictions (plan 155): on the 7B and the 3B the inducing layers are the removal window ±1: failed (bands of four to seven layers starting at r̂ + 1, with the removal peak at their far end). No layer induces ≥30% with ≤20% degenerate on the three larger Llamas: failed (Llama-2 L13 90%, Llama-3-8B L16 61%, Llama-3.1 L14 48%, all ≤7% degenerate).
+
+### 103. Plan 156: is the unknown direction sufficient in the answer? (2026-10-22) **[seven models; the search-selected unknown direction (U) and the 75%-depth unknown diff-of-means (V, §89) added at their own layer on the generated tokens only, ×1 / ×2; familiarity_dial (30 questions per set), qwen3:4b judge, ±~17pp; degenerate % computed afterwards with the jbb detector; `...-familiarity-dial-unkadd.json`]**
+
+"I don't know" % on invented / obscure / famous entities (bold: obscure or famous ≥30pp over baseline):
+
+| | baseline | U ×1 | U ×2 | V ×1 | V ×2 |
+|---|---|---|---|---|---|
+| Llama-3.1-8B | 97 / 7 / 0 | 100 / 17 / 10 | 100 / **57** / **50** | 97 / 7 / 0 | 100 / 7 / 0 |
+| Llama-3-8B | 43 / 3 / 0 | 90 / 17 / 0 | 93 / **60** / **40** | 57 / 0 / 0 | 63 / 0 / 0 |
+| Qwen2.5-7B | 23 / 0 / 0 | 77 / 13 / 10 | 97 / **37** / 23 | 30 / 0 / 0 | 63 / 0 / 0 |
+| Llama-2-7b | 30 / 0 / 0 | 93 / **40** / **40** | 100 / **97** / **87** (degenerate 23 / 67 / 57) | 43 / 3 / 0 | 60 / 13 / 0 |
+| Qwen2.5-3B | 70 / 0 / 0 | 83 / 7 / 0 | 93 / 13 / 3 | 77 / 3 / 0 | 97 / 7 / 0 |
+| Qwen2.5-1.5B | 27 / 7 / 0 | 70 / 13 / 7 | 83 / 33 / 23 | 33 / 3 / 0 | 53 / 7 / 0 |
+| Llama-3.2-1B | 87 / 7 / 3 | 97 / 33 / 17 | 90 / **57** / **47** | 83 / 17 / 3 | 97 / 33 / 27 |
+
+Degenerate answers are ≤10% everywhere except Llama-2 at U ×2.
+
+- **The search-selected unknown direction is sufficient in the answer on most models.** At ×2 it raises famous-entity "I don't know" by 40-50pp on Llama-3.1, Llama-3-8B and Llama-3.2-1B with intact answers, by 40pp on Llama-2 already at ×1 (×2 reaches 87% but breaks 57% of the answers), and by 23pp (within noise) on the 7B and the 1.5B. The invented set saturates at 83-100%.
+- **The claim is written over intact knowledge.** The induced answers name the entity correctly and then deny knowing it: "'Jane Eyre' is a novel by Charlotte Brontë, but I couldn't find any information on this book." (Llama-3.1), "Emmy Noether was not a mathematician I couldn't find any information on her" (Llama-3-8B), "The 1994 FIFA World Cup winner could not be found." The direction carries the "I don't know" claim, not the absence of the fact; the mirror of §89, where removing it left the facts and dropped the claim (confabulation on invented entities).
+- **Sufficient where it was not necessary.** On Llama-3.1 removing U from the answer did nothing (§89: it holds the claim from the prompt), yet adding it induces the claim (+50). The same pattern as refusal on the Llamas (§102).
+- **The 75%-depth direction does not induce the claim** (≤13pp on famous entities, except the 1B's +24 at ×2), even on the 3B, the 1.5B and Llama-2, where removing it from the answer removes the claim (§89). On the 3B nothing induces "I don't know" on real entities (≤13%) although its late refusal direction removes it (§89); the 3B's answer-side "decline" direction is necessary for the claim but the unknown directions are not sufficient for it.
+
+Predictions (plan 156): famous-entity "I don't know" rises ≥30pp at some strength without breaking the answer on ≥3/7: held (4/7: Llama-3.1 +50, Llama-3-8B +40, Llama-3.2-1B +44, Llama-2 +40 at ×1).
+
+### 104. Plan 157: is the limitation direction sufficient in the answer? (2026-10-22) **[six models; the search-selected limitation direction (`limits4`, inability realtime memory persona pooled) added at its own layer on the generated tokens only, ×1 / ×2; limit_factorial (32 prompts per cell), qwen3:4b judge, ±~17pp; degenerate % computed afterwards; `...-limit-factorial-limadd.json`]**
+
+Neither cell ("I can't" / "I don't know" / asserts %, degenerate in brackets) and the capability-only cell's "I can't" %:
+
+| | neither: baseline | neither: ×1 | neither: ×2 | "I can't" on the capability cell: baseline → ×1 → ×2 |
+|---|---|---|---|---|
+| Llama-3.1-8B | 0 / 0 / 100 | 0 / 0 / 100 | 6 / **34** / 12 (9) | 50 → 81 → 97 |
+| Llama-3-8B | 0 / 0 / 100 | 0 / 0 / 91 | 19 / 0 / 19 (31) | 69 → 100 → 100 |
+| Qwen2.5-7B | 0 / 0 / 100 | 0 / 6 / 84 | **34** / 22 / 16 (31) | 78 → 91 → 97 |
+| Qwen2.5-3B | 0 / 0 / 100 | 0 / 0 / 100 | 0 / 22 / 69 (41) | 81 → 91 → 88 |
+| Qwen2.5-1.5B | 0 / 0 / 97 | 0 / 0 / 97 | 3 / 9 / 75 (0) | 75 → 94 → 41 (66 declines) |
+| Llama-3.2-1B | 0 / 0 / 100 | 0 / 25 / 88 | 0 / **69** / 19 (0) | 50 → 75 → 66 |
+
+- **"I can't" is not induced cleanly anywhere.** On the neither cell only the 7B (34%) and Llama-3-8B (19%) produce it, at ×2, where 31% of answers are degenerate and the rest are mangled ("Harrods is a renowned online shopping platform, but it is not possible to interact with you, as you are not a computer program."). At ×1 the neither cell is unchanged on every model, while the capability cell's "I can't" rises (Llama-3.1 50 → 81, Llama-3-8B 69 → 100, 1.5B 75 → 94): the direction amplifies an inability claim the prompt licensed, but does not create one.
+- **What it does induce is "I don't know".** Llama-3.1 34%, Llama-3.2-1B 69%, the 7B and the 3B 22%, all at ×2: "I don't have access to the internet so I cannot give you a determination" (Llama-3.1), "I don't know where you are, I'm not following you" (1B). The answer-side content of the pooled limitation direction is the realtime / memory register ("I can't check", "I don't have access") rather than physical inability.
+- **At ×2 the answer breaks before it claims.** Asserts fall from 100% to 12-19% on the three large models without a matching rise in any claim; the direction turns answers into limitation-flavoured fragments. Contrast the refusal direction (§101-§102: clean refusals at ×2 on the 7B, 3B, Llama-2) and the unknown direction (§103: clean "could not be found"). The limitation direction is the weakest of the three in the answer, as it was for removal (§89: no late direction, only −28/−32pp on the two Llama-3s).
+
+Predictions (plan 157): neither-cell "I can't" rises ≥30pp on ≥2/6: failed (1/6: the 7B, +34 with 31% degenerate). Llama-3.1 and Llama-3-8B the likeliest: failed (Llama-3.1 induces "I don't know" instead; Llama-3-8B +19).
+
+### 105. Plan 158: carry against dose on the other window models (2026-10-22) **[Qwen2.5-7B (L18), Qwen2.5-3B (L27), Qwen2.5-1.5B (L20), Llama-3.2-1B (L10); harmless prompts, r̂ added on the prompt tokens (`addpos:all`) at ×0.5 / ×0.75 / ×1 / ×1.5, alone and with the peak direction projected out of the generated tokens; 128 tokens, phrase refusal; with §100 (7B ×0.25-×1); `...-jbb-safety-carrydose.json`]**
+
+Refusal % alone → with the peak out of the answer (share of the induced refusal removed):
+
+| r̂ on the prompt | Qwen2.5-7B | Qwen2.5-3B | Qwen2.5-1.5B | Llama-3.2-1B |
+|---|---|---|---|---|
+| ×0.5 | 55 → 21 (62%) | 66 → 3 (95%) | 54 → 9 (83%) | 48 → 25 (48%) |
+| ×0.75 | 98 → 84 (14%) | 96 → 5 (95%) | 91 → 20 (78%) | 81 → 41 (49%) |
+| ×1 | 100 → 99 (1%) | 100 → 20 (80%) | 96 → 31 (68%) | 91 → 39 (57%) |
+| ×1.5 | 100 → 99 (1%) | 100 → 39 (61%) | 100 → 37 (63%) | 85 → 43 (49%) |
+
+The 7B's ×0.5 row replicates §100 (55 → 22).
+
+- **The 7B is the exception, not the rule.** On the 3B, the 1.5B and the 1B the peak direction out of the answer removes most of the induced refusal at every dose, ×1.5 included (61-63% on the Qwens, half on the 1B, whose peak only ever removes half of its own refusal, §91). On the 7B the removable share collapses between ×0.5 and ×0.75 (62% → 14% → 1%).
+- **On the Qwens the share removed falls gently with dose** (3B 95 → 61%, 1.5B 83 → 63% from ×0.5 to ×1.5); the 1B is flat. So on these three models the answer carries the refusal whatever sets it, and a stronger prompt-side push adds a little that the answer-side direction does not carry. On the 7B a push at ≥×0.75 bypasses the answer-side direction entirely; with §102 (its inducing band L17-L20) this fits an answer that reads a strong prompt-side signal by attention and falls back on the L18 direction when that signal is moderate.
+
+Predictions (plan 158): the share removed falls with dose on ≥3/4: held (7B 62 → 1, 3B 95 → 61, 1.5B 83 → 63; the 1B flat at 48-57), though on the Qwens the fall is 20-35pp against the 7B's cliff.
+
 ## Two Padding Bugs
 
 There were two, in opposite directions, and the first was misdiagnosed for months.

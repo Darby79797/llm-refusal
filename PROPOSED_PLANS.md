@@ -1801,29 +1801,33 @@ Outcome (RESULTS §101): first failed (2/4: 7B 97% at ×2, 3B 40%; the 1.5B / 1B
 
 ## Sufficiency in the answer, refusal and concepts (added 2026-10-21 14:50, to run past 09:00). Jobs 4400-4450
 
-### 155. Answer-only addition at every late layer — job 4400 (~3 h)
+### 155. Answer-only addition at every late layer — job 4400 (~3 h) — DONE
 
 §101 found the peak direction sufficient on the 7B and the 3B. Every late layer's refusal diff-of-means added on the
 generated tokens only (×2) on harmless prompts, eight models; r̂ ×1 / ×2 on Llama-3-8B, Llama-2, the 0.5B. Predicted:
 on the 7B and the 3B the layers that induce ≥30% refusal without >20% degenerate are the removal window ±1 (p≈0.4);
 no layer does so on the three larger Llamas (p≈0.6).
+Outcome (RESULTS §102): both failed. The inducing band starts at r̂ + 1 and runs 4-7 layers with the removal peak at its far end; Llama-2 L13 90%, Llama-3-8B L16 61%, Llama-3.1 L14 48%, all ≤7% degenerate. Sufficient without necessary on the Llamas.
 
-### 156. Is the unknown direction sufficient in the answer? — job 4410 (~2 h)
+### 156. Is the unknown direction sufficient in the answer? — job 4410 (~2 h) — DONE
 
 familiarity_dial with the search-selected and 75%-depth unknown directions added on the generated tokens only, ×1 / ×2,
 seven models, judged. Predicted: famous-entity "I don't know" rises ≥30pp at some strength without breaking the answer
 on ≥3/7 (p≈0.4).
+Outcome (RESULTS §103): held (4/7: Llama-3.1 +50, Llama-3-8B +40, Llama-3.2-1B +44, Llama-2 +40 at ×1). The claim is written over intact knowledge ("'Jane Eyre' is a novel by Charlotte Brontë, but I couldn't find any information on this book"). The 75%-depth direction induces nothing.
 
-### 157. Is the limitation direction sufficient in the answer? — job 4420 (~1.5 h)
+### 157. Is the limitation direction sufficient in the answer? — job 4420 (~1.5 h) — DONE
 
 limit_factorial with the search-selected limitation direction added on the generated tokens only, ×1 / ×2, six models.
 Predicted: "I can't" on the neither cell rises ≥30pp on ≥2/6 (p≈0.4), most likely Llama-3.1 and Llama-3-8B, where
 removing it from the answer works (§89).
+Outcome (RESULTS §104): failed (1/6: the 7B +34 at ×2 with 31% degenerate). ×1 amplifies "I can't" only where the prompt licensed it; ×2 induces "I don't know" (Llama-3.1 34%, 1B 69%) and breaks answers rather than producing "I can't".
 
-### 158. Carry against dose on the other window models — job 4430 (~1.2 h)
+### 158. Carry against dose on the other window models — job 4430 (~1.2 h) — DONE
 
 §100 on the 3B, 1.5B, 1B (and the 7B at ×0.75): r̂ on the prompt ×0.5 / ×0.75 / ×1 / ×1.5, alone and with the peak
 out of the answer. Predicted: the share of induced refusal the peak removes falls with dose on ≥3/4 (p≈0.6).
+Outcome (RESULTS §105): held (7B 62 → 1%, 3B 95 → 61%, 1.5B 83 → 63%; the 1B flat at ~50%). The 7B's cliff is the exception: on the 3B / 1.5B / 1B the peak removes most of the induced refusal even at ×1.5.
 
 ### 159. Long answers under answer-only addition — job 4440 (~40 min)
 
