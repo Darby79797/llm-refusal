@@ -6,7 +6,7 @@ We replicate the **direction-selection** result of Arditi & Obeso's "Refusal in 
 
 Scope: this covers §2.3 (extracting the direction) and **both halves of §3**. The refusal score replicates, and since 2026-09-24 so does the *safety* score: Llama Guard 2 over JailbreakBench at 512 tokens gives 0.98 → 0.17 under directional ablation (paper: 0.97 → 0.15). See RESULTS.md. Not replicated: the CE-loss metrics (our Alpaca data has no completions). §4 (weight orthogonalisation) replicates as of 2026-10-01: the edited model matches hook ablation to bf16 precision noise on all 7 models, and on Llama-3-8B gives refusal 0.96 → 0.00 and LlamaGuard-unsafe 2% → 85% (paper: 0.95 → 0.01, 3% → 85%). Its CE cost is measured on Alpaca completions, Pile and on-distribution text with a random-direction control (RESULTS.md "What the Edit Costs"). §5 (adversarial suffixes) remains out of scope.
 
-The replication was blocked for months by an **indexing bug on padded batches**, and the behavioural numbers were subsequently wrong again for a different padding reason. Both are recorded under "Bugs Found" below and in RESULTS.md "Two Padding Bugs".
+The replication was blocked for months by an **indexing bug on padded batches**, and the behavioural numbers were subsequently wrong again for a different padding reason. Both are recorded under "Bugs Found" below.
 
 ## What Matches
 
@@ -53,7 +53,11 @@ The real bug was **indexing**. `scoring._get_logits` read `attention_mask.sum(-1
 ### 1b. Generating from a pad slot (CRITICAL, introduced by the fix above)
 Evaluation called `model.generate()` on right-padded batches. `generate()` reads next-token logits from the **last column**, which is a pad slot for every row shorter than the longest in its batch, so those rows decoded from `<|endoftext|>` at position sentinel 1. The corrupted distribution has entropy 5.06 nats vs 2.58, with the refusal-onset token `'I'` falling from rank 1 (p=0.327) to rank 5 (p=0.041). Corruption is binary in pad count (logits identical for k=1..10) and confined to the first decoding step.
 
-Impact on the Arditi comparison: every Qwen refusal rate was depressed by up to 24pp, understating the paper's effect. Llama was largely spared because `<|eot_id|>` is a turn boundary — the model re-opens a turn and refuses again. **Fix**: evaluation uses `generate_with_hooks()`. See RESULTS.md "Two Padding Bugs".
+Impact on the Arditi comparison: every Qwen refusal rate was depressed by up to 24pp, understating the paper's effect. Llama was largely spared because `<|eot_id|>` is a turn boundary — the model re-opens a turn and refuses again. **Fix**: evaluation uses `generate_with_hooks()`, which also stops on any id in `generation_config.eos_token_id`.
+
+Why it went unnoticed: HF *does* warn ("right-padding was detected!"), but the check compares the last column against `generation_config.pad_token_id`. The code padded with `tokenizer.pad_token` (`<|endoftext|>`) while passing `pad_token_id=tokenizer.eos_token_id` (`<|im_end|>`) to `generate()` — different values on Qwen, so no warning. On Llama they coincide, and the warning is in the old logs (~296 per `repro-Llama-*-evaluate.log`, zero in the Qwen ones).
+
+Guarded by `test_generation.py::test_batched_generation_matches_individual` (batch-invariance), `::test_generation_ignores_shipped_sampling_config` (pure greedy) and `test_unit.py` (evaluation never calls `model.generate()`).
 
 ### 1c. Undeclared repetition penalty on Qwen (HIGH)
 `model.generate()` applies the model's shipped `generation_config`, and Qwen2.5 ships `repetition_penalty` 1.05–1.1. It is a logits processor, so it applied even under `do_sample=False`. Every CLI Qwen result was decoded with a repetition penalty rather than the plain greedy decoding the paper specifies (§2.5), and was not comparable with the `scripts/` results, which used pure greedy. With `repetition_penalty=1.0` the two paths agree bit-for-bit.

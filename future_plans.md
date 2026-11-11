@@ -8,7 +8,7 @@ The refusal direction r̂ controls refusal on all 7 models, and the safety half 
 
 ## Done, see RESULTS.md
 
-- Re-runs after the two padding bugs (search, evaluate, non-refusal concepts, cross-concept, safety score): Best Layers, Safety Score, Non-Refusal Concepts, Cross-Concept, "Two Padding Bugs".
+- Search, evaluate, non-refusal concepts, cross-concept and safety score on all 7 models: Best Layers, Safety Score, Non-Refusal Concepts, Cross-Concept.
 - Sycophancy from a response contrast: Limb Experiments section 4 (`sycophancy_response`, up to 83% induced).
 - Selection tie-break by induce; non-apologetic refusal phrases: Best Layers / Key Findings.
 - Arditi weight orthogonalisation and capability cost: "Weight Orthogonalisation", "What the Edit Costs".
