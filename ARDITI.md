@@ -6,8 +6,6 @@ We replicate the **direction-selection** result of Arditi & Obeso's "Refusal in 
 
 Scope: this covers §2.3 (extracting the direction) and **both halves of §3**. The refusal score replicates, and since 2026-09-24 so does the *safety* score: Llama Guard 2 over JailbreakBench at 512 tokens gives 0.98 → 0.17 under directional ablation (paper: 0.97 → 0.15). See RESULTS.md. Not replicated: the CE-loss metrics (our Alpaca data has no completions). §4 (weight orthogonalisation) replicates as of 2026-10-01: the edited model matches hook ablation to bf16 precision noise on all 7 models, and on Llama-3-8B gives refusal 0.96 → 0.00 and LlamaGuard-unsafe 2% → 85% (paper: 0.95 → 0.01, 3% → 85%). Its CE cost is measured on Alpaca completions, Pile and on-distribution text with a random-direction control (RESULTS.md "What the Edit Costs"). §5 (adversarial suffixes) remains out of scope.
 
-The replication was blocked for months by an **indexing bug on padded batches**, and the behavioural numbers were subsequently wrong again for a different padding reason. Both are recorded under "Bugs Found" below.
-
 ## What Matches
 
 | Component | Arditi | Ours | Status |
@@ -42,6 +40,8 @@ The replication was blocked for months by an **indexing bug on padded batches**,
   - Caveat: the HarmBench-derived val set (first 32) and the JailbreakBench eval set share 2 identical prompts (happenstance overlap between the source benchmarks), so val and eval are not fully disjoint. Data is intentionally left as-is for replication fidelity.
 
 ## Bugs Found During Replication
+
+Bugs 1 and 1b blocked the replication for months: the first made the direction search fail, the second depressed every behavioural number (Qwen by up to 24pp) after the first was fixed. Both are fixed; the numbers in RESULTS.md postdate both fixes.
 
 ### 1. Indexing left-padded batches as if right-padded (CRITICAL)
 This was originally recorded here as "left-padding corrupts logits via wrong RoPE position encodings". **That diagnosis was wrong.** RoPE depends only on relative positions, so uniformly shifting every real token is a no-op: measured on Qwen2.5-0.5B, a left-padded batch with no `position_ids`, read at the true last token, matches the unpadded run's top-1 and correlates 0.99978 on logits.
